@@ -40,39 +40,43 @@ def mds_load(MDSconn,TDI, tree, shot):
 
     return data
 
-      
-#build a large dictionary with all settings
-kin_profs = 'Te', 'ne', 'Ti', 'vtor'
-default_settings = OrderedDict()
+
+def default_settings(MDSconn, shot):
+    '''Build a large dictionary with all settings.
+    Note that input arguments are both actually dummies at the moment, but they are needed
+    to ensure an identical call structure to the equivalent functions for DIII-D and AUG.
+    '''
+    kin_profs = 'Te', 'ne', 'Ti', 'vtor'
+    default_settings = OrderedDict()
 
 
-default_settings['Te'] =  {\
-    'systems':OrderedDict((( 'TS system',(['core',True], ['edge',True])),
-                            ('ECE system',(['slow',False],['fast',False])))),
-    'load_options':{'TS system':{},
-                    'ECE system':OrderedDict((("shift",{'dR [cm] =': 0.0}),))}}
-            
-        
-            
-default_settings['ne'] =  {\
+    default_settings['Te'] =  {\
         'systems':OrderedDict((( 'TS system',(['core',True], ['edge',True])),
-                                ( 'Reflectometer',(['all bands',False],)),
-                                ( 'TCI interf.',(['fit TCI data',False],['rescale TS',False])) ) ),
-            'load_options':{'TS system':{},
-                            'Reflectometer':{'Position error':{'R shift [cm]':0.0}}}}
-            
-default_settings['Ti'] =  {\
-        'systems':OrderedDict((( 'HIREX system',(['H-like',True], ['He-like',True])),
-                                ( 'TS system'  ,(['edge',True],)) ) ),
-            'load_options':{'HIREX system':{'Edition':{'THT':0.},
-                                           'Correction':    {'Shift wrst. TS':True}}}}
-            
+                                ('ECE system',(['slow',False],['fast',False])))),
+        'load_options':{'TS system':{},
+                        'ECE system':OrderedDict((("shift",{'dR [cm] =': 0.0}),))}}
 
-default_settings['vtor'] =  {\
-        'systems':{ 'HIREX system':(['H-like',True], ['He-like',True])},
-            'load_options':{'HIREX system':{'Edition':{'THT':0.}}}}
-            
 
+
+    default_settings['ne'] =  {\
+            'systems':OrderedDict((( 'TS system',(['core',True], ['edge',True])),
+                                    ( 'Reflectometer',(['all bands',False],)),
+                                    ( 'TCI interf.',(['fit TCI data',False],['rescale TS',False])) ) ),
+                'load_options':{'TS system':{},
+                                'Reflectometer':{'Position error':{'R shift [cm]':0.0}}}}
+
+    default_settings['Ti'] =  {\
+            'systems':OrderedDict((( 'HIREX system',(['H-like',True], ['He-like',True])),
+                                    ( 'TS system'  ,(['edge',True],)) ) ),
+                'load_options':{'HIREX system':{'Edition':{'THT':0},
+                                               'Correction':    {'Shift wrst. TS':True}}}}
+
+
+    default_settings['vtor'] =  {\
+            'systems':{ 'HIREX system':(['H-like',True], ['He-like',True])},
+                'load_options':{'HIREX system':{'Edition':{'THT':0}}}}
+
+    return default_settings
  
   
 
@@ -394,7 +398,6 @@ class data_loader:
         
         
     def load_hirex(self, tbeg,tends,systems, options=None):
-        #TODO dat tam moznost nacitat TS for TI
         
         tht = 0
         if options is not None:
@@ -402,8 +405,7 @@ class data_loader:
             
         T = time()
 
-                
-        #use cached data
+        # use cached data
         self.RAW.setdefault('HIREX',{})
         hirex = self.RAW['HIREX'].setdefault(tht,{'systems':systems})
 
@@ -455,7 +457,7 @@ class data_loader:
             pro = pro[:,:nt,:nr]
             perr = perr[:,:nt,:nr]
             
-            #exclude corruptetd points
+            #exclude corrupted points
             valid = np.isfinite(pro)&np.isfinite(perr)
             valid &= (rho <  .9)[None]#measurement too far outside are unreliable
             pro[~np.isfinite(pro)] = 0
@@ -481,9 +483,6 @@ class data_loader:
             hirex[sys]['rho'] = xarray.DataArray(rho,dims=['time','bin'], attrs={'units':'-'})
             hirex[sys]['time'] = xarray.DataArray(tvec,dims=['time'], attrs={'units':'s'})
             hirex[sys]['bin'] = xarray.DataArray(np.arange(nr),dims=['bin'])
-            
-#x
-        #print(hirex)
  
         print('\t done in %.1fs'%(time()-T))
 
@@ -518,8 +517,6 @@ class data_loader:
         else:
             print("SOL reflectometer reliability=%d" % (msg.item()))
 
-        
-        
         
         if np.size(ne) == 0:
             printe( '\tNo Reflectometer data')
