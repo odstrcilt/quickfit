@@ -716,7 +716,7 @@ class DataFit():
             for var in ('m2g','ind_diag','diags','channel','tres','xlab','ylab','plot_rho','plot_tvec'):
                 setattr(self.fitPlot,var,self.load_options[self.kin_prof][var])
             self.set_trange(*self.load_options[self.kin_prof]['trange'])
-            print('if it was already initialized',self.load_options[self.kin_prof]['trange'] )
+            #print('if it was already initialized',self.load_options[self.kin_prof]['trange'] )
 
         #print('change_set_prof_load',[] )
         #update the fit figure
@@ -947,10 +947,11 @@ class DataFit():
             
         finally:
             self.fit_frame.config(cursor="")
-        #print('done')
-        #print('ddd3',[self.tstep])
-        #use first word of kin_prof name (for example of nimp Z=10)
-        kin_prof = self.kin_prof.split(' ')[0]
+  
+        #for impurity load nimp instead of the actual name 
+        kin_prof = self.kin_prof
+        if kin_prof[0] == 'n' and kin_prof != 'ne':
+            kin_prof = 'nimp'
         
         self.fitPlot.init_plot_data(kin_prof, data_d,   self.elms)
 

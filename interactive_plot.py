@@ -179,8 +179,10 @@ class FitPlot():
                 plot_rho.append(ch['rho'].values )
 
             diags.append(ch['diags'].values)
-            unit  = ch[prof].attrs['units'] 
             labels.append(ch[prof].attrs['label'])
+
+        
+        unit  = ch[prof].attrs['units'] 
             
         if n_ch == 0:
             print('No data')
@@ -269,9 +271,9 @@ class FitPlot():
         self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
 
       
-        self.zip_fit_mean, = self.ax_main.plot([],[],'--',c='.5',linewidth=.5,visible=False)
-        self.zip_fit_min,  = self.ax_main.plot([],[],':', c='.5',linewidth=.5,visible=False)
-        self.zip_fit_max,  = self.ax_main.plot([],[],':', c='.5',linewidth=.5,visible=False)
+        self.zip_fit_mean, = self.ax_main.plot([],[],'--',c='.5',linewidth=1,visible=False)
+        self.zip_fit_min,  = self.ax_main.plot([],[],':', c='.5',linewidth=1,visible=False)
+        self.zip_fit_max,  = self.ax_main.plot([],[],':', c='.5',linewidth=1,visible=False)
 
 
         

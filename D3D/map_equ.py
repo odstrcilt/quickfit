@@ -637,23 +637,18 @@ class equ_map:
         dz = (self.Zmesh[-1] - self.Zmesh[0])/(len(self.Zmesh) - 1)
 
         nt_in = np.size(tarr)
-
-        if np.size(r_in, 0) == 1:
-            r_in = np.broadcast_to(r_in, (nt_in,)+r_in.shape[1:]) 
-        if np.size(z_in, 0) == 1:
-            z_in = np.broadcast_to(z_in, (nt_in,)+r_in.shape[1:]) 
-
         if r_in.shape!= z_in.shape:
-            raise Exception('Wrong shape of r_in or z_in')
-        
-        if np.size(r_in,0) != nt_in:
-            raise Exception('Wrong shape of r_in %s'%str(r_in.shape))
-        if np.size(z_in,0) != nt_in:
-            raise Exception('Wrong shape of z_in %s'%str(z_in.shape))
-        if np.shape(r_in) != np.shape(z_in):
             raise Exception( 'Not equal shape of z_in and r_in %s,%s'\
                             %(str(z_in.shape), str(z_in.shape)) )
 
+        if np.size(r_in,0) != nt_in and np.size(r_in,0) != 1:
+            r_in = r_in[None]
+            z_in = z_in[None]
+
+        if np.size(r_in, 0) == 1:
+            r_in = np.broadcast_to(r_in, (nt_in,)+r_in.shape[1:]) 
+            z_in = np.broadcast_to(z_in, (nt_in,)+z_in.shape[1:]) 
+ 
         self._read_pfm()
         Psi = np.empty((nt_in,)+r_in.shape[1:], dtype=np.single)
         
