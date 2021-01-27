@@ -598,7 +598,8 @@ class FitPlot():
             
             #remove points affected by elms
             if self.fit_options['elmrem'].get() and len(self.elms['tvec']) > 2:
-                elm_ind = np.interp(self.plot_tvec,self.elms['tvec'],self.elms['data']) < 0
+                elm_phase = np.interp(self.plot_tvec,self.elms['tvec'],self.elms['data'])
+                elm_ind = (elm_phase < 0.1) | ((elm_phase > 0.95)&(elm_phase < 1)) #remove also data shortly before an elm 
                 self.options['elmrem_ind'] = (self.plot_rho >.8) & elm_ind
                 self.m2g.Yerr.mask |= self.options['elmrem_ind']
             elif np.any(self.options['elmrem_ind']):
@@ -706,9 +707,10 @@ class FitPlot():
           
             self.fit_frame.after(1,self.plot_step)
             time.sleep(1e-3)
-
-            self.canvasMPL.get_tk_widget().update()
- 
+            try:
+                self.canvasMPL.get_tk_widget().update()
+            except:
+                return
                 
             self.updateMainSlider()
             

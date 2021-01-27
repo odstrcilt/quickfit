@@ -366,7 +366,7 @@ class DataFit():
                 from D3D.map_equ_eqdsk import equ_map as equ_map_eqdsk
             elif self.device == 'CMOD': 
                 from CMOD.map_equ_eqdsk import equ_map as equ_map_eqdsk
-            self.eqm = self.equ_map_eqdsk(self.eqdsk)
+            self.eqm = equ_map_eqdsk(self.eqdsk)
             self.eqm.Open()
        
         else:
@@ -581,10 +581,10 @@ class DataFit():
             if kin_prof in ['omega','vtor']:
                 dic['fit_options']['transformation']='asinh'
 
-            if kin_prof in ['Te','ne','nimp']:
+            if kin_prof in ['Te','ne']:
                 dic['options']['eta']=.5 #due to slow core laser
 
-            if kin_prof in [ 'nimp','Mach']:
+            if kin_prof in ['Mach']:
                 dic['options']['lam']=.45  
                 
             if kin_prof in ['Ti','Mach'] and self.device == 'D3D':
@@ -936,11 +936,13 @@ class DataFit():
                 self.zipfit = self.data_loader(zipfit=True)
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
-            self.elms          = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
+            self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
         
         except Exception as e:
             printe( 'Error in loading:' )
             traceback.print_exc()
+            
+            tkinter.messagebox.showerror('Error in loading data', str(e))
 
             raise
             return 
@@ -1199,13 +1201,17 @@ def main():
     parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
 
     args = parser.parse_args()
-    #try:
-        #np.load('/home/tomas/kin_data_%s.npz'%str(args.shot))
+    try:
+        #embed()
+        data = np.load(r'C:\Users\odstrcil\kin_data_%s.npz'%str(args.shot), allow_pickle=True )
+        #print(data.keys())
+        if 'nC6' in  data:
+            return 
         ##raise('Loaded')
         #exit()
-    #except:
+    except:
         #raise
-        ###pass
+        pass
     #if int(args.shot) <= 175864:
         #return
     
@@ -1270,11 +1276,12 @@ def main():
 
     if args.preload:
         for i,k in enumerate(mlp.kin_profs):
+            if k[0] =='n' and k != 'nC6' or k == 'Zeff': continue
             mlp.diag_nb.select(i)    
             mlp.init_data()
-            mlp.fitPlot.calculate()
-            np.savez_compressed('raw_data_'+args.shot, **raw)
+            #mlp.fitPlot.calculate()
         mlp.diag_nb.select(0)    
+        np.savez_compressed('raw_data_'+args.shot, **raw)
 
     else:
         myroot.mainloop()
