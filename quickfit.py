@@ -267,6 +267,7 @@ class DataFit():
             
             #get a list of availible EFIT editions
             if self.device == 'D3D':
+                #BUG is there a better way how to access all EFITS? 
                 try:
                     self.MDSconn.openTree('MHD', self.shot)
                     efit_editions = self.MDSconn.get('getnci(".EFIT**.*","path")')
@@ -288,6 +289,8 @@ class DataFit():
             efits  = ['EFIT%.2d'%i for i in range(1,10)] 
             if self.device == 'CMOD':#for cmod
                 efits = ['ANALYSIS','EFIT20']+efits
+            if self.device == 'D3D':#for D3D
+                efits = ['EFIT02er','EFITS1','EFITS2','EFITS2er']+efits
             
             
             for efit in efits:
@@ -1062,8 +1065,10 @@ class DataFit():
                         for var, opt in options.items():
                             settings[kin_prof]['load_options'][system][name][var] = opt.get()
                     else:
-                        settings[kin_prof]['load_options'][system][name] = options[0].get(), options[1]
-        
+                        try:
+                            settings[kin_prof]['load_options'][system][name] = options[0].get(), options[1]
+                        except:
+                            printe('Error in saving',system,name, options  )
         settings['EFIT'] = self.eqm.diag
         if len(data):
             self.OMFITsave.runNoGUI(shot=self.shot, fitted_profiles=data, setting=settings) 

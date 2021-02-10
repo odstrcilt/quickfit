@@ -760,7 +760,7 @@ class FitPlot():
         poly = self.main_slider.poly.get_xy()
         poly[2:4,0] = val
         self.main_slider.poly.set_xy(poly)   
-        self.main_slider.valtext.set_text('%.2f'%val)
+        self.main_slider.valtext.set_text('%.3f'%val)
         
         
         

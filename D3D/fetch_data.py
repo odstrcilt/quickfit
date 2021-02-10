@@ -1261,6 +1261,17 @@ class data_loader:
         pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())
  
         tvec = pow_data.pop()/1e3
+        
+
+        gas = np.array(['D2']*len(_load_beams))
+        
+        #slowest step!!
+        #TDI = [p+'gas' for p in paths]
+        #gas = self.MDSconn.get('['+','.join(TDI)+']').data()
+        #if not isinstance(gas[0],str): 
+            #gas = [r.decode() for r in gas]
+                
+     
 
         if self.shot  > 169568:  #load time dependent voltage
             TDI = [p+'VBEAM' for p in paths]
@@ -1270,7 +1281,7 @@ class data_loader:
 
         self.MDSconn.closeTree('NB', self.shot)
         
-        
+
         b21sign= 1 if self.shot < 124700 else -1 #BUG?? 210 always assumed to be counter current
         Rtang = {'30L':114.6, '30R':76.2, '21L':76.2*b21sign,
                 '21R': 114.6*b21sign, '33L':114.6, '33R':76.2}
@@ -1288,7 +1299,7 @@ class data_loader:
             beam['Rtang'] = Rtang[b[:2]+b[-1]]*0.01
             beam['power_timetrace'] = pow_data[i]
             beam['power_time'] = tvec
-            beam['mass'] = 2.014
+            beam['mass'] = {'D2':2.014, 'H2':1.007, 'He': 4.0026 }[gas[i]]
 
       
         return nbi
@@ -3725,13 +3736,26 @@ class data_loader:
         t_eq = self.eqm.t_eq[t_ind]
         B = self.eqm.rz2brzt(r_in,  z_in, t_eq)
         Btot = np.squeeze(np.linalg.norm(B,axis=0))
+        #embed()
+        
+        
+        #OMFIT['test']['RESULTS']['AEQDSK']['BCENTR']
+        
+        
         #apply correction from GUI
         Btot *= bt_correction
         from scipy.constants import m_e, e, c,epsilon_0
         horiz_rho = self.eqm.rz2rho(r_in, z_in*np.ones_like(r_in),t_eq,coord_out=self.rho_coord)
         #Accounting for relativistic mass downshift
         zipfit = self.load_zipfit()
+        #self.MDSconn.openTree('EFIT01',self.shot)
+
+        #sig = '\\EFIT01::TOP.RESULTS.AEQDSK:BCENTR'
         
+        #BCENTR = self.MDSconn.get(sig ).data()
+        #tvec = self.MDSconn.get('dim_of('+sig+')').data()
+        #bt = self.MDSconn.get('PTDATA("bt", 183503)').data()
+        #bttvec = self.MDSconn.get('dim_of(PTDATA("bt", 183503))').data()
 
         
         try:
@@ -3934,7 +3958,7 @@ class data_loader:
    
         Rlcfs,Zlcfs = self.eqm.rho2rz(0.995)
         n_path = 501
-        downsample = 3 
+        downsample = 1 
         n_ch = len(channels)
 
         t = np.linspace(0,1,n_path, dtype='single')        
@@ -4001,7 +4025,7 @@ class data_loader:
                         L_cross_[it] = np.linalg.norm(np.diff(crossings,axis=0))
                 
                 #L_cross is length over the plasma - just a normalisation for nice plotting 
-                L_cross[:,ilos] = np.interp(co2_time, self.eqm.t_eq ,L_cross_)
+                L_cross[:,ilos] = np.interp(co2_time, self.eqm.t_eq[L_cross_>0] ,L_cross_[L_cross_>0])
                 L_cross[:,ilos] = np.maximum(L_cross[:,ilos], .1) #just to avoid zero division
                 L_cross[:,ilos]*= .9 # correction just for better plotting of the data 
                 #convert from m^-2 -> m^-3
@@ -4012,7 +4036,8 @@ class data_loader:
    
         #remove offset
         ne  -= ne[(co2_time > -2)&(co2_time < 0)].mean(0)   
-           
+ 
+
         CO2['CO2'] = xarray.Dataset()
         CO2['CO2']['channel'] = xarray.DataArray( los_names ,dims=['channel'])
         CO2['CO2']['path'] = xarray.DataArray( t ,dims=['path'])
@@ -4394,7 +4419,7 @@ def main():
     shot =  183212
  
     shot = 156908# BUG !! poskozeny prvni po blipu 
-    shot = 183503# BUG !! poskozeny prvni po blipu 
+    shot = 183505# BUG !! poskozeny prvni po blipu 
 
 
     #175694  - better match between onaxis ver and tang denisty after rescaling
@@ -4464,7 +4489,7 @@ def main():
     settings.setdefault('ne', {\
         'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
                                 ( 'Reflectometer',(['all bands',I(1)],  )),
-                                ( 'CO2 interf.',(['fit CO2',I(0)],['rescale TS',I(0)])) ) ),
+                                ( 'CO2 interf.',(['fit CO2',I(1)],['rescale TS',I(1)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
                         'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
                         }})
@@ -4497,7 +4522,7 @@ def main():
     #T = time()
 
     #load_zeff(self,tbeg,tend, options=None)
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #data = loader( 'nimp', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
     #settings['nimp']={\
