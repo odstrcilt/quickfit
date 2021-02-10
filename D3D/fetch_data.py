@@ -3958,7 +3958,7 @@ class data_loader:
    
         Rlcfs,Zlcfs = self.eqm.rho2rz(0.995)
         n_path = 501
-        downsample = 1 
+        downsample = 3 
         n_ch = len(channels)
 
         t = np.linspace(0,1,n_path, dtype='single')        
