@@ -1058,7 +1058,7 @@ class data_loader:
 
         if len(output['diag_names']) == 0 or len(output['data'])==0:
             tkinter.messagebox.showerror('No data to load',
-                    'At least one diagnostic must be selected')
+                    'At least one diagnostic with data must be selected')
             return 
         #udt, cnt = np.unique(np.round(np.diff(np.hstack(times))*1e3,1), return_counts=True)
         #sind = np.argsort(cnt)[::-1]
@@ -3171,7 +3171,7 @@ class data_loader:
             
                     VB = np.zeros((len(tvec), len(valid_ind)), dtype='single')
                     VB_err = np.zeros((len(tvec), len(valid_ind)), dtype='single')-np.inf  #negative err -> it will be ignored and masked
-                    for i,iTDIi in enumerate(valid_ind):
+                    for i,ii in enumerate(valid_ind):
                         valid = (VB_[ii] != 0 )&np.isfinite(VB_err_[ii])  #zero values are corrupted fits? 
                         t_ind = np.in1d(tvec, tvec_[ii][valid], assume_unique=True, invert=False)
                         VB[t_ind,i] = VB_[ii][valid]
