@@ -243,8 +243,8 @@ class FitPlot():
         self.ax_main.cla()
         self.ax_main.ticklabel_format(style='sci', scilimits=(-2,2), axis='y') 
 
-        self.ax_main.set_ylabel(self.ylab,fontsize=self.fsize)
-        self.ax_main.set_xlabel(self.xlab,fontsize=self.fsize)
+        self.ax_main.set_ylabel(self.ylab,fontsize=self.fsize+2)
+        self.ax_main.set_xlabel(self.xlab,fontsize=self.fsize+2)
 
         #the plots inside 
         colors = matplotlib.cm.brg(np.linspace(0,1,len(self.diags)))
@@ -353,11 +353,11 @@ class FitPlot():
             self.main_slider.label='Time:'
             self.parent.set_trange(self.tbeg, self.tend)
             self.ax_main.set_xlim(self.options['rho_min'],self.options['rho_max'])
-            self.ax_main.set_xlabel(self.xlab,fontsize=self.fsize)
+            self.ax_main.set_xlabel(self.xlab,fontsize=self.fsize+2)
             if self.plot_type.get() == 1:
-                self.ax_main.set_ylabel(self.ylab,fontsize=self.fsize)
+                self.ax_main.set_ylabel(self.ylab,fontsize=self.fsize+2)
             if self.plot_type.get() == 2:
-                self.ax_main.set_ylabel(self.ylab_diff,fontsize=self.fsize)
+                self.ax_main.set_ylabel(self.ylab_diff,fontsize=self.fsize+2)
 
    
         if self.plot_type.get() in [0]:
@@ -369,7 +369,7 @@ class FitPlot():
             self.main_slider.valmax = self.options['rho_max']
             self.sl_ax_main.set_xlim(self.options['rho_min'], self.options['rho_max'])
             self.ax_main.set_xlim(self.tbeg, self.tend)
-            self.ax_main.set_xlabel('time [s]',fontsize=self.fsize)
+            self.ax_main.set_xlabel('time [s]',fontsize=self.fsize+2)
             self.ax_main.set_ylabel(self.ylab)
 
 

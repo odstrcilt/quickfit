@@ -221,8 +221,7 @@ class map2grid():
             used_times = np.arange(len(t_new0))
             
         self.r_new,self.t_new = np.meshgrid(r_new,t_new)
-        #import IPython
-        #IPython.embed()
+
         weight  =  weight.ravel()
         nonzero = weight != 0  #add only nonzero elements to matrix !
         index_p = index_p.ravel()[nonzero]
@@ -359,7 +358,8 @@ class map2grid():
             DTDT.append(sp.kron(W**2,DT.T*DT))
         self.DTDT = sp.block_diag(DTDT, format='csc')
 
-
+        #import IPython
+        #IPython.embed()
     
         #==============radial domain===============
         DR = np.zeros((3,self.nr_new),dtype=self.dtype)
@@ -421,7 +421,9 @@ class map2grid():
         
         vvtrace = self.VV.diagonal().sum()
         lam = np.exp(16)/self.DRDR.diagonal().sum()*vvtrace
-        eta = np.exp(11)/self.DTDT.diagonal().sum()*vvtrace
+        dt_diag = self.DTDT.diagonal().sum()
+        if dt_diag == 0: dt_diag = 1
+        eta = np.exp(11)/dt_diag*vvtrace
     
         if self.nt_new == 1: eta = 0
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
@@ -467,15 +469,16 @@ class map2grid():
 
         noise += np.random.randn(n_noise_vec)#correlated noise, most pesimistic assumption
 
-        R0 = 1.7 #m  #BUG hardcodded!!
+        #BUG hardcodded!!
+        R0 = 1.7 #m  
         a0 = 0.6 #m               
   
-  
-        #import IPython
-        #IPython.embed()
+
         vvtrace = self.VV.diagonal().sum()
         lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
-        eta = np.exp(20*(eta-.5)+ 5)/self.DTDT.diagonal().sum()*vvtrace*eta/(1.001-eta)
+        dtdiag = self.DTDT.diagonal().sum()
+        if dtdiag== 0: dtdiag= 1
+        eta = np.exp(20*(eta-.5)+ 5)/dtdiag*vvtrace*eta/(1.001-eta)
         if self.nt_new == 1: eta = 0
 
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
@@ -590,149 +593,41 @@ class map2grid():
 
 def main():
     
-    
-    
-    data =  np.load('map2grid.npz')
-    #(self,R,T,Y,Yerr,nr_new,nt_new,time_breaks,eta=0,name=''):
-    #tvec = loadtxt('sawtooths_163303.txt')
-##R,T,Y,Yerr,nr_new,nt_new,time_breaks
-    ##print tvec
-    #transform = lambda x: log(maximum(x,0)/.1+1),  lambda x:(exp(x)-1)*.1,   lambda x:1/(.1+maximum(0, x)) 
-    #transform = lambda x: x,  lambda x:x,   lambda x:1 
+    import pickle as pkl
+    from matplotlib.pylab import plt
 
-    #print  load('discontinuties.npy')
+    with open('data_for_tomas.pkl','rb') as f:
+        data = pkl.load(f)
+    out_ne, out_Te = data
+    rhop_ne, ne, ne_err, rhop_ne_err = out_ne
+    rhop_Te, Te, Te_err, rhop_Te_err = out_ne
     
-    #exit()
-    print(np.load('discontinuties.npz'))
+    nt = 1
+    nr = 201
+    nd = len(ne)
     
-    sawteeth = np.load('discontinuties.npz')['arr_0']
-    elms = np.load('discontinuties.npz')['arr_1']
-    elm_phase = np.load('discontinuties.npz')['arr_2']
-
+    MG = map2grid(rhop_Te,np.zeros(nd),Te,Te_err,np.arange(nd),np.ones(nd),nr,nt)
     
-    #sawteeth,elms,elm_phase = load('discontinuties.npz')['arr_1']
-    #TT = time.time()
+    MG.r_max = 1.04
     
-    #print sawteeth.items()
-    #print elms.items()
-    #print elm_phase.items()
+    transformation =  lambda x: np.sqrt(np.maximum(0, x)), np.square,lambda x:.5/np.sqrt(np.maximum(1e-5, x))
+    transformation =   lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
 
-
-    ###in
-    #T = data['T']
-    #R = data['R']  
-    #Y = data['Y']
-    #Yerr = data['Yerr']
-    
-    #ind = isfinite(Yerr)&(R > .5)
-    #norm = mean(Y)
-    ##Yerr/= norm
-    ##Y   /= norm
-    #Yerr = Yerr[ind]
-    #Y    = Y[ind]
-    #T    = T[ind]
-    #R    = R[ind]
-    ##print Y.shape
-    #xout = linspace(0,1.2,1000)
- 
-    
-    #input = []
-    #for t in arange(T.min() ,T.max(),0.005):
-        #ind = (T > t) & (T < t+.005) 
-        #if sum(ind) < 10: continue
-        #x = R[ind]
-        #y = Y[ind] 
-        #e = Yerr[ind] 
-        #input.append((x, y, e,xout))
- 
-    #from multiprocessing import Process, Pool, cpu_count
-    #p = Pool(cpu_count())
-    #output = p.map(lmfit_mtanh2_par, input)
-    #out = [o[1] for o in output]
-    #chi2 = mean([o[2] for o in output])
-
-
-        ##fitx, fity, fite,retro, params = lmfit_mtanh2(x, y, e,xout,params)
-        ##params = None
-        
-        ##out.append(fity)
-        
-        ##continue
-
-        ##title(T)
-        ##errorbar(x,y,e,fmt='b.')
-        ##errorbar(x,y-retro,e,fmt='r.')
-        ##axhline(0)
-        ##plot(xout, fity)
-        ##plot()
-        ##print params
-        ##show()
-        
-        
-    #print time.time()-TT, chi2
-    ##exit()
-
-    ##plot(xout,array(out).T);figure()
-    ##pcolor(out);show()
-    ##show()
-    ##plot(x,y,'x')
-    ##errorbar(fitx, fity, fite)
-    ##show()
-    
-    ##exit()
-
-    TT = time.time()        
-    MG = map2grid(data['R'],data['T'],data['Y'],data['Yerr'],data['P'],data['W'],101,data['nt_new'])
-    #print time.time()-TT
-    #exit()
-    MG.PrepareCalculation( zero_edge=False)
+    MG.PrepareCalculation(transformation=transformation, zero_edge=False)
     MG.PreCalculate( )
-    MG.Calculate(0.5, 0.5)
-    #MG.PlotFit(True,True)
-    #show()
-    
-
-    exit()
-    n = 100
-    m = 60
-    SNR = 20
     
     
-    xgrid=linspace(0,1.1,m)
-    y0=(1.2-xgrid**1.1)**.9
-    y0 = y0
-    x2d_arr=tile(xgrid,(n,1))
-    data_arr=y0+zeros((n,1))
-    nt=size(x2d_arr,axis=0)
-
-    t_arr=arange(nt)*1e-2
-
-    opt_d={}
-    opt_d['Dt_average']=('0','0')
-    opt_d['shot']='26233'
-    opt_d['diag']=('CEC','A')
-    opt_d['sig']=('ne','te')
-    opt_d['rho_lbl']='rho_pol'
-    opt_d['tres']=1e-2
-
-    opt_d['Map_exp']='AUGD'
-    opt_d['Map_diag']='EQH'
-    opt_d['Map_ed']=0
-    opt_d['ed']=0
-    opt_d['exp']='AUGD'
+    MG.Calculate(0.1, 0.1)
     
-
-        
-    data_d={'tgrid':(t_arr,),'xgrid':(x2d_arr,),'data':(data_arr+random.randn(n,m)/SNR,),\
-    'data_err':(ones_like(data_arr)/SNR,),'pre':('X','E'),'tvec_crash':[0.1,0.2]}
-    #opt_d['tvec_crash']=[0.1,0.2]
     
-    myroot = tk.Tk(className=' Profiles')
-    mlp = DataFit(myroot,opt_d,data_d)
-    #mlp.quick()
-    myroot.mainloop()
-    #plt.pause(100)
-  
+    plt.errorbar(rhop_Te, Te, Te_err, fmt='.')
+    plt.plot( MG.r_new[0], MG.g_samples[:,0].T,lw=.2,c='r')
+    plt.plot( MG.r_new[0], MG.g[0] ,lw=2,c='r')
+    plt.xlim(0,1.1)
+    plt.ylim(0,None)
+    plt.show()
+    
+    
 if __name__ == "__main__":
     main()
  
