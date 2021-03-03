@@ -1470,7 +1470,7 @@ class data_loader:
 
         #fast fetch of MDS+ data
         order='\\IONS::TOP.CER.CALIBRATION.BEAM_ORDER'
-        beam_order = self.MDSconn.get(order).data()
+        beam_order = list(self.MDSconn.get(order).data())
         try:
             beam_order = [b.decode() for b in beam_order]
         except:
