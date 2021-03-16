@@ -203,7 +203,7 @@ class equ_map:
 
         if self.debug: print('Reading PFM matrix')
 
-        self.pfm = self.sf.get(self.gEQDSK+'PSIRZ').data().T[:,:,self.valid]*2*np.pi
+        self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
     
 
     def read_ssq(self):
