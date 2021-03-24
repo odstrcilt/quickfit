@@ -758,6 +758,7 @@ def default_settings(MDSconn, shot):
                     imp, Z = tmp.group(1), tmp.group(2)
                     imps.append(imp+str(roman2int(Z) ))
                 except:
+                    print(l)
                     imps.append('XX')
 
 
@@ -979,6 +980,7 @@ class data_loader:
                 ti_err = ch['Ti_err'].values
                 r = ch['R'].values
                 t = ch['time'].values
+                ch = ch.drop(['time', 'omega','omega_err','Ti','Ti_err'])
 
                 vtor = omg*r
                 vtor_err = omg_err*r
@@ -989,7 +991,9 @@ class data_loader:
                 #deuterium mach number 
                 ch['Mach'] = xarray.DataArray(mach, dims=['time'], attrs={'units':'-','label':'M_D'})
                 ch['Mach_err'] = xarray.DataArray(mach_err, dims=['time'])
-                Mach['tangential'][ich] = ch.drop(['omega','omega_err','Ti','Ti_err'])
+                ch['time'] = xarray.DataArray(t, dims=['time'])
+
+                Mach['tangential'][ich] = ch 
             
             data.append(Mach)
         
@@ -1025,16 +1029,17 @@ class data_loader:
                 for ich,ch in enumerate(CER[sys]):
                     if not 'Ti' in ch: continue
                     interp.values[:] = np.copy(data_Te)#[:,None]
-                    Te = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
+                    t = ch['time'].values
+                    Te = interp(np.vstack((t, ch['rho'].values)).T)
                     interp.values[:] = np.copy(err_Te)#[:,None]
-                    Te_err = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
+                    Te_err = interp(np.vstack((t, ch['rho'].values)).T)
                     Ti = ch['Ti'].values
                     Ti_err = ch['Ti_err'].values
                     if 'omega' in ch: ch = ch.drop(['omega','omega_err'])
-                    Te_Ti[sys][ich] = ch.drop(['Ti','Ti_err'])
+                    Te_Ti[sys][ich] = ch.drop(['Ti','Ti_err','time'])
                     Te_Ti[sys][ich]['Te/Ti'] = xarray.DataArray(Te/(Ti+1),dims=['time'], attrs={'units':'-','label':'T_e/T_i'})
-                    Te_Ti[sys][ich]['Te/Ti_err'] = xarray.DataArray(Te/(Ti+1)*np.hypot(Te_err/(Te+1),Ti_err/(Ti+1)),
-                                                               dims=['time'])
+                    Te_Ti[sys][ich]['Te/Ti_err'] = xarray.DataArray(Te/(Ti+1)*np.hypot(Te_err/(Te+1),Ti_err/(Ti+1)),dims=['time'])
+                    Te_Ti[sys][ich]['time'] = xarray.DataArray(t,dims=['time'] )
 
             data.append(Te_Ti)
  
@@ -1061,8 +1066,8 @@ class data_loader:
             output['data'][i]= output['data'][i].sel(time=slice(tbeg,tend))
 
         if len(output['diag_names']) == 0 or len(output['data'])==0:
-            tkinter.messagebox.showerror('No data to load',
-                    'At least one diagnostic with data must be selected')
+            tkinter.messagebox.showerror('No data loaded',
+                    'No data were loaded. Try to change the loading options ' +str(len(output['diag_names']))+' '+str(len(output['data'])))
             return 
         #udt, cnt = np.unique(np.round(np.diff(np.hstack(times))*1e3,1), return_counts=True)
         #sind = np.argsort(cnt)[::-1]
@@ -1559,6 +1564,9 @@ class data_loader:
         if load_spred:
             #fetch SPRED as other CER channel 
             spred = self.load_nimp_spred(imp, beam_order)
+            #print('spred')
+            nimp['diag_names']['SPRED'] = []
+            nimp['SPRED'] = []
             if np.any(np.isfinite(spred[3])):
                 #append to already fetched CER data
                 tvec=list(tvec)+[spred[0]]
@@ -1573,13 +1581,17 @@ class data_loader:
                 line_id=list(line_id)+[spred[9]]
                 beam_geom=np.append(beam_geom,spred[10],0)
                 loaded_chan=list(loaded_chan)+['SPRED']
-                nimp['diag_names']['SPRED'] = []
-                nimp['SPRED'] = []
+            else:
+                printe('Loading of SPRED was unsucessful')
 
-        if len(loaded_chan) == 0:
+        if len(loaded_chan) == 0 and len(load_systems) > 0:
             raise Exception('Error: no data! try a different edition?')
-
-
+        
+        elif len(loaded_chan) == 0 and load_spred:
+            #loading of spred was unsucessful
+            return nimp
+        
+        
         #conver to to seconds
         tvec  =  [t/1e3 for t in tvec]
         stime =  [t/1e3 for t in stime]
@@ -2139,6 +2151,7 @@ class data_loader:
 
         # relative beam velocities on radial grid, cosine of angle between beam and
         # toroidal is R_tang/R_meas and toroidal velocity is omega*R_meas
+ 
 
         energy = np.outer(nbi_dict['volts'], e * qb)  # J
         vinj = np.sqrt(2 * energy / (ab_ * m_p)).T  # m/s
@@ -2257,7 +2270,8 @@ class data_loader:
             beam_att_err[-1] = np.hypot(beam_att_err[-1], 0.05 * beam_att[-1])
             n += nR
 
-     
+        n2frac = np.dstack(n2frac)
+
 
         #####################  Calculate Halo  ##################
         #Based on R. McDermott PPCF 2018 paper
@@ -2325,41 +2339,50 @@ class data_loader:
         ti = beam_prof_merged['Ti'] # cm^-3
         ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
         erel = beam_prof_merged['erel']   #eV/amu
-        #TODO!!
+ 
         line_ids = []
         for sys in systems:
             for ch in nimp[sys]:
                 if ch['int'].attrs['line'] not in line_ids:
                     line_ids.append(ch['int'].attrs['line'])  #NOTE assume that all data are from the same line
+      
         
+        #TODO SPRED C6 LINE!!!
+        #for line_id in line_ids:
+        line_id = line_ids[0]
+        #BUG it is not very efficient way, everything will be calculated for every channel and at the end
+        #I will pick up just the channels with the right line_id
 
         if imp  in ['B5','C6','He2','Ne10','N7']:
             #CX with beam ions
-            adf_interp = read_adf12_aug(path,line_ids[0], n_neut=1)
+            adf_interp = read_adf12_aug(path,line_id, n_neut=1)
             qeff = adf_interp(zeff, ti, ne, erel)
-            adf_interp = read_adf12_aug(path,line_ids[0], n_neut=2)
+            adf_interp = read_adf12_aug(path,line_id, n_neut=2)
             qeff2 = adf_interp(zeff, ti, ne, erel)
             
             #CX with beam halo
-            adf_interp = read_adf12_aug(path,line_ids[0], n_neut=1, therm=True)
+            adf_interp = read_adf12_aug(path,line_id, n_neut=1, therm=True)
             qeff_th = adf_interp(zeff, ti, ne).T
-            adf_interp = read_adf12_aug(path,line_ids[0], n_neut=2, therm=True)
+            adf_interp = read_adf12_aug(path,line_id, n_neut=2, therm=True)
             qeff2_th = adf_interp(zeff, ti, ne).T
 
         else:
             atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
-                           'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
-                             'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat')}
- 
+                        'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
+                            'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat')}
+
             blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]}, }
-            imp_, Z, transition = line_ids[0].strip().split(' ')
- 
+            imp_, Z, transition = line_id.strip().split(' ')
+
             file1, file2 = atom_files[imp]
             block1, block2 = blocks[imp][transition]
             qeff  = read_adf12(path+file1,block1, erel, ne, ti, zeff)
             qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
+            
             #unavailible
             qeff_th = qeff2_th = 0
+            
+        
             
             
         ## cm**3/s to m**3/s and  per ster. like CER
@@ -2378,11 +2401,10 @@ class data_loader:
         mp = consts.m_p
 
 
- 
+
         einj = nbi_dict['volts']  # V
         # Velocity of beam species
         pwrfrc = nbi_dict['pow_frac'].T[0]
-        n2frac = np.dstack(n2frac)
         vinj = np.sqrt(2.0 * einj * eV_to_J /(ab_.T * mp))  # m/s
         nb0 = pwrfrc / (einj * eV_to_J * vinj / isp[:, None])  # 1/m/W must be multipled by power
         qeff = qeff * (1 - n2frac) + n2frac * qeff2 #  qeff from n=1 and n=2
@@ -2450,9 +2472,31 @@ class data_loader:
             #tind = slice(n,n+nr)
             #ax[6].scatter(np.ones_like(R)*t, np.interp(R,Rmid[::-1],qeff[0,0,tind][::-1]*1e15),c=C)
             #n+=nr
- 
+
         #plt.show()
-                
+        
+        
+
+        #rho_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
+        #for sys in TS['systems']:
+            #if sys not in TS: continue 
+            #t = TS[sys]['time'].values
+            #te = TS[sys]['ne'].values
+            #e = TS[sys]['ne_err'].values
+            #r = TS[sys]['rho'].values
+            #t = np.tile(t, (r.shape[1],1)).T
+            #ind = np.isfinite(e)|(te>0)
+            #tvec_ne.append(t[ind])
+            #data_ne.append(te[ind])
+            #err_ne.append(e[ind])
+            #rho_ne.append(r[ind]) 
+
+        #rho_ne  = np.hstack(rho_ne)
+        #tvec_ne = np.hstack(tvec_ne)
+        #data_ne = np.hstack(data_ne)
+        #err_ne  = np.hstack(err_ne)
+
+            
 
         n = 0
         beam_fact = beam_data['beam_geom']*beam_data['beam_pow']
@@ -2463,7 +2507,7 @@ class data_loader:
             tind = slice(n,n+nt)
             ind = label == it
             n += nt
-     
+    
 
             R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
             # sum over beam species crossection before interpolation
@@ -2508,19 +2552,31 @@ class data_loader:
             nz[ind] = nimp_data['int'][ind]/denom
             nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
             nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
-        #embed()
-        
+    
+        #interp = NearestNDInterpolator(np.vstack((tvec_ne,rho_ne)).T, np.copy(data_ne))
+
         #fill the xarray database with calculated impurity densities
         n = 0 
         for diag in systems:
             for ch in nimp[diag]:
+                
+                #if line_id != ch['int'].attrs['line']:
+                    #n+=1
+                    #continue
+                
+                #interp.values[:] = np.copy(data_ne) 
+                #ne = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
+                #interp.values[:] = np.copy(err_ne) 
+                #ne_err = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
                 ch['nimp_int'] = ch['nimp'].copy()
-                ch['nimp_int'].values = nz[data_index[n]]
+                ch['nimp_int'].values = nz[data_index[n]]#/ne
                 ch['nimp_int_err'] = ch['nimp'].copy()
                 ch['nimp_int_err'].values = nz_err[data_index[n]]
+                #ch['nimp_int_err'].values = nz[data_index[n]]/ne*np.hypot(nz_err[data_index[n]]/nz[data_index[n]],ne_err/ne)
+            
                 n += 1
-      
-      
+    
+    
         print('\t done in %.1fs'%(time()-TT))
   
 
@@ -2679,6 +2735,10 @@ class data_loader:
         nimp.setdefault('diag_names',{})
         
         def return_nimp(nimp):
+            nz_from_intens = options['Correction']['nz from CER intensity'].get() 
+            
+            nimp_name = 'nimp_int' if nz_from_intens else 'nimp_impcon'
+
             
             #rho coordinate of the horizontal line, used later for separatrix aligment 
             if 'horiz_cut' not in nimp or 'EQM' not in nimp or nimp['EQM']['id'] != id(self.eqm) or nimp['EQM']['ed'] != self.eqm.diag:
@@ -2742,42 +2802,43 @@ class data_loader:
 
         #update equilibrium of catched channels
         nimp = self.eq_mapping(nimp)
-
+        load_systems = list(set(load_systems)-set(nimp.keys()))
+        #first load radiation data from MDS+
+        nimp = self.load_nimp_intens(nimp,load_systems, analysis_type,imp)
+ 
         #load either from IMPCON or calculate from CX intensity
         if nz_from_intens:
-            options['Correction']['nz from CER intensity'].set(0) 
-            options['Correction']['Relative calibration'].set(1)
-            options['Impurity'] = 'C6'
             
+            #try to load C6 for Zeff estimate needed for CX crossections
             try:
-                nimp0 = self.load_nimp(tbeg,tend,systems,options) 
-            except Exception as e:
-                printe('Error: '+str(e))
-                nimp0 = None
-                raise
-
-
-            load_systems = list(set(load_systems)-set(nimp.keys()))
+                options['Correction']['nz from CER intensity'].set(0) 
+                options['Correction']['Relative calibration'].set(1)
+                options['Impurity'] = 'C6'
                 
-            #first load data from MDS+
-            #try:
-            nimp = self.load_nimp_intens(nimp,load_systems, analysis_type,imp)
-            #except Exception as e:
-                #print('Error: '+str(e))
-                #nimp = None
-            #calculate impurity density
-            nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
+                try:
+                    nimp0 = self.load_nimp(tbeg,tend,systems,options) 
+                except Exception as e:
+                    printe('Error in loading of nC from IMPCON: '+str(e))
+                    nimp0 = None
 
-            options['Correction']['nz from CER intensity'].set(nz_from_intens) 
-            options['Correction']['Relative calibration'].set(rcalib)
+                nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
+
+            finally:
+                options['Correction']['nz from CER intensity'].set(nz_from_intens) 
+                options['Correction']['Relative calibration'].set(rcalib)
         else:
-            nimp = self.load_nimp_intens(nimp,load_systems, analysis_type,imp)
+
             #load just the impurity density
             try:
                 nimp = self.load_nimp_impcon(nimp,load_systems, analysis_type,imp)
             except Exception as e:
-                printe('Error: '+str(e))
-                #raise
+                printe('Error in loading of impurity density from IMPCON: '+str(e))
+                print('Impurity density will be calculated from CER intensity')
+                options['Correction']['nz from CER intensity'].set(1) 
+
+                nimp0 = None
+                #calculate impurity density
+                nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
                 
  
         
@@ -2800,7 +2861,7 @@ class data_loader:
                 sys = ch.attrs['system'][0].upper()
                 edge = 'e' if ch.attrs['edge'] else ''
                 beams+= [sys+b+edge for b in ch['beams'].values]
-                #print(ch.attrs)
+             
             beams = list(np.unique(beams))
             if 'V210R' in beams:
                 beams.remove('V210R') #this is not a primary beams!
@@ -2830,17 +2891,13 @@ class data_loader:
                     calib_beam = ([b for b in beams if b[-1] != 'e']+['30L'])[0]
                     calib_beam = calib_beam[0]+'_'+calib_beam[1:]
                 printe('\t\tNo reliable beam for cross calibration, guessing.. using '+calib_beam)
-            #embed()
+            
 
             #cross-calibrate other profiles
             calib = {'t':[],'r':[],'n':[]}
             other = {'t':[],'r':[],'n':[],'f':[],'w':[]}
+            
             #iterate over all channels
- 
-
-            #if calib_beam is None:
-            #embed()
-
             for ch in all_channels:
                  #ch._variables['time']._data.array._data
                 t = ch['time'].values  #normalize a typical time range with respect to typical rho range)
@@ -2881,7 +2938,8 @@ class data_loader:
 
             if len(calib['t']) == 0:
                 printe('unsuccesful..')
-                return return_nimp(nimp)
+                nimp = return_nimp(nimp)
+                return nimp
   
             
             
@@ -3665,7 +3723,9 @@ class data_loader:
         Ti,Ti_err,rot,rot_err,R,Z,stime,tvec = np.array_split(data,8)
         
         #get a time in the center of the signal integration 
-        tvec = [np.single(t+s/2.)/1000 for t,s in zip(tvec, stime)] 
+        tvec = [np.single(t+s/2.)/1000 for t,s in zip(tvec, stime)]
+        
+        #embed()
             
         #map to radial coordinate 
         rho = self.eqm.rz2rho(np.hstack(R)[:,None],np.hstack(Z)[:,None],np.hstack(tvec),self.rho_coord)[:,0]
@@ -3706,7 +3766,8 @@ class data_loader:
 
                 ds['Ti'] = xarray.DataArray(Ti[ich],dims=['time'], attrs={'units':'eV','label':'T_i'})
                 ds['Ti_err'] = xarray.DataArray(Ti_err[ich],dims=['time'], attrs={'units':'eV'})
- 
+            
+            #BUG can be sometimes not unique 183504 CERFIT
             ds['time'] = xarray.DataArray(tvec[ich], dims=['time'], attrs={'units':'s'})
             cer[diag].append(ds)
             
@@ -4087,7 +4148,7 @@ class data_loader:
         #everything in GHz 
         try:
     
-            ne_ = zipfit['ne']['data'].values
+            ne_ = zipfit['ne']['data'].values.copy()
             ne_err =  zipfit['ne']['data'].values*0.05 #zipfit errorbars are often wrong, while the fit is OK 
             ne_ += ne_err # upper boundary, to be sure that affected measurements will be removed
             ne_tvec = zipfit['ne']['tvec'].values
@@ -4120,6 +4181,7 @@ class data_loader:
                              copy=False, assume_sorted=True)(tvec)
         f_cut_loc = interp1d(ne_tvec,f_cut_loc,axis=0,fill_value="extrapolate",
                              copy=False, assume_sorted=True)(tvec)
+
         z = ece['z0'].values*np.ones_like(R)
         rho = self.eqm.rz2rho(R,z,tvec,coord_out=self.rho_coord)
 
@@ -4817,7 +4879,7 @@ def main():
     #T = time()
 
     #load_zeff(self,tbeg,tend, options=None)
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'Mach', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #data = loader( 'nimp', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
     #settings['nimp']={\

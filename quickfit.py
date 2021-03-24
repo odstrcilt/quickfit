@@ -110,7 +110,7 @@ class DataFit():
         #dict or OMFITtree from OMFIT
         self.raw_data = raw_data
         #dict or OMFITtree from OMFIT
-        self.default_settings = settings
+        self.default_settings = deepcopy(settings)
         
         if device == 'DIII-D': self.device = 'D3D'
         if self.device == 'D3D':
@@ -526,7 +526,7 @@ class DataFit():
             self.data_load.config(stat=tk.NORMAL)
 
     def load_default_options(self):
-         
+ 
      
         #dictionary with default settings
         if self.shot is not None:
@@ -538,10 +538,9 @@ class DataFit():
                 self.default_settings.setdefault(key, OrderedDict())
                 for k,v in val.items():
                     self.default_settings[key].setdefault(k,v)
-                    self.default_settings[key][k]=v
         else:
             self.kin_profs = ['ne','Te'] #default list 
-            
+ 
         for kin_prof in self.kin_profs:
             dic = self.default_settings.setdefault(kin_prof,{})
             
@@ -1085,7 +1084,7 @@ class DataFit():
         
         if not os.path.isdir(path):
             os.makedirs(path)
-        if not os.path.isdir(path+'UFILES'):
+        if not os.path.isdir(path+'UFILES') and save_ufiles:
             os.makedirs(path+'UFILES')
 
         
