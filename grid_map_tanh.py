@@ -1,6 +1,6 @@
 #!/usr/bin/env python 
 # -*- coding: utf-8 -*-
-#print __doc__
+#print(__doc__)
 
 # Description: function for mapping of the irregulary sampled noise radial profiles
 #              the regular grid. mapping is done by inversion of the grid projection 
@@ -31,7 +31,7 @@ try:
     chol_inst = True
 except:
     chol_inst = False
-    print '!CHOLMOD is not installed, slow LU decomposition will be used!'
+    print('!CHOLMOD is not installed, slow LU decomposition will be used!')
         #alternative when cholmod is not availible, spsolve is about 5x slower 
         #and with higher memory consumption
 
@@ -95,7 +95,7 @@ class map2grid():
         #self.Y   /= self.norm    
         #self.Yerr.data/= self.norm
         
-        #print self.n_points, self.R.shape, self.T[self.valid].shape, self.Y.shape, self.R.shape, self.T.shape, self.Y.shape,
+        #print(self.n_points, self.R.shape, self.T[self.valid].shape, self.Y.shape, self.R.shape, self.T.shape, self.Y.shape)
 
 
         self.g = zeros((self.nt_new0,nr_new))*nan
@@ -122,7 +122,7 @@ class map2grid():
 
     def PrepareCalculation(self, zero_edge=False, core_discontinuties = [],edge_discontinuties = [],transformation = None,
                            robust_fit=False,pedestal_rho=None):
-        print '\nPrepareCalculation'
+        print('\nPrepareCalculation')
         
         #BUG removing large number of points, will change missing_data index!!
  
@@ -223,7 +223,6 @@ class map2grid():
         self.ifun =  1/fun_r2
         
         
-        #print pedestal_rho
         if pedestal_rho is not None:
             gauss = lambda x, x0, s: exp(-(x-x0)**2/(2*s**2))
             self.ifun/= 1+gauss(rvec_b,pedestal_rho,0.02)*10 +gauss(rvec_b,pedestal_rho+.05,.05)*5
@@ -256,7 +255,7 @@ class map2grid():
             if len(break_ind) > 1:
                 break_ind = break_ind[~binary_opening(self.missing_data)[break_ind]]
                 break_ind = unique(used_times[break_ind])
-                #print len(used_times), used_times
+
             #plot(used_times[unique(t_new0.searchsorted(time_breaks))],'o')
             #plot( t_new.searchsorted(time_breaks),'s')
             #show()
@@ -341,7 +340,7 @@ class map2grid():
         #for it,t in enumerate(t_new):
             #t1 =  (t_new[max(0,it-1)]+t)/2
             #t2 =  (t+t_new[min(it+1,len(t_new)-1)])/2
-            ##print t2-t1
+
             #ind = (T > t1) & (T < t2) 
             #if sum(ind) < 10: continue
             #x = R[ind]
@@ -350,12 +349,10 @@ class map2grid():
             #input.append((x, y, e, r_new))
             #input_it.append(it)
             
-        #print  time.time()-TT
 
         #from multiprocessing import Process, Pool, cpu_count
         #p = Pool(cpu_count())
         #output = p.map(lmfit_mtanh2_par, input)
-        #print  time.time()-TT
 
         #from scipy.interpolate import interp1d
         #chi2_tot = 0
@@ -367,17 +364,16 @@ class map2grid():
         #self.g0[~ind] = interp1d(t_new[ind],self.g0[ind],kind='nearest',fill_value='extrapolate',
                                  #copy=False,axis=0,assume_sorted=True)(t_new[~ind])
         #self.g0/= self.norm
-        #print 'tanhfit',  time.time()-TT, chi2_tot/len(input_it)
         
     def PreCalculate(self ):
    
   
         
         if not self.prepared:
-            print 'not yet prepared!'
+            print('not yet prepared!')
             self.PrepareCalculation()
         
-        print 'Precalculate'
+        print('Precalculate')
         #first pass - decrease the weight of the outliers
         lam = 5  #BUG 
 
@@ -399,7 +395,7 @@ class map2grid():
         lam = exp(16)/self.DRDR.diagonal().sum()*vvtrace
         eta = exp(11)/self.DTDT.diagonal().sum()*vvtrace
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
-        #print 'TRACE %.3e  %.3e'%( self.DRDR.diagonal().sum()/vvtrace,self.DTDT.diagonal().sum()/vvtrace)
+        #print('TRACE %.3e  %.3e'%( self.DRDR.diagonal().sum()/vvtrace,self.DTDT.diagonal().sum()/vvtrace))
         
  
 
@@ -415,14 +411,14 @@ class map2grid():
                     self.Factor.cholesky_inplace(AA)
                 else:
                     self.Factor = sp.linalg.factorized(AA)
-                    print 'umfpack'
+                    print('umfpack')
 
 
             except Exception as e:
-                print e
+                print(e)
                 lam = lam+2
                 self.Factor = sp.linalg.factorized(self.VV+10**lam*self.DD)
-                print 'umfpack'
+                print('umfpack')
 
             g=squeeze(self.Factor(self.V.T*self.f))
 
@@ -444,7 +440,7 @@ class map2grid():
 
         if not self.corrected:
             self.PreCalculate()
-        print 'Calculate'
+        print('Calculate')
 
 
         #noise vector for estimation of uncertainty
@@ -462,7 +458,7 @@ class map2grid():
         lam = exp( 8*(lam-.5)+12)/self.DRDR.diagonal().sum()*vvtrace
         eta = exp(15*(eta-.5)+ 3)/self.DTDT.diagonal().sum()*vvtrace
         DD = lam*self.DRDR+eta*self.DTDT
-        print 'TRACE %.3e  %.3e'%( self.DRDR.diagonal().sum()/vvtrace,self.DTDT.diagonal().sum()/vvtrace)
+        print('TRACE %.3e  %.3e'%( self.DRDR.diagonal().sum()/vvtrace,self.DTDT.diagonal().sum()/vvtrace))
         
         try:
             self.Factor.cholesky_inplace(self.VV+DD)
@@ -487,7 +483,7 @@ class map2grid():
         g_noise = reshape(g_noise,(self.nr_new,self.nt_new,n_noise_vec)).T
         g_noise = self.invtrans(g_noise)*self.norm
     
-        print '\nchi2: %.2f reg:%.2f'%(self.chi2,self.lam)
+        print('\nchi2: %.2f reg:%.2f'%(self.chi2,self.lam))
         
         
     
@@ -743,7 +739,7 @@ class map2grid():
         ani = animation.FuncAnimation(fig, animate, linspace(self.t_min,self.t_max,self.nt_new0),
                              interval=25, blit=True)
         show()
-        print '\n'
+        print('\n')
         close()
 
         return
@@ -984,7 +980,7 @@ def lmfit_mtanh2(x, y, e, xout,params=None,zero_edge=True):
     fit_out = minimize(mtanh2, params, args=(x, y, e), method='leastsq', Dfun= mtanh_pder ,xtol=1e-6, maxfev=1000 )  # <<<<<<<<<<< FIT
  
     fity = mtanh2(fit_out.params, xout) 
-    #print fit_out.params['p']/ymean
+    #print(fit_out.params['p']/ymean)
     #import IPython
     #IPython.embed()
             
@@ -995,7 +991,7 @@ def lmfit_mtanh2(x, y, e, xout,params=None,zero_edge=True):
     return xout, fity,fit_out.chisqr/fit_out.nfree
  #, fite, retro , fit_out.params
 
-def lmfit_mtanh2_par((x, y, e, xout)): 
+def lmfit_mtanh2_par(x, y, e, xout): 
     return  lmfit_mtanh2(x, y, e, xout)
 
 
@@ -1010,7 +1006,7 @@ def main():
     #(self,R,T,Y,Yerr,nr_new,nt_new,time_breaks,eta=0,name=''):
     tvec = loadtxt('sawtooths_163303.txt')
 #R,T,Y,Yerr,nr_new,nt_new,time_breaks
-    #print tvec
+    #print(tvec)
     transform = lambda x: log(maximum(x,0)/.1+1),  lambda x:(exp(x)-1)*.1,   lambda x:1/(.1+maximum(0, x)) 
     transform = lambda x: x,  lambda x:x,   lambda x:1 
 
@@ -1033,7 +1029,7 @@ def main():
     Y    = Y[ind]
     T    = T[ind]
     R    = R[ind]
-    #print Y.shape
+    #print(Y.shape)
     xout = linspace(0,1.2,1000)
  
     
@@ -1070,7 +1066,7 @@ def main():
         #show()
         
         
-    print time.time()-TT, chi2
+    print(time.time()-TT, chi2)
     #exit()
 
     #plot(xout,array(out).T);figure()
