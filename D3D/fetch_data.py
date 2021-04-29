@@ -770,8 +770,11 @@ def default_settings(MDSconn, shot):
 
     default_settings['Ti']= {\
         'systems':{'CER system':(['tangential',True], ['vertical',False])},\
-        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick'))} }}
+        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
+                                      'Corrections':{'Zeeman Splitting':True}} }}
         
+        
+ 
     default_settings['omega']= {\
         'systems':{'CER system':(['tangential',True], )},
         'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick'))}}}
@@ -805,7 +808,7 @@ def default_settings(MDSconn, shot):
 
 
     default_settings['Zeff']= {\
-    'systems':OrderedDict(( ( 'CER system',(['tangential',False],['vertical',False])),
+    'systems':OrderedDict(( ( 'CER system',(['tangential',False],['vertical',False],['SPRED',False])),
                             ( 'VB array',  (['tangential',True],                 )),
                             ( 'CER VB',    (['tangential',True],['vertical',False])),
                             )), \
@@ -823,7 +826,8 @@ def default_settings(MDSconn, shot):
         'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick'))}}}
     default_settings['Te/Ti']= {\
         'systems':{'CER system':(['tangential',True], ['vertical',False] )},
-        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick'))}}}         
+        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
+                                      'Corrections':{'Zeeman Splitting':True}}}}         
         
         
     if len(imps) > 1:
@@ -1321,7 +1325,12 @@ class data_loader:
     def load_nimp_spred(self,imp, beam_order):
         
         
-        lines = {'He2':'HeII_304','Li3':'LiIII_114','B5':'BV_262','C6':'CVI_182','O7':'OVIII_102'}
+        lines = {'He2':'HeII_304','Li3':'LiIII_114','B5':'BV_262',
+                 'C6':'CVI_182','O8':'OVIII_102','N7':'NVII_134'}
+        line_ids = {'He2':'He II 2-1','Li3':'LiIII 3-1',
+                    'B5':'B V 3-2','C6':'C VI 3-2','O8':'OVIII 3-2','N7':'NVII 3-2'}
+
+        
         if imp not in lines:
             raise Exception('Loading of impurity %s from SPRED is not supported yet'%imp)
         
@@ -1330,6 +1339,7 @@ class data_loader:
         tree = 'SPRED'
         self.MDSconn.openTree('SPECTROSCOPY', self.shot)
         spred_data = self.MDSconn.get('_x=\SPECTROSCOPY::'+line).data()
+        spred_data*= 1e4 #convert from ph/cm**2/s/sr to ph/m**2/s/sr
         spred_tvec = self.MDSconn.get('dim_of(_x)').data()
         spred_data = spred_data[spred_tvec > 0]
         spred_tvec = spred_tvec[spred_tvec > 0]
@@ -1394,7 +1404,7 @@ class data_loader:
         bg = np.interp(spred_tvec, spred_tvec[nbi_off], (bg/active)[nbi_off])*active
         bg = np.single(bg)
         tvec = spred_tvec[nbi_mixed]
-        data = (spred_data-bg)[nbi_mixed]
+        br = (spred_data-bg)[nbi_mixed]
         #TODO probably remove point entirelly when a proper bckg substraction is impossible 
         #import matplotlib.pylab as plt
 
@@ -1402,18 +1412,21 @@ class data_loader:
         #plt.plot(spred_tvec,bg)
         #plt.plot(spred_tvec,nbi_mixed*1e14)
         #plt.plot(spred_tvec,nbi_all*1e14)
+        
+        # br extracted as ph/m**2/s/sr
+        #br = root['OUTPUTS']['SLICE']['SPRED']['Br'].sel(channel=ch).values * 1e4
 
         
         #plt.show()
         
         #embed()
-
+        
         
         stime = stime[nbi_mixed]
 
         min_err = 1.0e13
-        data_err = np.maximum(0.10 * data, min_err)
-        data_err[spred_data[nbi_mixed]==0] = np.infty
+        br_err = np.maximum(0.10 * br, min_err)
+        br_err[spred_data[nbi_mixed]==0] = np.infty
         R = np.dot(view_R, nbi_on_frac[nbi_mixed].T)/nbi_on_frac.sum(1)[nbi_mixed]
         Z = np.dot(view_Z, nbi_on_frac[nbi_mixed].T)/nbi_on_frac.sum(1)[nbi_mixed]
         phi = np.dot(view_phi, nbi_on_frac[nbi_mixed].T)/nbi_on_frac.sum(1)[nbi_mixed]
@@ -1422,9 +1435,8 @@ class data_loader:
         TTSUB = np.zeros_like(tvec,dtype='single')
         TTSUB_ST = np.zeros_like(tvec,dtype='single')
 
-        line_id = 'C VI 8-7' #BUG 
 
-        return tvec,stime, data, data_err,np.single(R), np.single(Z),np.single(phi),TTSUB,TTSUB_ST, line_id, beam_geom
+        return tvec,stime, br, br_err,np.single(R), np.single(Z),np.single(phi),TTSUB,TTSUB_ST, line_ids[imp], beam_geom
 
         
     def load_nimp_intens(self, nimp,load_systems, analysis_type,imp):
@@ -1564,6 +1576,7 @@ class data_loader:
         if load_spred:
             #fetch SPRED as other CER channel 
             spred = self.load_nimp_spred(imp, beam_order)
+            #embed()
             #print('spred')
             nimp['diag_names']['SPRED'] = []
             nimp['SPRED'] = []
@@ -1724,18 +1737,14 @@ class data_loader:
 
             elif len(beams) == 1:
                 beamid[:] = beams
-            elif len(beams) == 2: #L and R beam
+            else: #L and R beam
                 beam_frac = beam_pow*beam_geom[ich, observed_beams][:,None]
                 beam_frac /= beam_frac.sum(0)+1e-6 #prevent zero division for channel V6
+                bind = np.argsort(beam_geom[ich, observed_beams])[::-1]
                 
-                beamid[(beam_frac[0] > 0.3) &(beam_frac[1] > 0.3)] = beams[0][:-1]+'B'
-                beamid[(beam_frac[1] < 0.3)] = beams[0]
-                beamid[(beam_frac[0] < 0.3)] = beams[1]
-                
-
-                #beamid[beam_frac.max(0) < 0.9] = beams[0][:-1]+'B'
-            else:
-                raise Exception('Observed 3 beams at once??')
+                beamid[(beam_frac[bind[0]] > 0.3) &(beam_frac[1] > 0.3)] = beams[bind[0]][:-1]+'B'
+                beamid[(beam_frac[bind[1]] < 0.3)] = beams[bind[0]]
+                beamid[(beam_frac[bind[0]] < 0.3)] = beams[bind[1]]
 
 
             tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
@@ -2348,233 +2357,266 @@ class data_loader:
       
         
         #TODO SPRED C6 LINE!!!
-        #for line_id in line_ids:
-        line_id = line_ids[0]
+        for line_id in line_ids:
+        #line_id = line_ids[0]
         #BUG it is not very efficient way, everything will be calculated for every channel and at the end
         #I will pick up just the channels with the right line_id
-
-        if imp  in ['B5','C6','He2','Ne10','N7']:
-            #CX with beam ions
-            adf_interp = read_adf12_aug(path,line_id, n_neut=1)
-            qeff = adf_interp(zeff, ti, ne, erel)
-            adf_interp = read_adf12_aug(path,line_id, n_neut=2)
-            qeff2 = adf_interp(zeff, ti, ne, erel)
-            
-            #CX with beam halo
-            adf_interp = read_adf12_aug(path,line_id, n_neut=1, therm=True)
-            qeff_th = adf_interp(zeff, ti, ne).T
-            adf_interp = read_adf12_aug(path,line_id, n_neut=2, therm=True)
-            qeff2_th = adf_interp(zeff, ti, ne).T
-
-        else:
-            atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
-                        'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
-                            'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat')}
-
-            blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]}, }
-            imp_, Z, transition = line_id.strip().split(' ')
-
-            file1, file2 = atom_files[imp]
-            block1, block2 = blocks[imp][transition]
-            qeff  = read_adf12(path+file1,block1, erel, ne, ti, zeff)
-            qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
-            
-            #unavailible
-            qeff_th = qeff2_th = 0
-            
-        
-            
-            
-        ## cm**3/s to m**3/s and  per ster. like CER
-        qeff  /= 1e6 * 4.0 * np.pi
-        qeff2 /= 1e6 * 4.0 * np.pi
-
-
-        ## cm**3/s to m**3/s and  per ster. like CER
-        qeff_th  /= 1e6 * 4.0 * np.pi
-        qeff2_th /= 1e6 * 4.0 * np.pi
-    
-        ######################### Calculate Impurity density  #############################
-        
-        isp = np.arange(3)+1  # mass multipliers for beam species
-        eV_to_J = consts.e
-        mp = consts.m_p
-
-
-
-        einj = nbi_dict['volts']  # V
-        # Velocity of beam species
-        pwrfrc = nbi_dict['pow_frac'].T[0]
-        vinj = np.sqrt(2.0 * einj * eV_to_J /(ab_.T * mp))  # m/s
-        nb0 = pwrfrc / (einj * eV_to_J * vinj / isp[:, None])  # 1/m/W must be multipled by power
-        qeff = qeff * (1 - n2frac) + n2frac * qeff2 #  qeff from n=1 and n=2
-
-        #BUG inaccurate any geometry correction for spatial distribution of halo
-        #works only in the limit of high density when the collisions prevent spreading the halo
-        
-        # Get beam attenuation data and the qeff values
-        ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
-        nD = (1-beam_prof_merged['fC']*6)*ne  # cm^-3
-        qeff+= (nD* qeff_th)*f0halo1 #small, negligible
-        qeff+= (nD*qeff2_th)*f0halo2 #comparable with qeff2
-
-
-        #impurity densities foe all channels
-        nz = np.zeros_like(nimp_data['int'])
-        nz_err = np.ones_like(nimp_data['int'])*np.inf
         #embed()
-        #printe('BUGGGG')
-        #qeff[:] = qeff.mean((0,2))[None,:,None]        
-        
-        #keys = ['ne',  'te',  'Ti', 'omega', 'fC',] 
-        #import matplotlib.pylab as plt
-        #C = plt.cm.jet(np.linspace(0,1,100))
-
-        #f,ax = plt.subplots(2,4,sharex=True)
-        #ax = ax.flatten()
-        #for j in range(100):
-            #for i,k in enumerate(keys):
-                ##print()
-                #ax[i].set_title(k)
-                #ax[i].plot(beam_profiles['rho'][j], beam_profiles[k][j],c=C[j])
-        
-        #ax[5].set_title('atten')
-        #for j in range(100):
-            ##print(beam_att[it].shape)
-            #ax[5].plot(beam_profiles['rho'][j],  beam_att[j][0,0 ].T,c=C[j])
-        #ax[6].set_title('qeff')
-        #n = 0
-
-        #for it,t in enumerate(centroid):
-            #nt = len(beam_profiles['rho'][it])
-            #tind = slice(n,n+nt)
-            #ax[6].plot(beam_profiles['rho'][it], qeff[0,0,tind].T,c=C[it] )
-            #n+=nt
-
-
-        #f,ax = plt.subplots(2,4,sharex=True)
-        #ax = ax.flatten()
-        #ax[5].set_title('atten')
-        #ax[6].set_title('qeff')
-        #n = 0
-        #R = np.linspace(1.7,2.3,20)
-
-        #for it,t in enumerate(centroid):
-            #Rmid = beam_profiles['Rmid'][it]
-            #nr = len(Rmid)
-            #C = plt.cm.jet(np.linspace(0,1,20))
-
-            #for i,k in enumerate(keys):
-                #ax[i].set_title(k)
-                #ax[i].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_profiles[k][it][::-1]),c=C)
-        
-            #ax[5].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_att[it][0,0][::-1]),c=C)
-            #tind = slice(n,n+nr)
-            #ax[6].scatter(np.ones_like(R)*t, np.interp(R,Rmid[::-1],qeff[0,0,tind][::-1]*1e15),c=C)
-            #n+=nr
-
-        #plt.show()
-        
-        
-
-        #rho_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
-        #for sys in TS['systems']:
-            #if sys not in TS: continue 
-            #t = TS[sys]['time'].values
-            #te = TS[sys]['ne'].values
-            #e = TS[sys]['ne_err'].values
-            #r = TS[sys]['rho'].values
-            #t = np.tile(t, (r.shape[1],1)).T
-            #ind = np.isfinite(e)|(te>0)
-            #tvec_ne.append(t[ind])
-            #data_ne.append(te[ind])
-            #err_ne.append(e[ind])
-            #rho_ne.append(r[ind]) 
-
-        #rho_ne  = np.hstack(rho_ne)
-        #tvec_ne = np.hstack(tvec_ne)
-        #data_ne = np.hstack(data_ne)
-        #err_ne  = np.hstack(err_ne)
-
             
 
-        n = 0
-        beam_fact = beam_data['beam_geom']*beam_data['beam_pow']
-        for it,t in enumerate(centroid):
-            
-            Rmid = beam_profiles['Rmid'][it]
-            nt = len(Rmid)
-            tind = slice(n,n+nt)
-            ind = label == it
-            n += nt
+            if line_id  in ['B V 7-6','C VI 8-7','He II 4-3','Ne X 11-10','NVII 9-8']:
+                print('line_id', line_id, 'AUG')
+                #CX with beam ions
+                adf_interp = read_adf12_aug(path,line_id, n_neut=1)
+                qeff = adf_interp(zeff, ti, ne, erel)
+                adf_interp = read_adf12_aug(path,line_id, n_neut=2)
+                qeff2 = adf_interp(zeff, ti, ne, erel)
+                
+                #CX with beam halo
+                adf_interp = read_adf12_aug(path,line_id, n_neut=1, therm=True)
+                qeff_th = adf_interp(zeff, ti, ne).T
+                adf_interp = read_adf12_aug(path,line_id, n_neut=2, therm=True)
+                qeff2_th = adf_interp(zeff, ti, ne).T
+                
+            elif imp in ['Ca18','Ar18','F9',  'B5']:
+                print('line_id', line_id, 'adf12')
+
+                atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
+                            'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
+                                'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
+                                'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat')}
+
+                blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'B5':{'3-2':[1,1]} }
+                imp_, Z, transition = line_id.strip().split(' ')
+
+                file1, file2 = atom_files[imp]
+                block1, block2 = blocks[imp][transition]
+                qeff  = read_adf12(path+file1,block1, erel, ne, ti, zeff)
+                qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
+                
+                #unavailible
+                qeff_th = qeff2_th = 0
+                
+                
+            elif line_id in ['B V 3-2','C VI 3-2','O VIII 3-2','He II 2-1' ,'NVII 3-2']:
+                # Define CX rate coefficient fitted parameters used to construct rate coefficient
+                # From /u/whyte/idl/spred/spred_cx.pro on GA workstations
+                print('line_id', line_id, 'spred')
+
+                if imp == 'He2':
+                    coeffs_energy = [1.1370244, 0.0016991233, -0.00015731925, 6.4706743e-7, 0.0]
+                if imp == 'C6': #with lmixing
+                    coeffs_energy = [0.98580991, 0.046291358, -0.0010789930, 8.9991561e-6, -2.7316781e-8]
+                if imp == 'N7': #with lmixing, linear combination og O and C
+                    coeffs_energy_c = [0.98580991, 0.046291358, -0.0010789930, 8.9991561e-6, -2.7316781e-8]
+                    coeffs_energy_o = [1.1975958, 0.025612778, -0.00048135883, 2.1715730e-6, 0.0]
+                    coeffs_energy = np.add(coeffs_energy_c, coeffs_energy_o) / 2.0
+                if imp == 'O8':
+                    coeffs_energy = [1.1975958, 0.025612778, -0.00048135883, 2.1715730e-6, 0.0]
+                if imp == 'B5':
+                    coeffs_energy = [ 1.15113500e+00,  3.00654905e-02, -6.68824080e-04,  4.35114750e-06,-9.42988278e-09]
+
+                # CX rate coefficient for given energy (ph cm**3/s)
+                qeff = 10 ** np.polyval(coeffs_energy[::-1],erel/1e3)* 1.0e-8
+                qeff2 = qeff_th = qeff2_th = 0
+
     
+            else:
+                raise Exception('CX data for line %s was not found'%line_id)
 
-            R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
-            # sum over beam species crossection before interpolation
-            denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
+            
+                
+                
+            ## cm**3/s to m**3/s and  per ster. like CER
+            qeff  /= 1e6 * 4.0 * np.pi
+            qeff2 /= 1e6 * 4.0 * np.pi
 
-            # uncertainties in beam_att_err between species are 100% correlated, we can sum them
-            denom_err_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att_err[it] * qeff[:,:,tind], 1))  # nR x nbeam
+
+            ## cm**3/s to m**3/s and  per ster. like CER
+            qeff_th  /= 1e6 * 4.0 * np.pi
+            qeff2_th /= 1e6 * 4.0 * np.pi
+        
+            ######################### Calculate Impurity density  #############################
             
-            denom = np.sum(beam_fact[:,ind]*denom_interp(R_clip),0)
-            denom_err = np.sum(beam_fact[:,ind]*denom_err_interp(R_clip),0)
+            isp = np.arange(3)+1  # mass multipliers for beam species
+            eV_to_J = consts.e
+            mp = consts.m_p
+
+
+
+            einj = nbi_dict['volts']  # V
+            # Velocity of beam species
+            pwrfrc = nbi_dict['pow_frac'].T[0]
+            vinj = np.sqrt(2.0 * einj * eV_to_J /(ab_.T * mp))  # m/s
+            nb0 = pwrfrc / (einj * eV_to_J * vinj / isp[:, None])  # 1/m/W must be multipled by power
+            qeff = qeff * (1 - n2frac) + n2frac * qeff2 #  qeff from n=1 and n=2
+
+            #BUG inaccurate any geometry correction for spatial distribution of halo
+            #works only in the limit of high density when the collisions prevent spreading the halo
             
-            #sometimes is power observed by vertical core system is zero, but intensity is nonzero
-            invalid = (denom == 0)|np.isnan(nimp_data['int_err'][ind])|(nimp_data['int'][ind]==0)
-            if np.any(invalid):
-                ind[ind] &= ~invalid
-                denom=denom[~invalid] 
-                denom_err=denom_err[~invalid]
+            # Get beam attenuation data and the qeff values
+            ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
+            nD = (1-beam_prof_merged['fC']*6)*ne  # cm^-3
+            qeff+= (nD* qeff_th)*f0halo1 #small, negligible
+            qeff+= (nD*qeff2_th)*f0halo2 #comparable with qeff2
+
+
+            #impurity densities foe all channels
+            nz = np.zeros_like(nimp_data['int'])
+            nz_err = np.ones_like(nimp_data['int'])*np.inf
+            #embed()
+            #printe('BUGGGG')
+            #qeff[:] = qeff.mean((0,2))[None,:,None]        
+            
+            #keys = ['ne',  'te',  'Ti', 'omega', 'fC',] 
+            #import matplotlib.pylab as plt
+            #C = plt.cm.jet(np.linspace(0,1,100))
+
+            #f,ax = plt.subplots(2,4,sharex=True)
+            #ax = ax.flatten()
+            #for j in range(100):
+                #for i,k in enumerate(keys):
+                    ##print()
+                    #ax[i].set_title(k)
+                    #ax[i].plot(beam_profiles['rho'][j], beam_profiles[k][j],c=C[j])
+            
+            #ax[5].set_title('atten')
+            #for j in range(100):
+                ##print(beam_att[it].shape)
+                #ax[5].plot(beam_profiles['rho'][j],  beam_att[j][0,0 ].T,c=C[j])
+            #ax[6].set_title('qeff')
+            #n = 0
+
+            #for it,t in enumerate(centroid):
+                #nt = len(beam_profiles['rho'][it])
+                #tind = slice(n,n+nt)
+                #ax[6].plot(beam_profiles['rho'][it], qeff[0,0,tind].T,c=C[it] )
+                #n+=nt
+
+
+            #f,ax = plt.subplots(2,4,sharex=True)
+            #ax = ax.flatten()
+            #ax[5].set_title('atten')
+            #ax[6].set_title('qeff')
+            #n = 0
+            #R = np.linspace(1.7,2.3,20)
+
+            #for it,t in enumerate(centroid):
+                #Rmid = beam_profiles['Rmid'][it]
+                #nr = len(Rmid)
+                #C = plt.cm.jet(np.linspace(0,1,20))
+
+                #for i,k in enumerate(keys):
+                    #ax[i].set_title(k)
+                    #ax[i].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_profiles[k][it][::-1]),c=C)
+            
+                #ax[5].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_att[it][0,0][::-1]),c=C)
+                #tind = slice(n,n+nr)
+                #ax[6].scatter(np.ones_like(R)*t, np.interp(R,Rmid[::-1],qeff[0,0,tind][::-1]*1e15),c=C)
+                #n+=nr
+
+            #plt.show()
+            
+            
+
+            #rho_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
+            #for sys in TS['systems']:
+                #if sys not in TS: continue 
+                #t = TS[sys]['time'].values
+                #te = TS[sys]['ne'].values
+                #e = TS[sys]['ne_err'].values
+                #r = TS[sys]['rho'].values
+                #t = np.tile(t, (r.shape[1],1)).T
+                #ind = np.isfinite(e)|(te>0)
+                #tvec_ne.append(t[ind])
+                #data_ne.append(te[ind])
+                #err_ne.append(e[ind])
+                #rho_ne.append(r[ind]) 
+
+            #rho_ne  = np.hstack(rho_ne)
+            #tvec_ne = np.hstack(tvec_ne)
+            #data_ne = np.hstack(data_ne)
+            #err_ne  = np.hstack(err_ne)
+
                 
-            #if it == np.argmin(np.abs(np.array(centroid)-2.175)):
-                #embed()
-                #nR = beam_profiles['Rmid'][it].size
+
+            n = 0
+            beam_fact = beam_data['beam_geom']*beam_data['beam_pow']
+            for it,t in enumerate(centroid):
                 
-                ##split the interpolated atomic data in timeslices
+                Rmid = beam_profiles['Rmid'][it]
+                nt = len(Rmid)
+                tind = slice(n,n+nt)
+                ind = label == it
+                n += nt
+        
+
+                R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
+                # sum over beam species crossection before interpolation
+                denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
+
+                # uncertainties in beam_att_err between species are 100% correlated, we can sum them
+                denom_err_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att_err[it] * qeff[:,:,tind], 1))  # nR x nbeam
                 
-                #dlencm = beam_profiles['dllencm'][it] #cm
-                #dens = beam_profiles['ne'][it] / 1.0e6  # cm^-3        
-                #datt = sigma_eff[:,:,n:n+nR] * dens #differential attenuation
+                denom = np.sum(beam_fact[:,ind]*denom_interp(R_clip),0)
+                denom_err = np.sum(beam_fact[:,ind]*denom_err_interp(R_clip),0)
+                
+                #sometimes is power observed by vertical core system is zero, but intensity is nonzero
+                invalid = (denom == 0)|np.isnan(nimp_data['int_err'][ind])|(nimp_data['int'][ind]==0)
+                if np.any(invalid):
+                    ind[ind] &= ~invalid
+                    denom=denom[~invalid] 
+                    denom_err=denom_err[~invalid]
+                    
+                #if it == np.argmin(np.abs(np.array(centroid)-2.175)):
+                    #embed()
+                    #nR = beam_profiles['Rmid'][it].size
+                    
+                    ##split the interpolated atomic data in timeslices
+                    
+                    #dlencm = beam_profiles['dllencm'][it] #cm
+                    #dens = beam_profiles['ne'][it] / 1.0e6  # cm^-3        
+                    #datt = sigma_eff[:,:,n:n+nR] * dens #differential attenuation
+
+                        
+                    #plt.plot(beam_profiles['Rmid'][it], beam_att[it][0].T)
+                    
+                    #plt.plot(beam_profiles['Rmid'][it], datt[0].T*100)
+                    
+                    
+                    #plt.plot(beam_profiles['Rmid'][it], dens);plt.show()
+                    #plt.plot(beam_profiles['rho'][it], dens);plt.show()
+
+                    #plt.plot(beam_profiles['rho'][it], beam_profiles['Rmid'][it]);plt.show()
 
                     
-                #plt.plot(beam_profiles['Rmid'][it], beam_att[it][0].T)
-                
-                #plt.plot(beam_profiles['Rmid'][it], datt[0].T*100)
-                
-                
-                #plt.plot(beam_profiles['Rmid'][it], dens);plt.show()
-                #plt.plot(beam_profiles['rho'][it], dens);plt.show()
 
-                #plt.plot(beam_profiles['rho'][it], beam_profiles['Rmid'][it]);plt.show()
+                nz[ind] = nimp_data['int'][ind]/denom
+                nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
+                nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
+        
+            #interp = NearestNDInterpolator(np.vstack((tvec_ne,rho_ne)).T, np.copy(data_ne))
 
+            #fill the xarray database with calculated impurity densities
+            n = 0 
+            for diag in systems:
+                for ch in nimp[diag]:
+                    
+                    if line_id != ch['int'].attrs['line']:
+                        n+=1
+                        continue
+                    
+                    #interp.values[:] = np.copy(data_ne) 
+                    #ne = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
+                    #interp.values[:] = np.copy(err_ne) 
+                    #ne_err = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
+                    ch['nimp_int'] = ch['nimp'].copy()
+                    ch['nimp_int'].values = nz[data_index[n]]#/ne
+                    ch['nimp_int_err'] = ch['nimp'].copy()
+                    ch['nimp_int_err'].values = nz_err[data_index[n]]
+                    #ch['nimp_int_err'].values = nz[data_index[n]]/ne*np.hypot(nz_err[data_index[n]]/nz[data_index[n]],ne_err/ne)
                 
-
-            nz[ind] = nimp_data['int'][ind]/denom
-            nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
-            nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
-    
-        #interp = NearestNDInterpolator(np.vstack((tvec_ne,rho_ne)).T, np.copy(data_ne))
-
-        #fill the xarray database with calculated impurity densities
-        n = 0 
-        for diag in systems:
-            for ch in nimp[diag]:
-                
-                #if line_id != ch['int'].attrs['line']:
-                    #n+=1
-                    #continue
-                
-                #interp.values[:] = np.copy(data_ne) 
-                #ne = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
-                #interp.values[:] = np.copy(err_ne) 
-                #ne_err = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
-                ch['nimp_int'] = ch['nimp'].copy()
-                ch['nimp_int'].values = nz[data_index[n]]#/ne
-                ch['nimp_int_err'] = ch['nimp'].copy()
-                ch['nimp_int_err'].values = nz_err[data_index[n]]
-                #ch['nimp_int_err'].values = nz[data_index[n]]/ne*np.hypot(nz_err[data_index[n]]/nz[data_index[n]],ne_err/ne)
-            
-                n += 1
+                    n += 1
     
     
         print('\t done in %.1fs'%(time()-TT))
@@ -2698,6 +2740,10 @@ class data_loader:
 
         
         analysis_type = self.get_cer_types(selected.get())
+        
+        #show the selected best analysis in the GUI??
+        selected.set(analysis_type[3:])
+
         suffix = ''
         imp = 'C6'
         if 'Impurity' in options and options['Impurity'] is not None:
@@ -2819,7 +2865,18 @@ class data_loader:
                     nimp0 = self.load_nimp(tbeg,tend,systems,options) 
                 except Exception as e:
                     printe('Error in loading of nC from IMPCON: '+str(e))
-                    nimp0 = None
+                    try:
+                        #try to load from AUTO edition
+                        selected.set('auto')
+                        nimp0 = self.load_nimp(tbeg,tend,systems,options) 
+                    except:
+                        printe('Error in loading of nC from IMPCON AUTO eddition: '+str(e))
+                        nimp0 = None
+                    finally:
+                        print('selected',analysis_type, analysis_type[3:] )
+                        selected.set(analysis_type[3:])
+
+
 
                 nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
 
@@ -3213,9 +3270,6 @@ class data_loader:
         ######################   CER VB data #############################3
 
 
-            
-         
-
         if any(np.in1d([c+'_'+cer_analysis_type for c in cer_vb_diags], systems)):
             tree = 'IONS'
             #list of MDS+ signals for each channel
@@ -3354,8 +3408,10 @@ class data_loader:
                     ds['channel'] = xarray.DataArray([channels[i][0]+channels[i][-2:] for i in valid_ind] ,dims=['channel'])
 
                     zeff['diag_names'][cer_subsys[diag]] = np.unique(names).tolist()
-
-            self.MDSconn.closeTree(tree, self.shot)
+                else:
+                    printe('No CER VB data are in MDS+')
+                    
+                self.MDSconn.closeTree(tree, self.shot)
 
         ##########################################  EQ mapping  ###############################################
 
@@ -3473,7 +3529,7 @@ class data_loader:
 
          #calculate weights for each rho/time position
         for sys in zeff['systems']:
-            if not sys in zeff or sys in ['vertical','tangential']: continue
+            if not sys in zeff or sys in ['vertical','tangential','SPRED']: continue
             RHO =  zeff[sys]['rho'].values
             T = np.tile(zeff[sys]['time'].values,RHO.shape[:0:-1]+(1,)).T
             vb_coeff_interp = Linterp(np.vstack((T.flatten(), RHO.flatten())).T).reshape(RHO.shape)
@@ -3545,8 +3601,9 @@ class data_loader:
             
         print('\t done in %.1fs'%(time()-TT))
 
-        if 'tangential' in zeff['systems'] or 'vertical' in zeff['systems']:
-            cer_sys = list(set(['tangential', 'vertical'])&set(zeff['systems']))
+        cer_sys = list(set(['tangential', 'vertical', 'SPRED'])&set(zeff['systems']))
+
+        if len(cer_sys) > 0:
             NIMP = self.load_nimp(tbeg,tend, cer_sys,options['CER system'])
             
             for sys in cer_sys:
@@ -3584,6 +3641,52 @@ class data_loader:
                     zeff[sys][ich]['Zeff_err'] = xarray.DataArray(np.single(Zeff_err),  dims=['time'])
 
         return zeff
+    
+    
+    def use_zeeman_NN(self, Ti_obs_vals,modB_vals, theta_vals,loc='/fusion/projects/results/cer/haskeysr/Zeeman_NN/',):
+        """
+        NN, X_scaler, Y_scaler: neural network, X_scaler and Y_scaler objects from the neural network fitting
+        Ti_obs_vals: Observed Ti values [eV]
+        modB_vals: Magnetic field strength [T], same length and Ti_obs_vals
+        theta_vals: Viewing angle [rad], same length and Ti_obs_vals
+        written by Shaun Haskey
+        
+        """
+        
+        nn_path = loc+'/Zeeman_Corr_NN_12C6.pickle'
+        if not os.path.isfile(loc+'/Zeeman_Corr_NN_12C6.pickle'):
+            nn_path = os.path.dirname(os.path.realpath(__file__))+'/Zeeman_Corr_NN_12C6.pickle'
+            
+
+        with open(nn_path , 'rb') as filehandle:
+            import pickle
+            NN_dat = pickle._Unpickler(filehandle)
+            NN_dat.encoding = 'latin1'
+            try:
+                NN_dat = NN_dat.load()
+            except:
+                printe('Zeeman correction was unsucessful!! Error in loading of NN pickle')
+                raise
+            
+        NN = NN_dat['NN']
+        X_scaler = NN_dat['X_scaler']
+        Y_scaler = NN_dat['Y_scaler']
+        
+        X = np.zeros((len(Ti_obs_vals), 4), dtype=float)
+        X_scaler.n_features_in_ = 4
+        X[:, 0] = +modB_vals  
+        X[:, 1] = np.log10(Ti_obs_vals) 
+        X[:, 2] = np.sin(theta_vals) 
+        X[:, 3] = np.cos(theta_vals) 
+
+        X_norm = X_scaler.transform(X, copy=True)
+        Y_NN_norm = NN.predict(X_norm)
+        dT = Y_scaler.inverse_transform(Y_NN_norm, copy=True)
+        Ti_real = dT + Ti_obs_vals
+        
+        return Ti_real
+
+  
 
 
     def load_cer(self,tbeg,tend, systems, options=None):
@@ -3599,7 +3702,8 @@ class data_loader:
             analysis_type = selected.get()
             
         analysis_type = self.get_cer_types(analysis_type)
-         
+
+            
         self.RAW.setdefault('CER',{})
         cer = self.RAW['CER'].setdefault(analysis_type,{})
 
@@ -3610,6 +3714,20 @@ class data_loader:
  
         #update equilibrium for already loaded systems
         cer = self.eq_mapping(cer)
+
+        #switch on/off correction in already loaded systems
+        try:
+            zeem_split = options['Corrections']['Zeeman Splitting'].get()
+        except:
+            zeem_split = True
+        for sys in systems:
+            if sys not in cer:
+                continue
+            for ch in cer[sys]:
+                if zeem_split and 'Ti_corr' in ch:
+                    ch['Ti'] = ch['Ti_corr']
+                else:
+                    ch['Ti'] = ch['Ti_orig']
         
 
         if len(load_systems) == 0:
@@ -3623,11 +3741,11 @@ class data_loader:
         #NOTE visible bramstrahlung is not used
        
         #list of MDS+ signals for each channel
-        signals = cer_data['Ti']['sig']+cer_data['omega']['sig'] + ['R','Z','STIME','TIME']
+        signals = cer_data['Ti']['sig']+cer_data['omega']['sig'] + ['R','Z','VIEW_PHI','STIME','TIME']
 
         all_nodes = []        
         TDI = []
-        TDI_phi = []
+        TDI_lens_geom = []
         diags_ = []
         data_nbit = []
         missing_rot = []
@@ -3672,7 +3790,8 @@ class data_loader:
                     data_nbit.extend([length]*len(signals) )
                     
                     node_calib = node.replace(analysis_type.upper(),'CALIBRATION')
-                    TDI_phi.append(node_calib.strip()+':'+'LENS_PHI')
+                    for par in ['R','Z','PHI']:
+                        TDI_lens_geom.append(node_calib.strip()+':'+'LENS_'+par)
 
                     for sig in signals:
                         #sometimes if rotation not availible even if Ti is
@@ -3681,7 +3800,7 @@ class data_loader:
                             sig = 'STIME'
                             
                         #use atomic data corrected signals if availible                        
-                        elif (sig == 'ROT' and  system == 'tangential' and corr_rot) or (sig == 'TEMP' and corr_temp):
+                        elif (sig == 'ROT' and  system == 'tangential' and corr_rot) or (sig == 'TEMP' and corr_temp and zeem_split):
                             sig = sig+ 'C'
                             
                         TDI.append(node+':'+sig)
@@ -3705,10 +3824,10 @@ class data_loader:
         
         TDI_list = np.reshape(TDI,(-1,len(signals))).T
         TDI_list = ['['+','.join(tdi)+']' for tdi in TDI_list]
-        TDI_list+= ['['+','.join(TDI_phi)+']']
+        TDI_list+= ['['+','.join(TDI_lens_geom)+']']
         
         data = mds_load(self.MDSconn, TDI_list , tree, self.shot) 
-        phi = data.pop()
+        geom_lens = data.pop()
         
         if len(data[-1]) == 0:
             print('Data fetching has failed!!')
@@ -3720,29 +3839,81 @@ class data_loader:
         data = np.single(data).flatten()
         data_nbit = np.reshape(data_nbit,(-1,len(signals))).T.flatten()
         data = split_mds_data(data, data_nbit, 8)
-        Ti,Ti_err,rot,rot_err,R,Z,stime,tvec = np.array_split(data,8)
+        Ti,Ti_err,rot,rot_err,R,Z,PHI,stime,tvec = np.array_split(data,9)
         
         #get a time in the center of the signal integration 
         tvec = [np.single(t+s/2.)/1000 for t,s in zip(tvec, stime)]
         
-        #embed()
             
         #map to radial coordinate 
-        rho = self.eqm.rz2rho(np.hstack(R)[:,None],np.hstack(Z)[:,None],np.hstack(tvec),self.rho_coord)[:,0]
+        R_all,Z_all,T_all = np.hstack(R)[:,None],np.hstack(Z)[:,None],np.hstack(tvec)
+        rho = self.eqm.rz2rho(R_all,Z_all,T_all,self.rho_coord)[:,0]
         
+        r_lens, z_lens, phi_lens = geom_lens.reshape(-1,3).T 
+        
+
+        if not corr_temp:
+            #Zeeman splitting correction
+                
+            #get magnetic field at measurement locations
+            Br,Bz,Bt = self.eqm.rz2brzt(R_all,Z_all,T_all)
+            Bvec = np.squeeze((Br,Bz,Bt))
+            
+            # Now we have the magnetic field strength
+            modB = np.linalg.norm(Bvec,axis=0)
+            B_hat = -Bvec / modB #make it consistent with OMFITprofiles
+            
+            #calculate unit vector in LOS direction
+            dPhi = np.deg2rad( np.hstack([phi-p for p,phi in zip(phi_lens,PHI)]))
+            Rlen = np.hstack([rr*0+r for r,rr in zip(r_lens,R)])
+            
+            #(X_spot-X_lens, Yspot-Ylens, Z_spot-Zlens)
+            dR = R_all[:,0]-np.cos(dPhi)*Rlen
+            dT = 0-np.sin(dPhi)*Rlen
+            dZ = np.hstack([zz-z for z,zz in zip(z_lens,Z)])
+            
+            los_vec = np.array((dR, dZ, dT))
+            los_vec /= np.linalg.norm(los_vec,axis=0)
+            
+            #get angle between B and LOS            
+            angle_B_chord = np.arccos(np.sum(los_vec * B_hat, 0))
+        
+        
+            #if corr_temp:
+                #printe('Zeeman splitting is alredy included??? Check it!!!')
+                    
+            #evaluate correction neural network
+            Ti_corr = np.hstack(Ti) #temperature to be corrected
+            valid = np.isfinite(Ti_corr) & (Ti_corr > 0)
+            try:
+                Ti_corr[valid] = self.use_zeeman_NN(Ti_corr[valid], modB[valid], angle_B_chord[valid])
+            except:
+                try:
+                    options['Corrections']['Zeeman Splitting'].set(0)
+                except:
+                    pass
+        else:
+            #minor bug, it wil not be possible to reload uncorrected data
+            Ti_corr = np.hstack(Ti)
+
+            
+        
+        
+        
+        N = 0
         for ich,ch in enumerate(all_nodes):
             nt = np.size(tvec[ich])
-            #if nt == 0: continue
-            rho_,rho = rho[:nt], rho[nt:]
+            tind = slice(N, N+nt)
+            N+= nt
             diag = ch.split('.')[-2].lower()
-            name = diags_[ich][:4]+'_%d'%phi[ich]            
+            name = diags_[ich][:4]+'_%d'%phi_lens[ich]            
       
             if not name in cer['diag_names'][diag]:
                 cer['diag_names'][diag].append(name)
             ds = xarray.Dataset(attrs={'channel':ch})
             ds['R'] = xarray.DataArray(R[ich], dims=['time'], attrs={'units':'m'})
             ds['Z'] = xarray.DataArray(Z[ich], dims=['time'], attrs={'units':'m'})
-            ds['rho'] = xarray.DataArray(rho_, dims=['time'], attrs={'units':'-'})
+            ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
             ds['diags']= xarray.DataArray(np.array((name,)*nt),dims=['time'])
 
    
@@ -3753,28 +3924,42 @@ class data_loader:
                 rot_err[ich][corrupted] = np.infty
 
                 rot[ich][~corrupted]    *= 1e3/R[ich][~corrupted]    
-                rot_err[ich][~corrupted] *= 1e3/R[ich][~corrupted]  
-
-                ds['omega'] = xarray.DataArray(rot[ich],dims=['time'], attrs={'units':'rad/s','label':r'\omega_\varphi'})
-                ds['omega_err'] = xarray.DataArray(rot_err[ich],dims=['time'], attrs={'units':'rad/s'})
-            
+                rot_err[ich][~corrupted] *= 1e3/R[ich][~corrupted] 
+                
+                if not all(corrupted):
+                    ds['omega'] = xarray.DataArray(rot[ich],dims=['time'], attrs={'units':'rad/s','label':r'\omega_\varphi'})
+                    ds['omega_err'] = xarray.DataArray(rot_err[ich],dims=['time'], attrs={'units':'rad/s'})
+                
                 
             if len(Ti[ich]) > 0:
                 corrupted = (Ti[ich]>=15e3)|(Ti[ich] <= 0)|(R[ich]  == 0)|(Ti_err[ich]<=0)|~np.isfinite(Ti[ich])
                 Ti_err[ich][corrupted] = np.infty
                 Ti[ich][~np.isfinite(Ti[ich])] = 0
+                
+                if not all(corrupted):
+                    ds['Ti_orig'] = xarray.DataArray(Ti[ich],dims=['time'], attrs={'units':'eV','label':'T_i'})
+                    ds['Ti_corr'] = xarray.DataArray(Ti_corr[tind],dims=['time'], attrs={'units':'eV','label':'T_i'})
+                    ds['Ti_err'] = xarray.DataArray(Ti_err[ich],dims=['time'], attrs={'units':'eV'})
+                    ds['Ti'] = ds['Ti_corr'] if zeem_split else ds['Ti_orig']
+            
 
-                ds['Ti'] = xarray.DataArray(Ti[ich],dims=['time'], attrs={'units':'eV','label':'T_i'})
-                ds['Ti_err'] = xarray.DataArray(Ti_err[ich],dims=['time'], attrs={'units':'eV'})
-            
-            #BUG can be sometimes not unique 183504 CERFIT
-            ds['time'] = xarray.DataArray(tvec[ich], dims=['time'], attrs={'units':'s'})
-            cer[diag].append(ds)
-            
+                
+
+            if 'Ti' in ds or 'omega' in ds:
+                #BUG time can be sometimes not unique 183504 CERFIT
+                ds['time'] = xarray.DataArray(tvec[ich], dims=['time'], attrs={'units':'s'})
+                cer[diag].append(ds)
+                
+                
+                
+                
         cer['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
         print('\t done in %.1fs'%(time()-T))
-
+        #print(cer)
         return cer
+    
+    
+    
     
     
     
@@ -4774,7 +4959,7 @@ def main():
     shot = 184777# BUG !! poskozeny prvni po blipu 
     shot = 183167 #TODO blbe nC!!!
     shot = 179119 #many missing timeslices in IMPCON
-    shot =  183504
+    shot =  164988
 
     #175694  - better match between onaxis ver and tang denisty after rescaling
     #TODO nacitat 210 data zvlast
@@ -4879,8 +5064,8 @@ def main():
     #T = time()
 
     #load_zeff(self,tbeg,tend, options=None)
-    data = loader( 'Mach', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
-    #data = loader( 'nimp', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
     #settings['nimp']={\
         #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)])},

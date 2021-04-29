@@ -91,6 +91,7 @@ class FitPlot():
     tbeg = 0
     tend =  7
     picked = False
+    grid=False
     
     def __init__(self, parent, fit_frame):
         self.parent = parent
@@ -137,6 +138,7 @@ class FitPlot():
             self.changed_fit_slice()
         else:
             self.ax_main.cla()
+            self.ax_main.grid(self.grid)
             self.fig.canvas.draw_idle()
      
     def init_plot_data(self,prof,data_d, elms):
@@ -241,6 +243,8 @@ class FitPlot():
         #clear and inicialize the main plot with the fits
         
         self.ax_main.cla()
+        self.ax_main.grid(self.grid)
+        
         self.ax_main.ticklabel_format(style='sci', scilimits=(-2,2), axis='y') 
 
         self.ax_main.set_ylabel(self.ylab,fontsize=self.fsize+2)
@@ -1085,6 +1089,12 @@ class FitPlot():
             
         if 'right' == event.key:
             self.Forward()
+            
+        if 'g' == event.key:
+            self.grid = not self.grid
+            self.ax_main.grid(self.grid)
+            self.fig.canvas.draw_idle()
+                        
             
         if ' ' == event.key:
             if self.stop:
