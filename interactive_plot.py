@@ -168,7 +168,8 @@ class FitPlot():
             dch = 1 if len(s) == 1 else s[1]
             ind_channels.append(np.tile(np.arange(dch,dtype='uint32')+n_ch,(s[0],1)))
             n_ch+=  dch
-            ind_points.append(np.tile(n_points+np.arange(d.size,dtype='uint32').reshape(d.shape).T,data_rho[-1].shape[d.ndim:]+((1,)*d.ndim)).T)
+            ind_points.append(np.tile(n_points+np.arange(d.size,dtype='uint32').reshape(d.shape).T,
+                                      data_rho[-1].shape[d.ndim:]+((1,)*d.ndim)).T)
             n_points+= d.size
       
 
@@ -222,6 +223,9 @@ class FitPlot():
         self.parent.set_trange(np.amin(tvec),np.amax(tvec),tstep)
 
         self.tres = self.tstep
+        
+        #plot timeslice nearest to the original location where are some data
+        self.plt_time = tvec[np.argmin(abs(self.plt_time-tvec))]
         
         self.ylab = r'$%s\ [\mathrm{%s}]$'%(label,unit)
         self.xlab = r'$\rho_{%s}$'%self.options['rho_coord'][4:]
@@ -656,7 +660,11 @@ class FitPlot():
         self.play_button['command']=self.Play
         
     def Forward(self,mult=1):
-        dt = self.fit_options['dt'].get()
+        try:
+            dt = self.fit_options['dt'].get()
+        except:
+            dt = ''
+            
         if not self.isfloat(dt) or dt == '':
             return 
             

@@ -4,6 +4,7 @@
 import os,time,sys
 import matplotlib
 matplotlib.use('TkAgg')
+import MDSplus
 
 #if matplotlib.compare_versions(matplotlib.__version__, '1.9.9'):
 # http://matplotlib.org/users/dflt_style_changes.html
@@ -193,7 +194,23 @@ class DataFit():
         except:
             return False
         
-    
+    def connectMDSplus(self):
+        
+        if isinstance(self.MDSserver,str):
+            try:
+                self.MDSconn = MDSplus.Connection(self.MDSserver)
+            except:
+                try:
+                    self.MDSconn = MDSplus.Connection('localhost')
+                except:
+                    #print 'MDS connection to %s failed'%self.MDSserver
+                    tkinter.messagebox.showerror('MDS error','MDS connection to %s failed'%self.MDSserver)
+                    self.main_frame.config(cursor="")       
+                    return False
+            
+        else:
+            self.MDSconn = self.MDSserver
+        return True
         
     def check_shot_num(self,num):
         if num == '':
@@ -246,21 +263,10 @@ class DataFit():
 
             #finally:
                 #signal.alarm(0) #Disables the alarm 
-            import MDSplus
-            if isinstance(self.MDSserver,str):
-                try:
-                    self.MDSconn = MDSplus.Connection(self.MDSserver)
-                except:
-                    try:
-                        self.MDSconn = MDSplus.Connection('localhost')
-                    except:
-                        #print 'MDS connection to %s failed'%self.MDSserver
-                        tkinter.messagebox.showerror('MDS error','MDS connection to %s failed'%self.MDSserver)
-                        self.main_frame.config(cursor="")       
-                        return False
-                
-            else:
-                self.MDSconn = self.MDSserver
+            connected = self.connectMDSplus()
+            if not connected:
+                return False
+            
             self.eqm = self.equ_map(self.MDSconn)
 
             efit_editions = []
@@ -316,7 +322,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'ANALYSIS','EFIT20','EFIT02' ,'EFIT01', 'EFIT03', 'EFIT02',  'EFIT04', efit_editions[0]     
+                    prefered_efit = 'ANALYSIS','EFIT20','EFIT01' ,'EFIT02', 'EFIT03',  'EFIT04', efit_editions[0]     
                     for pref_ef in prefered_efit:
                         if pref_ef in efit_editions:
                             break
@@ -445,7 +451,7 @@ class DataFit():
         
         vcmd2 =  self.eq_frame.register(self.efit_edition_changed) 
     
-        self.efit_combo = tkinter.ttk.Combobox(self.eq_reviz_frame,width=7,state=tk.DISABLED,
+        self.efit_combo = tkinter.ttk.Combobox(self.eq_reviz_frame,width=7,state='normal',
                                     validatecommand=(vcmd2, '%P'),validate="focusout")
         self.efit_combo.pack(side=tk.RIGHT) 
         self.efit_combo.bind("<<ComboboxSelected>>", self.efit_edition_changed)
@@ -664,7 +670,6 @@ class DataFit():
     def set_trange(self,tbeg=None,tend=None,tstep='None'):
         self.tbeg = float(self.tbeg_entry.get())/1e3 if tbeg is None else tbeg
         self.tend = float(self.tend_entry.get())/1e3 if tend is None else tend
-        #print('set_trange',[tstep,self.tstep_entry.get()])
         if tstep is None:
             self.tstep = None
         elif tstep == 'None' and self.tstep_entry.get()!= '':
@@ -718,9 +723,7 @@ class DataFit():
             for var in ('m2g','ind_diag','diags','channel','tres','xlab','ylab','plot_rho','plot_tvec'):
                 setattr(self.fitPlot,var,self.load_options[self.kin_prof][var])
             self.set_trange(*self.load_options[self.kin_prof]['trange'])
-            #print('if it was already initialized',self.load_options[self.kin_prof]['trange'] )
 
-        #print('change_set_prof_load',[] )
         #update the fit figure
         self.fitPlot.change_set_prof_load()
 
@@ -735,7 +738,6 @@ class DataFit():
         if self.eqm.eq_open:
             self.data_load.config(stat=tk.NORMAL)
  
-        #self.kin_profs = self.data_loader_class.kin_profs
         for prof in self.kin_profs:
             
             panel = tk.Frame(self.diag_nb)
@@ -745,10 +747,11 @@ class DataFit():
             frames[0].pack(side=tk.LEFT , fill=tk.BOTH, expand=tk.Y)
             frames[1].pack(side=tk.RIGHT, fill=tk.BOTH, expand=tk.Y)
 
-            iframe = 0
-            for sys_name, systems in opts['systems'].items():
+            nsys = len(opts['systems'])            
+            for i, (sys_name, systems) in enumerate(opts['systems'].items()):
+                iframe = min(1,i//max(1,nsys//2))
+
                 frame = frames[iframe]
-                iframe = 1
                 diag_frame = tk.LabelFrame(frame, pady=2,padx=2,relief='groove', text=sys_name)
                 diag_frame.pack(side=tk.TOP,  fill=tk.BOTH, padx=2)
                 inner_frame = tk.Frame(diag_frame)
@@ -901,8 +904,15 @@ class DataFit():
                 sys.stdout.write('  * Fetching %s ...  '%self.eqm.system)
                 sys.stdout.flush()
                 T = time.time()
-
+                #try:
                 self.eqm._read_pfm()
+                #except MDSplus.mdsExceptions.TdiTIMEOUT: 
+                    ##try it again
+                    #self.eqm._read_pfm()
+                #except MDSplus.mdsExceptions.MDSplusERROR:
+                    #self.connectMDSplus()
+                    #self.eqm._read_pfm()
+                  
                 self.eqm.read_ssq()
                 self.eqm._read_scalars()
                 self.eqm._read_profiles()
@@ -911,8 +921,7 @@ class DataFit():
   
 
                 self.set_trange()
-            #print('ddd2',[self.tstep])
-
+ 
             
             self.tbeg = float(self.tbeg_entry.get())/1e3 
             self.tend = float(self.tend_entry.get())/1e3 
@@ -926,7 +935,7 @@ class DataFit():
                 return 
             T = time.time()
             
-    
+            
             data_d = self.data_loader(self.kin_prof,self.load_options,tbeg=self.tbeg,tend=self.tend)
 
             if data_d is None:
@@ -940,6 +949,12 @@ class DataFit():
             assert len(data_d['data']) != 0, 'No Data!!!'
             self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
         
+        #except MDSplus.mdsExceptions.MDSplusERROR:
+            #printe( 'MDS error, trying to reconnect' )
+            #self.connectMDSplus()
+            #tkinter.messagebox.showerror('MDS error, try it again' )
+
+            #raise
         except Exception as e:
             printe( 'Error in loading:' )
             traceback.print_exc()
@@ -996,11 +1011,9 @@ class DataFit():
 
         
     def save_dialog(self):
- 
         #initialdir
         fout = tkinter.filedialog.askdirectory()
         home = os.path.expanduser('~'+os.sep)
-        #print('fout',fout)
         if fout != ():
             fout=fout.replace(home,'~'+os.sep)
             self.output_path.set(fout)
@@ -1014,9 +1027,6 @@ class DataFit():
         
         #create dictionary of fitted profiles and sent them to OMFIT
         data = {}
-      
-        
-
         for prof in self.kin_profs:
             if not 'm2g' in self.load_options[prof] or not self.load_options[prof]['m2g'].fitted:
                 continue
@@ -1196,7 +1206,7 @@ class DataFit():
 def main():
     
     import argparse
-    parser = argparse.ArgumentParser( usage='Fast fitting GUI')
+    parser = argparse.ArgumentParser( usage='Fast profiles fitting GUI')
     
     parser.add_argument('--shot', metavar='S', help='optional shot number', default='')
     parser.add_argument('--tmin',type=float, metavar='S', help='optional tmin', default=None)
