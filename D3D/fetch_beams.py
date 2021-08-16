@@ -256,12 +256,28 @@ def check_cer(shot):
 
 
 #exit()
-load_beams = '30L','30R'#,'210L','210R'#,'330L','330R'
+load_beams = '30L','30R','210L','210R','330L','330R'
 #load_beams =  '330L','330R'
+my_data = np.genfromtxt('beams_corrections_int.txt', delimiter=';')
+shots = my_data[:,0]
+
+
 
 #for shot in range( 160257, 185500):
-for shot in range( 186000 , 189000):
-#for shot in range( 160257 , 185500):
+for shot in shots:
+    #shot = 135847
+    MDSconn.openTree('NB',  shot)   
+    perveance = np.zeros(len(load_beams))
+    for i,b in enumerate(load_beams):
+        #b = 
+        perveance[i] =  MDSconn.get('\\NB::TOP.NB{0}:REAL32'.format(b[:2]+b[-1]) )[4]
+    #print()
+    with open('perveance.txt', "a") as file:
+        file.write(str(shot)+'\t'+'\t'.join([str(p) for p in perveance])+ '\n')
+
+exit()
+
+for shot in range( 160257 , 185500):
 
     #shot = 185800
     try:

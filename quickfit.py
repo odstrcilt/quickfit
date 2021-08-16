@@ -322,7 +322,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'ANALYSIS','EFIT20','EFIT01' ,'EFIT02', 'EFIT03',  'EFIT04', efit_editions[0]     
+                    prefered_efit = 'ANALYSIS','EFIT20','EFIT01','EFIT02' , 'EFIT03',  'EFIT04', efit_editions[0]     
                     for pref_ef in prefered_efit:
                         if pref_ef in efit_editions:
                             break
@@ -599,6 +599,7 @@ class DataFit():
                 #measurememt outside LCFS are useless
                 dic['fit_options']['null_outer']=1  
                 dic['fit_options']['outside_rho']='0.98'
+                dic['fit_options']['elmrem']=0
 
             if kin_prof in [ 'ne','omega','vtor' ]:
                 #measurememt outside LCFS are useless
@@ -607,6 +608,9 @@ class DataFit():
             if kin_prof in [ 'Te/Ti']:
                 dic['fit_options']['null_outer']=1  
                 dic['fit_options']['zeroedge']=0
+            if kin_prof in [ 'Ti']:
+                dic['fit_options']['transformation']='log'
+
                 
             if kin_prof in [ 'Zeff']:
                 #measurememt outside LCFS are useless
@@ -1182,7 +1186,7 @@ class DataFit():
                 pass
 
         output['sawteeth'] =  eval(self.fit_options['sawteeth_times'].get())
-        output['elms']  = self.elms['elm_beg']  
+        #output['elms']  = self.elms['elm_beg']  
         
         
         np.savez_compressed(path+'kin_data_%d.npz'%self.shot, **output)
@@ -1211,22 +1215,26 @@ def main():
     parser.add_argument('--shot', metavar='S', help='optional shot number', default='')
     parser.add_argument('--tmin',type=float, metavar='S', help='optional tmin', default=None)
     parser.add_argument('--tmax',type=float, metavar='S', help='optional tmax', default=None)
-    parser.add_argument('--preload', help='optional tmax',action='store_true')
+    parser.add_argument('--preload', help='optional',action='store_true')
     parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD or AUG)',default='D3D')
     parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
 
     args = parser.parse_args()
-    try:
-        #embed()
-        data = np.load(r'C:\Users\odstrcil\kin_data_%s.npz'%str(args.shot), allow_pickle=True )
-        #print(data.keys())
-        if 'nC6' in  data:
-            return 
-        ##raise('Loaded')
-        #exit()
-    except:
-        #raise
-        pass
+    
+    
+    #print(args.preload)
+    #exit()
+    #try:
+        ##embed()
+        #data = np.load(r'C:\Users\odstrcil\kin_data_%s.npz'%str(args.shot), allow_pickle=True )
+        ##print(data.keys())
+        #if 'nC6' in  data:
+            #return 
+        ###raise('Loaded')
+        ##exit()
+    #except:
+        ##raise
+        #pass
     #if int(args.shot) <= 175864:
         #return
     
@@ -1246,13 +1254,14 @@ def main():
 
     raw = {}
     
-    #try:
-        #raw = np.load('raw_data_'+args.shot+'.npz', allow_pickle=True)
-        #raw = {k:d.item() for k,d in raw.items()}
-        ##exit()
-    #except:
-        ##raise
-        #pass
+    try:
+        raw = np.load('raw_data_'+args.shot+'.npz', allow_pickle=True)
+        raw = {k:d.item() for k,d in raw.items()}
+        #exit()
+    except:
+        print('no raw')
+        #raise
+        pass
         
 
     
@@ -1280,7 +1289,7 @@ def main():
 
     #mlp.diag_nb.select(4)    
 
-    #mlp.options['load_options']['CER system']['Correction']['Relative calibration'] = True
+ 
     #mlp.options['systems']['CER system'][1][1]=False
     
     #mlp.load_options['nimp'][1][1]=False
@@ -1288,20 +1297,31 @@ def main():
     #mlp.init_data()
     #mlp.fitPlot.calculate()
     #print('done')
+    #embed()
+    #mlp.default_settings['nC6']['load_options']['CER system']['Correction']['Relative calibration'] = True
 
+    #mlp.default_settings['nC6']['load_options']['CER system']['Correction']['nz from CER intensity'] = True
     if args.preload:
+        
         for i,k in enumerate(mlp.kin_profs):
             if k[0] =='n' and k != 'nC6' or k == 'Zeff': continue
             mlp.diag_nb.select(i)    
+            #mlp.default_settings_loader['CER system']['Correction']['Relative calibration'] = True
+            #mlp.default_settings_loader['CER system']['Correction']['nz from CER intensity'] = True
+
             mlp.init_data()
             #mlp.fitPlot.calculate()
         mlp.diag_nb.select(0)    
-        np.savez_compressed('raw_data_'+args.shot, **raw)
-
+        #np.savez_compressed('raw_data_'+args.shot, **raw)
+        myroot.mainloop()
+    
     else:
         myroot.mainloop()
+
+        
+    #embed()
     #print('done')
-#myroot.mainloop()
+    #myroot.mainloop()
 
     
     
