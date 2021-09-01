@@ -1181,7 +1181,7 @@ class data_loader:
         data = []
         ts = None
         
-
+        
         if quantity == 'ne' and 'CO2 interferometer' in options['systems'] and options['systems']['CO2 interferometer'][0][1].get():
             data.append(self.load_co2(tbeg, tend))
 
@@ -1703,6 +1703,8 @@ class data_loader:
         TTSUB_ = []
         TTSUB_ST_ = []
         valid_ind = []
+        #median absolute deviation
+        MAD = lambda x: 1.48*np.median(np.abs(x-np.median(x)))
         
 
         nbi_working = spred_tvec <= spred_tvec[nbi_mixed].max()
@@ -1741,7 +1743,9 @@ class data_loader:
                 valid_ind.append(i)
 
                 bg_.append(spred_data[bg_ind].mean())
-                spred_err_.append( spred_data[bg_ind].std())
+                #sometimes the SPRED timing is not accurate , use robust MAD insted STD
+                spred_err_.append( MAD(spred_data[bg_ind]))
+                #plt.plot(np.arange(bg_ind.start ,  bg_ind.stop), spred_data[bg_ind],'o-')
 
                 #compared with turned off beam
                 #if nbi_count[i] == 1 or (nbi_count[i] == 2 and nbi_count[bg_ind.start] == 0):
@@ -1750,8 +1754,12 @@ class data_loader:
                 nbi_frac_.append(nbi_on_frac[i]-nbi_on_frac[bg_ind].mean(0))
                 TTSUB_.append(spred_tvec[bg_ind.start])
                 TTSUB_ST_.append(spred_tvec[bg_ind.stop]-spred_tvec[bg_ind.start])
-
-
+        
+        #plt.plot(spred_data)
+        #plt.show()
+        
+        
+        #embed()
         valid_ind = np.array(valid_ind)
         stime = stime[valid_ind]
         nbi_frac = np.array(nbi_frac_)
@@ -1861,7 +1869,7 @@ class data_loader:
             #plt.step(spred_tvec[nc2>0],(spred_data-bg2)[nc2>0]/nc2[nc2>0],':', where='post')
             #plt.ylim(0,5)
             #plt.show()
-
+        #embed()
         
         
         #plt.step(spred_tvec,spred_data,':', where='post')
@@ -1902,8 +1910,7 @@ class data_loader:
 
         #calculate impurity density directly from the measured intensity
         
-
-     
+      
         tree = 'IONS'   
         load_spred = False
         if 'SPRED_'+imp in load_systems:
@@ -1916,7 +1923,7 @@ class data_loader:
  
         ##############################  LOAD DATA ######################################## 
 
-        print_line( '  * Fetching CER INTENSITY %s from %s ...'%(imp, analysis_type.upper()))
+        print_line( '  * Fetching CER INTENSITY %s from %s ...'%(imp, analysis_type.upper(), ) )
         TT = time()
 
 
@@ -1969,7 +1976,6 @@ class data_loader:
         beam_geom = np.zeros((0,8))
         
 
-
         #fast fetch of MDS+ data
         order='\\IONS::TOP.CER.CALIBRATION.BEAM_ORDER'
         beam_order = list(self.MDSconn.get(order).data())
@@ -1980,7 +1986,6 @@ class data_loader:
 
 
         if len(loaded_chan) > 0:
-            #embed()
             TDI_data = ','.join(np.transpose(TDI_data).flatten())
             bytelens = np.transpose(bytelens).flatten()
             TDI = ['['+TDI_data+']','['+TDI_lineid[:-1]+']',
@@ -2359,7 +2364,7 @@ class data_loader:
             NBI[n]['beam_fire_time'] = np.sum(stime[ind])
     
         
-     
+        #embed()
         #if 'EQM' in nimp: nimp.pop('EQM')
         
         #nimp = self.eq_mapping(nimp) 
@@ -3290,7 +3295,7 @@ class data_loader:
         rcalib = options['Correction']['Relative calibration'].get()
         #calculate impurity density from intensity directly
 
-        analysis_type = self.get_cer_types(selected.get())
+        analysis_type = self.get_cer_types(selected.get(),impurity=True)
         
         #show the selected best analysis in the GUI??
         selected.set(analysis_type[3:])
@@ -3399,10 +3404,10 @@ class data_loader:
         
         #update equilibrium of catched channels
         nimp = self.eq_mapping(nimp)
+            #embed()
 
         #first load radiation data from MDS+
         if len(load_systems_intens):
-            #embed()
             nimp = self.load_nimp_intens(nimp,load_systems_intens, analysis_type,imp)
  
         #load either from IMPCON or calculate from CX intensity
@@ -3473,7 +3478,7 @@ class data_loader:
    
         #reduce discrepancy between different CER systems
         if rcalib and len(diag_names) > 1 and len(unique_impurities)==1 and 'tangential' in nimp['systems']:
-            print( '\n\t* Relative calibration of beams  ...')
+            print( '\t* Relative calibration of beams  ...')
             NBI = self.RAW['nimp']['NBI']
             
             #treat tangential and vertical system and edge corrections independently
@@ -3503,10 +3508,11 @@ class data_loader:
                 calib_beam = 'T_30R'
    
             else:
+                print(beams)
                 if 'T30L' in beams:
                     calib_beam = 'T_30L'
                 else: #anything else
-                    calib_beam = ([b for b in beams if b[-1] != 'e']+['30L'])[0]
+                    calib_beam = ([b for b in beams if b[-1] != 'e' and b[0]!='S']+['T30L'])[0]
                     calib_beam = calib_beam[0]+'_'+calib_beam[1:]
                 printe('\t\tNo reliable beam for cross calibration, guessing.. using '+calib_beam)
   
@@ -3550,7 +3556,7 @@ class data_loader:
                         other['n'].append(nz[ind])
                         other['nerr'].append(nz_err[ind])
                         other['f'].append(beam_frac[:,ind])
-
+            #embed()
             if len(calib['t']) == 0 or len(other['t']) == 0:
                 if len(calib['t']) == 0:
                     printe('unsuccessful... no calib beam ')
@@ -4259,7 +4265,11 @@ class data_loader:
             I = lambda x: tk.IntVar(value=x)
             S = lambda x: tk.StringVar(value=x)        
                     
-            options = {'Analysis': (S('auto'), (S('best'),'fit','auto','quick')),'Impurity':'C6',
+                    
+              
+                            
+            cer_type = options['CER system']['Analysis'][0]
+            options = {'Analysis': (cer_type, (S('best'),'fit','auto','quick')),'Impurity':'C6',
                        'Correction': {'Relative calibration':I(1),'nz from CER intensity': I(1)}}
             
             
@@ -4285,7 +4295,11 @@ class data_loader:
                     
                 channel = nC.attrs['channel']
                 #correction estimated from cross-calibration by CER
-                corr = nC['nimp_int_corr'].values/(nC['nimp_int'].values+1e-5)
+                if 'nimp_int_corr' in nC:
+                    corr = nC['nimp_int_corr'].values/(nC['nimp_int'].values+1e-5)
+                else:
+                    corr = 1
+                    
                 correction.append(corr)
                 
                 R = nC['R'].values
@@ -4302,11 +4316,13 @@ class data_loader:
                 #main contribution from carbon
                 imp_conc = nC['nimp'].values/1e19/ne
                 Zeff = 1+(nC.attrs['Z']-1)*nC.attrs['Z']*imp_conc
-                Zeff2_err = ((nC['nimp_err'].values/1e19*(nC.attrs['Z']-1)*nC.attrs['Z']))**2
+                Zeff2_err = ((nC['nimp_err'].values/1e19*(nC.attrs['Z']-1)*nC.attrs['Z'])/ne)**2
                 
                 concentrations['C6'].append(imp_conc)
-                options = {'Analysis': (S('SPRED'), (S('best'),'fit','auto','quick')),
+                options = {'Analysis': (S('SPRED'), (cer_type,'fit','auto','quick')),
                         'Correction': {'Relative calibration':I(0),'nz from CER intensity': I(1)}}
+                
+                #embed()
                 
                 #load other light impurities from SPRED without cross-calibration
                 for imp in ['He2','B5','N7','O8']:
@@ -5819,6 +5835,7 @@ def main():
 
     shot = 164637
     shot = 183505
+    shot = 184847
     
     default_settings(MDSconn, shot  )
 
@@ -5933,7 +5950,7 @@ def main():
         'systems':OrderedDict(( ( 'VB array',  (['tangential',I(1)],                 )),
                                 ( 'CER VB',    (['tangential',I(1)],['vertical',I(0)])),
                                 ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
-                                ( 'SPRED',(['He+B+C+O+N',I(0)],)),                           
+                                ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
                                 )), \
         'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
                         'TS':{'Position error':{'Z shift [cm]':D(0.0)}},
@@ -5967,7 +5984,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
-    data = loader( 'nCa18', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
     settings['nimp']= {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(0)] )},

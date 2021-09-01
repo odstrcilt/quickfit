@@ -1254,14 +1254,14 @@ def main():
 
     raw = {}
     
-    try:
-        raw = np.load('raw_data_'+args.shot+'.npz', allow_pickle=True)
-        raw = {k:d.item() for k,d in raw.items()}
-        #exit()
-    except:
-        print('no raw')
-        #raise
-        pass
+    #try:
+        #raw = np.load('raw_data_'+args.shot+'.npz', allow_pickle=True)
+        #raw = {k:d.item() for k,d in raw.items()}
+        ##exit()
+    #except:
+        #print('no raw')
+        ##raise
+        #pass
         
 
     
