@@ -1577,9 +1577,9 @@ class data_loader:
         
     def load_nimp_spred(self,imp, beam_order):
         
-        lines = {'He2':'HeII_304','Li3':'LiIII_114','B5':'BV_262',
-                 'C6':'CVI_182','O8':'OVIII_102','N7':'NVII_134'}
-        line_ids = {'He2':'He II 2-1','Li3':'LiIII 3-1',
+        lines = {'He2':'HeII_304','B5':'BV_262', 'Li3':'LiIII_114', #'Li3': 'LIII_135'
+                 'C6':'CVI_182','O8':'OVIII_102','N7':'NVII_134', }
+        line_ids = {'He2':'He II 2-1','Li3':'Li III 3-1',
                     'B5':'B V 3-2','C6':'C VI 3-2','O8':'OVIII 3-2','N7':'NVII 3-2'}
 
 
@@ -1590,11 +1590,14 @@ class data_loader:
  
         tree = 'SPRED'
         self.MDSconn.openTree('SPECTROSCOPY', self.shot)
+        #spred_tvec, spred_data,err = np.loadtxt('C:/Users/odstrcil/Desktop/DIII-D/diagnostics/SPRED/spred_line_184844_13.47nm.txt').T
+        #spred_tvec*=1e3
         spred_data = self.MDSconn.get('_x=\SPECTROSCOPY::'+line).data()
-  
+        spred_tvec = self.MDSconn.get('dim_of(_x)').data()
+
+        #embed()
 
         spred_data*= 1e4 #convert from ph/cm**2/s/sr to ph/m**2/s/sr
-        spred_tvec = self.MDSconn.get('dim_of(_x)').data()
         spred_data = spred_data[spred_tvec > 0]
         spred_tvec = spred_tvec[spred_tvec > 0]
         
@@ -1740,6 +1743,11 @@ class data_loader:
             
             #suitable timeslice for background substraction was found 
             if bg_ind is not None and bg_ind.start < bg_ind.stop:
+                
+                nbi_frac = nbi_on_frac[i]-nbi_on_frac[bg_ind].mean(0)
+                if nbi_frac.sum() == 0:
+                    continue
+                
                 valid_ind.append(i)
 
                 bg_.append(spred_data[bg_ind].mean())
@@ -1751,7 +1759,7 @@ class data_loader:
                 #if nbi_count[i] == 1 or (nbi_count[i] == 2 and nbi_count[bg_ind.start] == 0):
                     #nbi_frac_.append(nbi_on_frac[i])
                 #else:
-                nbi_frac_.append(nbi_on_frac[i]-nbi_on_frac[bg_ind].mean(0))
+                nbi_frac_.append(nbi_frac)
                 TTSUB_.append(spred_tvec[bg_ind.start])
                 TTSUB_ST_.append(spred_tvec[bg_ind.stop]-spred_tvec[bg_ind.start])
         
@@ -1761,7 +1769,7 @@ class data_loader:
         
         #embed()
         valid_ind = np.array(valid_ind)
-        stime = stime[valid_ind]
+        stime = stime[nbi_working][valid_ind]
         nbi_frac = np.array(nbi_frac_)
 
 
@@ -2391,7 +2399,7 @@ class data_loader:
             imp =  'Ca18'
         
         
-        if imp not in ['B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18']:
+        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
 
@@ -2901,24 +2909,26 @@ class data_loader:
                 adf_interp = read_adf12_aug(path,line_id, n_neut=2, therm=True)
                 qeff2_th = adf_interp(zeff, ti, ne).T
                 
-            elif imp in ['Ca18','Ar18','F9',  'B5']:
+            elif imp in ['Ca18','Ar18','F9',  'B5', 'Li3']:
                 #print('line_id', line_id, 'adf12')
 
                 atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
-                                 'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat')}
-
-                blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'B5':{'3-2':[1,1]}, 'F9':{'10-9':[2,2]}}
+                                 'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
+                                'Li3': ('qef97#li_kvi#li3.dat',None)}
+ 
+                blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'B5':{'3-2':[1,1]}, 'F9':{'10-9':[2,2]}, 'Li3':{'2-1':[1,0], '3-1':[9,0]}}
                 imp_, Z, transition = line_id.strip().split(' ')
-
+                #unavailible
+                qeff_th = qeff2_th = qeff2 = 0
+                
                 file1, file2 = atom_files[imp]
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, ne, ti, zeff)
-                qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
-                
-                #unavailible
-                qeff_th = qeff2_th = 0
+                if file2 is not None:
+                    qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
+ 
                 
                 
             elif line_id in ['B V 3-2','C VI 3-2','OVIII 3-2','He II 2-1' ,'NVII 3-2']:
@@ -4325,7 +4335,7 @@ class data_loader:
                 #embed()
                 
                 #load other light impurities from SPRED without cross-calibration
-                for imp in ['He2','B5','N7','O8']:
+                for imp in ['He2','Li3','B5','N7','O8']:
                     options['Impurity'] = imp
                     other_imp = self.load_nimp(tbeg,tend, ['SPRED'],options)['SPRED_'+imp][ib]
                     imp_conc = other_imp['nimp'].values/1e19*corr/ne
@@ -5836,7 +5846,8 @@ def main():
     shot = 164637
     shot = 183505
     shot = 184847
-    
+    shot = 184844
+
     default_settings(MDSconn, shot  )
 
     #shot = 175473 
@@ -5924,7 +5935,7 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(0)] )},
+        'systems':{'CER system':(['tangential',I(0)], ['vertical',I(0)],['SPRED',I(1)] )},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
@@ -5969,6 +5980,7 @@ def main():
     settings['nHe2'] = settings['nimp']
     settings['nN7'] = settings['nimp']
     settings['nCa18'] = settings['nimp']
+    settings['nLi3'] = settings['nimp']
 
     settings['elm_signal'] = S('fs01up')
     settings['elm_signal'] = S('fs04')
@@ -5984,7 +5996,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
-    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nLi3', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
     settings['nimp']= {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(0)] )},
