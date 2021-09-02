@@ -4294,8 +4294,8 @@ class data_loader:
                 printe('No SPRED data')
                 zeff['diag_names']['SPRED'] = []
                 
-            SPRED_CX_ions = ['He2','Li3','B5','N7','O8']
-            concentrations = {ion:[] for imp in SPRED_CX_ions}
+            SPRED_CX_ions = ['He2','Li3','B5','C6','N7','O8']
+            concentrations = {imp:[] for imp in SPRED_CX_ions}
             correction = []
 
                 
@@ -4332,6 +4332,7 @@ class data_loader:
                                 
                 #load other light impurities from SPRED without cross-calibration
                 for imp in SPRED_CX_ions:
+                    if imp == 'C6': continue
                     options['Impurity'] = imp
                     other_imp = self.load_nimp(tbeg,tend, ['SPRED'],options)['SPRED_'+imp][ib]
                     imp_conc = other_imp['nimp'].values/1e19*corr/ne
