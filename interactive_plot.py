@@ -92,7 +92,8 @@ class FitPlot():
     tend =  7
     picked = False
     grid=False
-    
+    logy=False
+
     def __init__(self, parent, fit_frame):
         self.parent = parent
 
@@ -153,7 +154,7 @@ class FitPlot():
             if prof not in ch: continue
             d = ch[prof].values
             data.append(d)
-            err = ch[prof+'_err'].values
+            err = np.copy(ch[prof+'_err'].values)
             #NOTE negative values are set to be masked
             mask = err <= 0
             #negative infinite ponts will not be shown
@@ -187,8 +188,8 @@ class FitPlot():
         
         unit  = ch[prof].attrs['units'] 
             
-        if n_ch == 0:
-            print('No data')
+        if n_ch == 0 or n_points == 0:
+            print('No data !! Try to extend time range')
             return
   
         diag_names = data_d['diag_names'] 
@@ -210,6 +211,7 @@ class FitPlot():
         diags = np.hstack([d.ravel() for d in diags])
         self.plot_tvec = np.hstack([t.ravel()  for t  in plot_tvec])
         self.plot_rho  = np.hstack([r.ravel()  for r  in plot_rho])
+        #embed()
         self.options['rho_min'] = np.minimum(0, np.maximum(-1.1,self.plot_rho.min()))
         diag_dict = {d:i for i,d in enumerate(diag_names)} 
         self.ind_diag = np.array([diag_dict[d] for d in diags])
@@ -1102,8 +1104,19 @@ class FitPlot():
             self.grid = not self.grid
             self.ax_main.grid(self.grid)
             self.fig.canvas.draw_idle()
-                        
             
+        if 'l' == event.key:
+            
+            self.logy = not self.logy
+            if self.logy:
+                if self.ax_main.get_ylim()[0] <= 0:
+                    self.ax_main.set_ylim(1,None)
+                self.ax_main.set_yscale('log')
+            else:
+                self.ax_main.set_yscale('linear')
+            self.fig.canvas.draw_idle()
+            
+ 
         if ' ' == event.key:
             if self.stop:
                 self.Play()
