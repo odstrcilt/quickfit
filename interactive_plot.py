@@ -217,6 +217,12 @@ class FitPlot():
         self.ind_diag = np.array([diag_dict[d] for d in diags])
         self.diags = diag_names
         
+        if self.parent.elmsphase:
+            
+            self.plot_tvec = np.interp(self.plot_tvec,self.elms['tvec'],self.elms['data'])
+            tvec = np.interp(tvec,self.elms['tvec'],self.elms['data'])
+
+        
         
         tstep = 'None'
         if self.tstep is None:

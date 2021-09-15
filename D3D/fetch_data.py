@@ -1324,7 +1324,7 @@ class data_loader:
         output['tres']=round(output['tres'],6)
         if output['tres'] == 0:    output['tres'] = 0.01
         output['rho_lbl'] = self.rho_coord
-  
+        #embed()
         return output
 
 
@@ -1766,14 +1766,13 @@ class data_loader:
                 TTSUB_.append(spred_tvec[bg_ind.start])
                 TTSUB_ST_.append(spred_tvec[bg_ind.stop]-spred_tvec[bg_ind.start])
         
-        #plt.plot(spred_data)
         #plt.show()
         
         
-        #embed()
         valid_ind = np.array(valid_ind)
         stime = stime[nbi_working][valid_ind]
         nbi_frac = np.array(nbi_frac_)
+        #embed()
 
 
         #spred_err[spred_data == 0] = np.infty  #SPRED was not working
@@ -1794,14 +1793,17 @@ class data_loader:
 
                 
         #print(time()-T)
-        #embed()
 
         #plt.plot( spred_data_,'.')
 
-        #plt.plot( bg_,'x')
+        #plt.plot( valid_ind,bg_,'x')
         #plt.plot( (nbi_pow[:,0]*geomfac[0]+nbi_pow[:,1]*geomfac[1])*1e19/30e6 )
-        #plt.plot(nbi_count)
-        #plt.plot( (nbi_pow[:,0]*geomfac[0]+nbi_pow[:,1]*geomfac[1])/30e6 )
+        #plt.plot( (nbi_pow[:,0]*geomfac[0] )*1e19/30e6 )
+        #plt.plot( ( nbi_pow[:,1]*geomfac[1])*1e19/30e6 )
+
+        ##plt.plot(nbi_count)
+        #plt.plot(spred_data)
+        #plt.plot(valid_ind, spred_data[valid_ind],'x')
 
         #plt.show()
         
@@ -1956,10 +1958,7 @@ class data_loader:
             nimp[system] = []
             nimp['diag_names'][system] = []
             path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
-            #try:
             nodes = self.MDSconn.get('getnci("'+path+'","fullpath")').data()
-            #except:
-                #embed()
             lengths = self.MDSconn.get('getnci("'+path+':TIME","LENGTH")').data()
             
             for node,length in zip(nodes, lengths):
@@ -2008,11 +2007,7 @@ class data_loader:
                 line_id = [l.decode() for l in line_id]
             except:
                 pass
-        
-            #select only  LOS observing selected impurity
-            #lines_dict = {'He2':'He II 4-3','B5':'B V 7-6','C6':'C VI 8-7','N7':'N VII 9-8','Ne10':'Ne X 11-10'}
-            #Zimp = int(re.sub("[^0-9]", "", imp))
- 
+   
             if imp == 'XX':
                 #BUG hardcoded
                 imp = 'Ca18'
@@ -2088,7 +2083,7 @@ class data_loader:
                 printe('Loading of SPRED '+imp+' was unsucessful')
 
         if len(loaded_chan) == 0 and (len(load_systems) > 0 or load_spred):
-            if sum([np.size(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
+            if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
                     #some data were loaded before, nothing in the actually loaded system
                     return nimp
             raise Exception('Error: no data! try a different edition?')
@@ -2218,10 +2213,15 @@ class data_loader:
             #mean background substracted NBI power over CER integration time 
             it = utime.searchsorted(tvec[ich]+stime[ich]/2)
             beam_pow = nbi_pow[observed_beams][:,it]
-  
+                 
+            #if ch[0] == 'S':
+                #embed()
             #when background substraction was applied
             if nbi_pow_sub is not None and any(TTSUB[ich] > 0):
                 beam_pow[:,TTSUB[ich] > 0] -= nbi_pow_sub[observed_beams][:,utime_sub.searchsorted(TTSUB[ich][TTSUB[ich] > 0])]
+                
+ 
+
             
             #check if there is any timeslice when the beam was turned on
             beams_used = np.any(beam_pow > 1e5,1)
@@ -2383,11 +2383,12 @@ class data_loader:
     #if SOL_reflections:
         print('BUG!!!!!! temporary fix')
         cer = self.load_cer(0,10, load_systems)
-        for ch in nimp['tangential']:
-            for cch in cer['tangential']:
-                if ch.attrs['channel'][:3] == cch.attrs['channel']:
-                    ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
-                    ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
+        if 'tangential' in nimp:
+            for ch in nimp['tangential']:
+                for cch in cer['tangential']:
+                    if ch.attrs['channel'][:3] == cch.attrs['channel']:
+                        ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
+                        ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
 
 
     
@@ -3500,15 +3501,15 @@ class data_loader:
             NBI = self.RAW['nimp']['NBI']
             
             #treat tangential and vertical system and edge corrections independently
-            beams = []
+            groups = []
             for ch in all_channels:
                 sys = ch.attrs['system'][0].upper()
                 edge = 'e' if ch.attrs['edge'] else ''
-                beams+= [sys+b+edge for b in ch['beams'].values]
+                groups+= [sys+b+edge for b in ch['beams'].values]
              
-            beams = list(np.unique(beams))
-            if 'V210R' in beams:
-                beams.remove('V210R') #this is not a primary beams!
+            groups = list(np.unique(groups))
+            if 'V210R' in groups:
+                groups.remove('V210R') #this is not a primary beams!
 
             #determine "calibrated density source"
             voltages, times = {},{}
@@ -3517,19 +3518,19 @@ class data_loader:
                     print('\t\tinfo beam:%s\tV=%dkV\tsingle beam time = %.2fs'%(name,beam.get('volts',0)/1e3,beam.get('beam_fire_time',np.nan)))
 
             #if beam 30L is on ~80kV use it for cross-calibration
-            if 'T30L' in beams and NBI['30L']['fired'] and ( 77 < NBI['30L']['volts']/1e3 < 83) and NBI['30L']['beam_fire_time'] > .5:
+            if 'T30L' in groups and NBI['30L']['fired'] and ( 77 < NBI['30L']['volts']/1e3 < 83) and NBI['30L']['beam_fire_time'] > .5:
                 print('\t* Using beam 30L for cross calibration')
                 calib_beam = 'T_30L'
 
-            elif 'T30R' in beams and NBI['30R']['fired'] and (74 < NBI['30R']['volts']/1e3 < 83) and NBI['30R']['beam_fire_time'] > .5:
+            elif 'T30R' in groups and NBI['30R']['fired'] and (74 < NBI['30R']['volts']/1e3 < 83) and NBI['30R']['beam_fire_time'] > .5:
                 print('\t\tUsing beam 30R for cross calibration')
                 calib_beam = 'T_30R'
    
             else:
-                if 'T30L' in beams:
+                if 'T30L' in groups:
                     calib_beam = 'T_30L'
                 else: #anything else
-                    calib_beam = ([b for b in beams if b[-1] != 'e' and b[0]!='S']+['T30L'])[0]
+                    calib_beam = ([b for b in groups if b[-1] != 'e' and b[0]!='S']+['T30L'])[0]
                     calib_beam = calib_beam[0]+'_'+calib_beam[1:]
                 printe('\t\tNo reliable beam for cross calibration, guessing.. using '+calib_beam)
   
@@ -3556,11 +3557,11 @@ class data_loader:
            
                 ind =  (nz > 0)&(nz_err > 0)&(nz_err < 1e2)&(rho < .9)&(R > 1.7) #do not include data in the pedestal and hfs channels
                 if any(ind):
-                    beam_frac = np.zeros((len(beams), len(t)))
+                    beam_frac = np.zeros((len(groups), len(t)))
                     beam_frac_= ch['beam_frac'].values
                     for ib,b in enumerate(ch['beams'].values):
-                        if sys+b+edge in beams:
-                            beam_frac[beams.index(sys+b+edge)] = beam_frac_[ib]
+                        if sys+b+edge in groups:
+                            beam_frac[groups.index(sys+b+edge)] = beam_frac_[ib]
                     if calib_beam == beam_sys: #just midradius channels
                         calib['t'].append(t[ind])
                         calib['r'].append(R[ind])
@@ -3573,7 +3574,6 @@ class data_loader:
                         other['n'].append(nz[ind])
                         other['nerr'].append(nz_err[ind])
                         other['f'].append(beam_frac[:,ind])
-            #embed()
             if len(calib['t']) == 0 or len(other['t']) == 0:
                 if len(calib['t']) == 0:
                     printe('unsuccessful... no calib beam ')
@@ -3586,7 +3586,7 @@ class data_loader:
                 return nimp
    
             
-            ind_calib = beams.index(calib_beam.replace('_',''))
+            ind_calib = groups.index(calib_beam.replace('_',''))
             calib = {n:np.hstack(d).T for n,d in calib.items()}
             other = {n:np.hstack(d).T for n,d in other.items()}
 
@@ -3640,7 +3640,7 @@ class data_loader:
             
             
             C = np.insert(C,ind_calib,1)  #calibration for calib_beam is forced to be one
-            C = {b:c for b,c in zip(beams, C)}
+            C = {b:c for b,c in zip(groups, C)}
  
             #embed()
             #ind = np.argmax(other['f'],1)
@@ -5492,22 +5492,27 @@ class data_loader:
         TDI_stat_t= '_u=dim_of(_y); [_u[0], _u[size(_u)-1]]'
         TDI = ['['+','.join(TDI_DENS)+']',TDI_dens_t,
                '['+','.join(TDI_STAT)+']',TDI_stat_t]
-
+        
+        #fetch data,  slow
         ne_,co2_time,stat,stat_time = mds_load(self.MDSconn, TDI, tree, self.shot)
-
+        #embed()
         
         co2_time  = np.linspace(co2_time[0]/1e3, co2_time[1]/1e3, ne_.shape[1])
         stat_time  = np.linspace(stat_time[0]/1e3, stat_time[1]/1e3, stat.shape[1])
-
-        Rlcfs,Zlcfs = self.eqm.rho2rz(0.995)
+ 
+        fringe_jump = 1.05e20 #/m^2
+        ne_lowres = np.median(ne_.reshape(4,-1,5),-1)*1e6/2
+        tvec_lowres = np.median(co2_time.reshape(-1,5),-1)
+        ne_correction = ne_lowres-np.unwrap(ne_lowres*(2*np.pi/fringe_jump))*fringe_jump/(2*np.pi)
+        ne_correction = interp1d(tvec_lowres, ne_correction,axis=1,kind='nearest',copy=False, fill_value='extrapolate', assume_sorted=True )(co2_time)
+        
+        
         n_path = 501
-        downsample = 1
+        downsample = 2
         n_ch = len(channels)
 
-        t = np.linspace(0,1,n_path, dtype='single')        
         co2_time = np.mean(co2_time[:len(co2_time)//downsample*downsample].reshape(-1,downsample),-1)
         nt = len(co2_time)
-
         valid = np.zeros((nt, n_ch),dtype=bool)
         ne = np.zeros((nt, n_ch), dtype='single')
         ne_err = np.zeros((nt, n_ch), dtype='single')
@@ -5516,31 +5521,41 @@ class data_loader:
         L = np.zeros((n_ch,n_path), dtype='single')
         L_cross = np.zeros((nt,n_ch), dtype='single')
         weight= np.zeros((nt, n_ch, n_path), dtype='single')
-        
-   
+        Rlcfs,Zlcfs = self.eqm.rho2rz(0.995)
+
+        t = np.linspace(0,1,n_path, dtype='single')    
+
         for ilos, (name, stat_error_thresh, LOS_pt1, LOS_pt2) in enumerate(channels):
             
             ne_[ilos] /= 2. #Because of the double pass through the plasma
-            ne_[ilos] *= 1e6  #/m^3
+            ne_[ilos] *= 1e6  #/m^2
+            
+            #apply fringe jump correction
+            ne_[ilos] -= ne_correction[ilos]
+            #smooth out jumps around the corrections
+            invalid = np.r_[False,np.abs(np.diff(ne_[ilos])) > fringe_jump/5]
+            ind = np.arange(len(ne_.T))
+            ne_[ilos,invalid] = np.interp(ind[invalid],ind[~invalid], ne_[ilos,~invalid])
+    
             
             #Check the status channel - provides a flag for when the signal is not useable due to things like fringeskips
-            signal_invalid = stat_time[stat[ilos]>stat_error_thresh]
-
+            #signal_invalid = stat_time[stat[ilos]>stat_error_thresh]
             last_valid_ind = -1
-            if any(signal_invalid):
-                min_valid_time = signal_invalid[0]
-                last_valid_ind = np.argmin(np.abs(co2_time - min_valid_time))
-                #Chop the data after the last valid index,
-                #need to deal with the case where last_valid_ind is zero...?
-                
+            #if any(signal_invalid):
+                #min_valid_time = signal_invalid[0]
+                #last_valid_ind = np.argmin(np.abs(co2_time - min_valid_time))
+                ##Chop the data after the last valid index,
+                ##need to deal with the case where last_valid_ind is zero...?
 
-            #downsample 10x
+
+            #downsample 
             ne[:,ilos]   = np.mean(ne_[ilos][:len(ne_[ilos])//downsample*downsample].reshape( -1, downsample), -1)
             valid[:last_valid_ind, ilos] = True
-        
+            
             #Calculate the error for the signal based on the drift before t=0
             ne_err[:,ilos] = np.median(np.abs(ne[:,ilos][co2_time<0]))+ne[:,ilos]*.05  #guess 5% error
-            ne_err[last_valid_ind:, ilos] *= -1  #data will be disabled, but can be enabled in the GUI
+            #ne_err[last_valid_ind:, ilos] *= -1  #data will be disabled, but can be enabled in the GUI
+            ne_err[:,ilos]
             R[ilos] = (LOS_pt2[0]-LOS_pt1[0])*t+LOS_pt1[0]
             Z[ilos] = (LOS_pt2[1]-LOS_pt1[1])*t+LOS_pt1[1]
             L[ilos] = np.hypot(R[ilos]-LOS_pt1[0],Z[ilos]-LOS_pt1[1])
@@ -5766,6 +5781,8 @@ class data_loader:
         
         if not np.all(np.any(np.isfinite(laser_correction),1)):
             printe('CO2 rescaling was unsucessful')
+            #embed()
+
             return TS
       
         mean_laser_correction = np.nanmean(laser_correction,1)
@@ -5841,7 +5858,7 @@ class data_loader:
                 
                     
         print('\t done in %.1fs'%(time()-T))
-        print('\t\tCO2 corrections:\n\t\t', (np.round(mean_laser_correction,3)), ' tang vs. core:', np.round(corr,3))
+        print('\t\tCO2 corrections:\n\t\t', (np.round(mean_laser_correction,3)), ' tang vs. core:', np.round(corr/np.mean(mean_laser_correction),3))
  
  
         #return corrected values
@@ -6065,8 +6082,7 @@ def main():
     shot = 184840
     default_settings(MDSconn, shot  )
     shot = 182725
-    shot =   170777
-    shot =   169997#autocalibrace selhala!!
+    shot =   180907
 
     #shot = 175473 
     #shot = 163303
@@ -6154,7 +6170,7 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(1)] )},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
