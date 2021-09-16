@@ -1265,7 +1265,7 @@ def main():
     myroot.protocol("WM_DELETE_WINDOW", mlp.Quit)
     
     if args.tmin is not None or args.tmax is not None:
-        mlp.set_trange(tbeg=args.tmin-.5,tend=args.tmax+.5,tstep='None')
+        mlp.set_trange(tbeg=args.tmin,tend=args.tmax,tstep='None')
     
     #self.default_settings.setdefault('nimp', {\
         #'systems':{'CER system':(['tangential',True], ['vertical',True])},
