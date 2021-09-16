@@ -218,7 +218,6 @@ class FitPlot():
         self.diags = diag_names
         
         if self.parent.elmsphase:
-            
             self.plot_tvec = np.interp(self.plot_tvec,self.elms['tvec'],self.elms['data'])
             tvec = np.interp(tvec,self.elms['tvec'],self.elms['data'])
 
@@ -331,7 +330,8 @@ class FitPlot():
             
                 #delete/undelet selected points 
                 undelete = eclick.button == 3
-                self.delete_points(eclick,(x1,x2),(y1,y2), self.ctrl,undelete)
+                what = 'channel' if self.ctrl else 'point'
+                self.delete_points(eclick,(x1,x2),(y1,y2), what,undelete)
                     
  
             self.RS_delete.set_visible(False)
@@ -1078,6 +1078,9 @@ class FitPlot():
             i_diag = self.ind_diag[ind]
             ind = np.in1d(self.ind_diag,i_diag)
             print('diagnostic %s was '%i_diag+action)
+            
+        elif what == 'point':
+            print('Removing of %s is not supported'%(str(what)))
             
         self.m2g.Yerr.mask[ind]=not undelete
 

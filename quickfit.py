@@ -900,7 +900,7 @@ class DataFit():
 
     def init_data(self):
         #load equilibrium and requested data
-        #print('ddd',[self.tstep])
+  
         self.fit_frame.config(cursor="watch")
         self.fit_frame.update()
         try:
@@ -908,15 +908,7 @@ class DataFit():
                 sys.stdout.write('  * Fetching %s ...  '%self.eqm.system)
                 sys.stdout.flush()
                 T = time.time()
-                #try:
                 self.eqm._read_pfm()
-                #except MDSplus.mdsExceptions.TdiTIMEOUT: 
-                    ##try it again
-                    #self.eqm._read_pfm()
-                #except MDSplus.mdsExceptions.MDSplusERROR:
-                    #self.connectMDSplus()
-                    #self.eqm._read_pfm()
-                  
                 self.eqm.read_ssq()
                 self.eqm._read_scalars()
                 self.eqm._read_profiles()
@@ -952,13 +944,7 @@ class DataFit():
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
             self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
-        
-        #except MDSplus.mdsExceptions.MDSplusERROR:
-            #printe( 'MDS error, trying to reconnect' )
-            #self.connectMDSplus()
-            #tkinter.messagebox.showerror('MDS error, try it again' )
 
-            #raise
         except Exception as e:
             printe( 'Error in loading:' )
             traceback.print_exc()
@@ -1218,6 +1204,7 @@ def main():
     parser.add_argument('--preload', help='optional',action='store_true')
     parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD or AUG)',default='D3D')
     parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
+    parser.add_argument('--elmsphase', help='Apply ELMs synchronisation',default=False,action='store_true')
 
     args = parser.parse_args()
     
@@ -1289,7 +1276,7 @@ def main():
 
     #mlp.diag_nb.select(4)    
 
- 
+    mlp.elmsphase = args.elmsphase
     #mlp.options['systems']['CER system'][1][1]=False
     
     #mlp.load_options['nimp'][1][1]=False
