@@ -1204,7 +1204,8 @@ def main():
     parser.add_argument('--preload', help='optional',action='store_true')
     parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD or AUG)',default='D3D')
     parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
-    parser.add_argument('--elmsphase', help='Apply ELMs synchronisation',default=False,action='store_true')
+    parser.add_argument('--elmsphase', help='Apply ELMs synchronisation - elm fraction',default=False,action='store_true')
+    parser.add_argument('--elmstime', help='Apply ELMs synchronisation - elm time',default=False,action='store_true')
 
     args = parser.parse_args()
     
@@ -1277,6 +1278,10 @@ def main():
     #mlp.diag_nb.select(4)    
 
     mlp.elmsphase = args.elmsphase
+    mlp.elmstime = args.elmstime
+
+    
+    
     #mlp.options['systems']['CER system'][1][1]=False
     
     #mlp.load_options['nimp'][1][1]=False
