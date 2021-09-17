@@ -203,7 +203,7 @@ class FitPlot():
         rho  = np.hstack([r.ravel()  for r  in data_rho])
         y    = np.hstack([d.ravel()  for d  in data])
         yerr = np.ma.hstack([de.ravel() for de in data_err])
-
+ 
         self.channel=np.hstack([ch.ravel() for ch in ind_channels])
         points =np.hstack([p.ravel() for p in ind_points])
         weights=np.hstack([w.ravel() for w in weights])
