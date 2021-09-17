@@ -4828,23 +4828,31 @@ class data_loader:
          
         print_line( '  * Fetching reflectometer data ...')
 
-        bands = 'VO','V','QO','Q'
+        load_bands = 'VO','V','QO','Q'
         tree = 'ELECTRONS'
         prefix ='\\'+tree+'::TOP.REFLECT.'
-
-
+        Z0 = 0.0254
+    
         refl = self.RAW['REFL'] = {}
             
-        refl['systems'] = bands
-
-        TDI = []
-        for band in bands:
+        TDI,bands = [],[]
+        self.MDSconn.openTree(tree, self.shot)
+ 
+        for band in load_bands:
+            #check if data exists
+            ne_size = self.MDSconn.get('getnci("REFLECT.'+band+'BAND.PROFILES:DENSITY'+'","LENGTH")').data()
+            if ne_size  == 0:
+                continue
+            
             TDI.append('dim_of('+prefix+band+'BAND.PROFILES:DENSITY'+',0)')
             TDI.append(prefix+band+'BAND.PROFILES:DENSITY')
             TDI.append(prefix+band+'BAND.PROFILES:R')
+            bands.append(band)
             #TDI.append(prefix+band+'BAND.PROFILES:DENSITY_ERR')#dont exist
             #TDI.append(prefix+band+'BAND.PROFILES:R_ERR')#dont exist
             #TDI.append(prefix+band+'PROCESSED:FREQUENCY')# empty
+        self.MDSconn.closeTree(tree, self.shot)
+        refl['systems'] = bands
 
 
         #fetch data from MDS+
@@ -4854,13 +4862,14 @@ class data_loader:
         if np.size(out) == 0:
             printe( '\tNo Reflectometer data')
             return
-        
         #fetch TS data for alighnment
         if TS_align:
             if TS is None:
                 TS = self.load_ts(tbeg,tend,['core'])
- 
-        
+            R_midplane = np.linspace(1.8, 2.4,200)
+            horiz_rho = self.eqm.rz2rho(R_midplane, Z0+0*R_midplane,
+                                        TS['core']['time'].values,coord_out=self.rho_coord)
+
         
         
         refl['diag_names'] = {}
@@ -4869,37 +4878,39 @@ class data_loader:
             if np.size(tvec) == 0:  continue
             tvec/= 1e3 #s
             R, ne = np.single(R.T), np.single(ne.T)
-            z = np.zeros_like(R)+0.0254
+            z = np.zeros_like(R)+Z0
             phi = np.zeros_like(R)+255
             rho = self.eqm.rz2rho(R,z,tvec,self.rho_coord)
             R_shift = np.zeros_like(tvec)
+            R_shift2 = np.zeros_like(tvec)
 
             if TS_align:
-                #embed()
 
-                TS_time = TS['core']['time'].values
-                TS_rho = TS['core']['rho'].values
-                TS_ne = TS['core']['ne'].values 
+                TS_time  = TS['core']['time'].values
+                TS_rho   = TS['core']['rho'].values
+                TS_ne    = TS['core']['ne'].values 
                 TS_neerr = TS['core']['ne_err'].values
                 
                 rho_out = 0.7  #use only data outside rho_out
+   
+                
                 for it,t in enumerate(tvec):
                     its = np.argmin(np.abs(TS_time-t))
                     valid_ts = np.isfinite(TS_neerr[its]) &(TS_rho[its] > rho_out)
-                    valid_rfl = (rho[it] > rho_out)
+                    valid_rfl = (rho[it] > rho_out)&(ne[it] > 0)
     
-                    R_ts = np.interp(TS_rho[its, valid_ts],rho[it], R[it]) #midplane R coordinate for TS
+                    R_ts = np.interp(TS_rho[its, valid_ts],horiz_rho[its],R_midplane) #midplane R coordinate for TS
                     R_rfl = R[it, valid_rfl]
-                    ne_TS = TS_ne[its,valid_ts]/ 1e19
+                    ne_TS = TS_ne[its,valid_ts]/1e19
                     ne_RFL = ne[it,valid_rfl]/1e19
                     shift = np.linspace(-0.1,0.1,50)
                     conv = np.zeros_like(shift)
                     for ish, s in enumerate(shift):
                         ne_RFL_shift = np.interp(R_ts, R_rfl+s, ne_RFL)
                         conv[ish] = np.sum((ne_RFL_shift-ne_TS)**2)
-        
+                    
                     _,R_shift[it] = min_fine(shift, conv)
-                
+  
                 rho = self.eqm.rz2rho(R+R_shift[:,None],z,tvec,self.rho_coord)
 
                 
@@ -5928,8 +5939,8 @@ def main():
         
     settings.setdefault('ne', {\
         'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
-                                ( 'Reflectometer',(['all bands',I(0)],  )),
-                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
+                                ( 'Reflectometer',(['all bands',I(1)],  )),
+                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(0)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
                         'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
                         }})
@@ -5974,7 +5985,7 @@ def main():
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     loader.load_elms(settings)
 
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
     settings['nimp']= {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},

@@ -218,10 +218,16 @@ class FitPlot():
         self.diags = diag_names
         
         if self.parent.elmsphase:
+            #epl phase
             self.plot_tvec = np.interp(self.plot_tvec,self.elms['tvec'],self.elms['data'])
             tvec = np.interp(tvec,self.elms['tvec'],self.elms['data'])
-
         
+        if self.parent.elmstime:
+            #time from nearest ELM
+            self.plot_tvec -= self.elms['elm_beg'][self.elms['elm_beg'].searchsorted(self.plot_tvec)-1]
+            tvec -= self.elms['elm_beg'][self.elms['elm_beg'].searchsorted(tvec)-1]
+
+ 
         
         tstep = 'None'
         if self.tstep is None:
