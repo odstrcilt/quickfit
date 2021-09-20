@@ -1040,7 +1040,11 @@ class DataFit():
 
             
         if hasattr(self,'elms'):
-            data['elms'] = self.elms['elm_beg'] 
+ 
+            data['elms_time'] = self.elms['elm_beg'] 
+            data['elms_phase'] = self.elms['data'] 
+            data['elms_phase_time'] = self.elms['tvec'] 
+
         
         self.change_set_prof_load()
         settings = OrderedDict()
@@ -1172,7 +1176,8 @@ class DataFit():
                 pass
 
         output['sawteeth'] =  eval(self.fit_options['sawteeth_times'].get())
-        #output['elms']  = self.elms['elm_beg']  
+        if hasattr(self,'elms'):
+            output.update(self.elms) 
         
         
         np.savez_compressed(path+'kin_data_%d.npz'%self.shot, **output)
