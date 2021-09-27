@@ -211,7 +211,6 @@ class FitPlot():
         diags = np.hstack([d.ravel() for d in diags])
         self.plot_tvec = np.hstack([t.ravel()  for t  in plot_tvec])
         self.plot_rho  = np.hstack([r.ravel()  for r  in plot_rho])
-        #embed()
         self.options['rho_min'] = np.minimum(0, np.maximum(-1.1,self.plot_rho.min()))
         diag_dict = {d:i for i,d in enumerate(diag_names)} 
         self.ind_diag = np.array([diag_dict[d] for d in diags])
@@ -241,16 +240,21 @@ class FitPlot():
         self.plt_time = tvec[np.argmin(abs(self.plt_time-tvec))]
         
         self.ylab = r'$%s\ [\mathrm{%s}]$'%(label,unit)
-        self.xlab = r'$\rho_{%s}$'%self.options['rho_coord'][4:]
+        xlab = self.options['rho_coord'].split('_')
+        self.xlab = xlab[0]
+        if self.options['rho_coord'][:3] in ['Psi', 'rho']:
+            self.xlab = '\\'+self.xlab
+        if len(xlab) > 1:
+            self.xlab += '_{'+xlab[1]+'}'
+        self.xlab = '$'+self.xlab+'$' 
+
         self.ylab_diff =  r'$R/L_{%s}/\rho\ [-]$'%label
 
         #create object of the fitting routine
-        #t = time.time()
         self.m2g = map2grid(rho,tvec,y,yerr,points, weights, self.options['nr_new'],self.tstep)
         self.options['fit_prepared'] = False
         self.options['zeroed_outer'] = False
         self.options['elmrem_ind'] = False
-        #print 'init map2grid', time.time()-t
 
         self.init_plot()
         self.changed_fit_slice()
@@ -607,6 +611,8 @@ class FitPlot():
         #get functions for profile transformation
         transform = transformations[self.fit_options['transformation'].get()]
         
+        even_fun = self.options['rho_coord'] != 'Psi'
+        
         if not self.options['fit_prepared']:
             #print 'not yet prepared! in calculate'
             self.m2g.PrepareCalculation(zero_edge=zeroedge ,          
@@ -615,7 +621,8 @@ class FitPlot():
                                     transformation = transform,
                                     pedestal_rho=pedestal_rho,
                                     robust_fit = robust_fit,
-                                    elm_phase=elm_phase)
+                                    elm_phase=elm_phase,
+                                    even_fun = even_fun)
             self.m2g.corrected = False
             
             #remove points affected by elms
@@ -1086,7 +1093,9 @@ class FitPlot():
             print('diagnostic %s was '%i_diag+action)
             
         elif what == 'point':
-            print('Removing of %s is not supported'%(str(what)))
+            pass
+        else:
+            print('Removing of "%s" is not supported'%(str(what)))
             
         self.m2g.Yerr.mask[ind]=not undelete
 

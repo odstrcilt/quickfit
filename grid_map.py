@@ -127,7 +127,7 @@ class map2grid():
  
 
     def PrepareCalculation(self, zero_edge=False, core_discontinuties = [],
-                           edge_discontinuties = [],transformation = None,
+                           edge_discontinuties = [],transformation = None,even_fun=True,
                            robust_fit=False,pedestal_rho=None, elm_phase=None):
         if debug: print('\nPrepareCalculation')
    
@@ -243,8 +243,10 @@ class map2grid():
         rvec_b = (rvec[1:]+rvec[:-1])/2
         
         #radial weightng function, it will keep zero gradient in core and allow pedestal 
-        fun_r2 = (rvec_b*np.arctan(np.pi*rvec_b)-np.log((np.pi*rvec_b)**2+1)/(2*np.pi))/rvec_b  #alternative
-        self.ifun =  1/fun_r2
+        self.ifun = np.ones(self.nr_new-1)
+        if even_fun:
+            self.ifun /= (rvec_b*np.arctan(np.pi*rvec_b)-np.log((np.pi*rvec_b)**2+1)/(2*np.pi))/rvec_b
+ 
         
         #allow large gradints at pedestal
         if pedestal_rho is not None:
@@ -341,13 +343,16 @@ class map2grid():
                             if prev_it1 >= 0:
                                 DT_elm_sync.append((-w, it,prev_it1))  
                                 DT_elm_sync.append((-(1-w), it,prev_it2))  
+                    if len(DT_elm_sync) == 0:
+                        print('No ELMS for synchronisation')
+ 
+                    else:
+                        #add elm syncronisation to time derivative matrix 
+                        A,I,J = np.array(DT_elm_sync).T
+                        B = sp.coo_matrix((A,(I,J)),DT.shape)
+                        B = B- sp.spdiags(B.sum(1).T,0,*DT.shape )
+                        DT = sp.vstack((B/2., DT/4.),  format='csr', dtype=self.dtype)
     
-                    #add elm syncronisation to time derivative matrix 
-                    A,I,J = np.array(DT_elm_sync).T
-                    B = sp.coo_matrix((A,(I,J)),DT.shape)
-                    B = B- sp.spdiags(B.sum(1).T,0,*DT.shape )
-                    DT = sp.vstack((B/2., DT/4.),  format='csr', dtype=self.dtype)
-   
                     
                 
             else:

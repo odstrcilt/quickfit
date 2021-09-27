@@ -131,7 +131,6 @@ class equ_map:
             self.sf.openTree(diag,shot)
             self.shot = shot
             self.diag = diag
-            #embed()
 
             
             # R, z of PFM cartesian grid
@@ -202,9 +201,14 @@ class equ_map:
             return
 
         if self.debug: print('Reading PFM matrix')
+        try:
+            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
+        except:
+            self.sf.openTree(self.diag,self.shot)
+            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
 
-        self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
-    
+            
+            
 
     def read_ssq(self):
 
@@ -345,9 +349,9 @@ class equ_map:
             time
         rho_in : float, ndarray
             radial coordinates, 1D (time constant) or 2D+ (time variable) of size (nt,nx,...)
-        coord_in:  str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a']
+        coord_in:  str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a','Psi_N']
             input coordinate label
-        coord_out: str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a']
+        coord_out: str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a','Psi_N']
             output coordinate label
         extrapolate: bool
             extrapolate rho_tor, r_V outside the separatrix
@@ -384,7 +388,7 @@ class equ_map:
         unique_idx, idx =  self._get_nearest_index(tarr)
 
             
-        if coord_in in ['rho_pol', 'Psi']:
+        if coord_in in ['rho_pol', 'Psi','Psi_N']:
             label_in = self.pf
         elif coord_in == 'rho_tor':
             label_in = self.tf
@@ -398,7 +402,7 @@ class equ_map:
             raise Exception('unsupported input coordinate')
 
 
-        if coord_out in ['rho_pol', 'Psi']:
+        if coord_out in ['rho_pol', 'Psi','Psi_N']:
             label_out = self.pf
         elif coord_out == 'rho_tor':
             label_out = self.tf
@@ -482,6 +486,9 @@ class equ_map:
                 r0_out = np.sqrt(sep_out)                
             if coord_in == 'Psi' :
                 rho_  = np.sqrt(np.maximum(0, (rho_ - self.psi0[i])/(self.psix[i] - self.psi0[i])))
+            if coord_in == 'Psi_N' :
+                rho_  = np.sqrt(np.maximum(0, rho_ ))
+                
 
 # Evaluate spline
 
@@ -497,6 +504,8 @@ class equ_map:
 
             if coord_out  == 'Psi':
                 rho_output[jt]  = rho_output[jt]**2*(self.psix[i] - self.psi0[i]) + self.psi0[i]
+            if coord_in == 'Psi_N' :
+                rho_output[jt]  = rho_output[jt]**2 
 
         
         return rho_output

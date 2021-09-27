@@ -577,11 +577,9 @@ def split_mds_data(data, bytelens, bit_size):
 
  
         
- 
- 
 def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #assume signal with a positive peaks during elms
-    
+
     from scipy.signal import  order_filter
     #embed()
     signal = signal.reshape(-1,10).mean(1)
@@ -595,31 +593,31 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #filtered /= np.interp(tvec,tvec[::5], order_filter(filtered[::5], np.ones(51), 25))
     #n = 125
     #plt.plot( threshold_sig)
-    #plt.plot(filtered)       
+    #plt.plot(filtered)
     #plt.show()
-    
+
     filtered[tvec < .5] = 0  #assume no elms first 500ms
-             
+
     #normalize
     #norm = np.nanmedian(np.abs(filtered))
     ##if norm == 0:
         ##printe('Invalid ELMs signal')
         ##return [[]]*4
-    
+
     #filtered/= norm
     ##find elms
     ind = filtered > threshold_sig
     from scipy.ndimage.morphology import binary_opening, binary_closing ,binary_erosion, binary_dilation
     #ind = binary_closing(ind)
     #plt.plot(   binary_dilation(binary_erosion(ind,[1,1,1]),[1,1,1]) )
-        
+
     #plt.plot( binary_opening(ind ,[1,1,1,1,1]))
     ##plt.plot( ind )
     #plt.show()
-    
+
     #remove tiny short elms
     ind = binary_opening(ind ,np.ones(7))
-     
+
     ind[[0,-1]] = False
     #import matplotlib.pylab as plt
     #plt.axhline(threshold)
@@ -627,15 +625,15 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #plt.plot(tvec, signal/norm)
 
     #plt.show()
-    
+
     #detect start and end of each elm
     elm_start = np.where(np.diff(np.int_(ind))>0)[0]
     elm_end   = np.where(np.diff(np.int_(ind))<0)[0]
     #n_elms = min(len(elm_start),len(elm_end))
     #elm_start,elm_end = elm_start[:n_elms],elm_end[:n_elms]
- 
+
     assert not np.any( elm_end-elm_start  < 0) ,'something wrong'
- 
+
     #due to noise before and elm
     short = tvec[elm_start[1:]]-tvec[elm_end[:-1]] < min_elm_dist
     elm_start = elm_start[np.r_[True,~short ]]
@@ -649,7 +647,7 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #import matplotlib.pylab as plt
     #plt.plot(tvec,filtered)
 
-    
+
     #filtered[filtered<threshold_sig] = np.nan
     #plt.plot(tvec, filtered,'r')
     #[plt.axvline(tvec[i],ls=':') for i in elm_start]
@@ -658,24 +656,126 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
 
     val = np.ones_like(elm_start)
     elm_val = np.c_[val, -val,val*0 ].flatten()
-    
+
     t_elm_val = tvec[np.c_[ elm_start-1, elm_start, elm_end].flatten()]
-    
+
     #elm free regions will be set to 2
-    elm_val[:-1][np.diff(t_elm_val) > .2] = 2 
-    
+    elm_val[:-1][np.diff(t_elm_val) > .2] = 2
+
     #plt.plot(t_elm_val, elm_val*1e21)
     #plt.plot(tvec, filtered)
 
     #plt.plot(tvec, threshold_sig)
     #plt.show()
-    
+
     #embed()
-    
-    
+
+
     #np.savez('/home/tomas/Dropbox (MIT)/LBO_experiment/SXR_data/elms_175901',tvec=t_elm_val,val=elm_val)
 
     return t_elm_val,elm_val, tvec[elm_start], tvec[elm_end]
+
+ 
+#def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
+    ##assume signal with a positive peaks during elms
+    
+    #from scipy.signal import  order_filter
+     
+    #downsample = np.int(np.ceil(0.001/(tvec[-1]-tvec[0])/(len(tvec)-1)))
+    #print('elm downsample',downsample, 8, len(tvec),tvec.mean())
+    #nt = len(tvec)//downsample*downsample
+    #signal = signal[:nt].reshape(-1,downsample).mean(1)
+    #tvec = tvec[:nt].reshape(-1,downsample).mean(1)
+    ##remove background
+
+    #filtered = signal-order_filter(signal, np.ones(51), 5)
+    #n = 25
+    #threshold_sig = np.interp(tvec,tvec[n*5::5], order_filter(filtered[::5], np.ones(n*2+1), n)[n:]*threshold)
+    ##embed()
+    ##filtered /= np.interp(tvec,tvec[::5], order_filter(filtered[::5], np.ones(51), 25))
+    ##n = 125
+    ##plt.plot( threshold_sig)
+    ##plt.plot(filtered)       
+    ##plt.show()
+    
+    #filtered[tvec < .5] = 0  #assume no elms first 500ms
+             
+    ##normalize
+    ##norm = np.nanmedian(np.abs(filtered))
+    ###if norm == 0:
+        ###printe('Invalid ELMs signal')
+        ###return [[]]*4
+    
+    ##filtered/= norm
+    ###find elms
+    #ind = filtered > threshold_sig
+    #from scipy.ndimage.morphology import binary_opening, binary_closing ,binary_erosion, binary_dilation
+    ##ind = binary_closing(ind)
+    ##plt.plot(   binary_dilation(binary_erosion(ind,[1,1,1]),[1,1,1]) )
+        
+    ##plt.plot( binary_opening(ind ,[1,1,1,1,1]))
+    ###plt.plot( ind )
+    ##plt.show()
+    
+    ##remove tiny short elms
+    #ind = binary_opening(ind ,np.ones(7))
+     
+    #ind[[0,-1]] = False
+    ##import matplotlib.pylab as plt
+    ##plt.axhline(threshold)
+    ##plt.plot(tvec, filtered)
+    ##plt.plot(tvec, signal/norm)
+
+    ##plt.show()
+    
+    ##detect start and end of each elm
+    #elm_start = np.where(np.diff(np.int_(ind))>0)[0]
+    #elm_end   = np.where(np.diff(np.int_(ind))<0)[0]
+    ##n_elms = min(len(elm_start),len(elm_end))
+    ##elm_start,elm_end = elm_start[:n_elms],elm_end[:n_elms]
+ 
+    #assert not np.any( elm_end-elm_start  < 0) ,'something wrong'
+ 
+    ##due to noise before and elm
+    #short = tvec[elm_start[1:]]-tvec[elm_end[:-1]] < min_elm_dist
+    #elm_start = elm_start[np.r_[True,~short ]]
+    #elm_end   = elm_end[  np.r_[~short,True ]]
+
+    ##remove too small elms
+    #short = tvec[elm_end]- tvec[elm_start] < min_elm_len
+    #elm_start = elm_start[~short]
+    #elm_end   = elm_end[~short]
+
+    ##import matplotlib.pylab as plt
+    ##plt.plot(tvec,filtered)
+
+    
+    ##filtered[filtered<threshold_sig] = np.nan
+    ##plt.plot(tvec, filtered,'r')
+    ##[plt.axvline(tvec[i],ls=':') for i in elm_start]
+    ##[plt.axvline(tvec[i],ls='--') for i in elm_end]
+    ##embed()
+
+    #val = np.ones_like(elm_start)
+    #elm_val = np.c_[val, -val,val*0 ].flatten()
+    
+    #t_elm_val = tvec[np.c_[ elm_start-1, elm_start, elm_end].flatten()]
+    
+    ##elm free regions will be set to 2
+    #elm_val[:-1][np.diff(t_elm_val) > .2] = 2 
+    
+    ##plt.plot(t_elm_val, elm_val*1e21)
+    ##plt.plot(tvec, filtered)
+
+    ##plt.plot(tvec, threshold_sig)
+    ##plt.show()
+    
+    ##embed()
+    
+    
+    ##np.savez('/home/tomas/Dropbox (MIT)/LBO_experiment/SXR_data/elms_175901',tvec=t_elm_val,val=elm_val)
+
+    #return t_elm_val,elm_val, tvec[elm_start], tvec[elm_end]
 
 
 def default_settings(MDSconn, shot):
@@ -717,10 +817,11 @@ def default_settings(MDSconn, shot):
             
             line_id = []
             for l in np.unique(_line_id):
-                try:
-                    line_id.append(l.decode())
-                except:
-                    line_id.append(l)
+                l = l.split(b'\x00')[0] #sometimes are names quite wierd
+                if not isinstance(l,str):
+                    l = l.decode()
+                l = l.strip()
+                line_id.append(l)
  
             for l in np.unique(line_id):
                 try:
@@ -730,7 +831,7 @@ def default_settings(MDSconn, shot):
                 except:
                     print(l)
                     imps.append('XX')
-
+                #embed()
 
         except:
             imps = ['C6']
@@ -1091,15 +1192,31 @@ class data_loader:
         for prof, (scale_fact,node, tree) in loading_dict.items():
             try:
                 data = {}
-                
+
                 path = '::TOP.PROFILE_FITS.ZIPFIT.'
                 self.MDSconn.openTree(tree, self.shot)
                 ds = xarray.Dataset( )
                 ds['data'] = xarray.DataArray(self.MDSconn.get('_x=\\'+tree+path+node+'FIT').data()*scale_fact, dims=['time','rho'])
-                ds['err'] = xarray.DataArray(abs(self.MDSconn.get('error_of(_x)').data())*scale_fact, dims=['time','rho'])
                 ds['rho']  = xarray.DataArray(self.MDSconn.get('dim_of(_x,0)').data(), dims=['rho'])
                 ds['tvec'] = xarray.DataArray(self.MDSconn.get('dim_of(_x,1)').data()/1000, dims=['tvec'])
 
+                try:
+                    ds['err'] = xarray.DataArray(abs(self.MDSconn.get('error_of(_x)').data())*scale_fact, dims=['time','rho'])
+                except:
+                    ds['err'] = 0*ds['data'] #old shots
+
+                #remap to a new coordinate
+                if self.rho_coord != 'rho_tor':
+                    rhot = ds['rho'].values
+                    data = ds['data'].values
+                    err = ds['err'].values
+                    rho = self.eqm.rho2rho(rhot, t_in=ds['tvec'].values,coord_in='rho_tor', coord_out=self.rho_coord)
+                    for it,t in enumerate(ds['tvec'].values):
+                        data[it] = np.interp(rhot, rho[it], data[it])
+                        err[it]  = np.interp(rhot, rho[it], err[it])
+                    ds['data'].values = data
+                    ds['err'].values = err
+                    
                 zipfit[prof] = ds
             except Exception as e:
                 printe( 'MDS error: '+ str(e))
@@ -1107,8 +1224,8 @@ class data_loader:
                 self.MDSconn.closeTree(tree, self.shot)
         
             
- 
-        zipfit['nC6'] = zipfit['nimp'] 
+        if 'nimp' in zipfit:
+            zipfit['nC6'] = zipfit['nimp'] 
         
 
         try:
@@ -1117,9 +1234,9 @@ class data_loader:
             ind_omg = np.in1d( zipfit['omega']['tvec'].values,tvec, assume_unique=True) 
 
             from scipy.constants import e,m_u
-            rho = zipfit['Ti']['rho'].values
+            rho = np.mean(zipfit['Ti']['rho'].values,0)
             Rho,Tvec = np.meshgrid(rho,tvec)
-            R = self.eqm.rhoTheta2rz(Rho,0, t_in=tvec,coord_in='rho_tor')[0][:,0]
+            R = self.eqm.rhoTheta2rz(Rho,0, t_in=tvec,coord_in=self.rho_coord)[0][:,0]
             
             vtor = zipfit['omega']['data'][ind_omg].values*R
             vtor_err = zipfit['omega']['err'][ind_omg].values*R
@@ -1196,7 +1313,7 @@ class data_loader:
          
         path = '.IMPDENS.CER%s:TIME' if impurity else '.CER.CER%s:DATE_LOADED'
         tree = 'IONS'
-        analysis_types= 'fit','auto','quick','neural'
+        analysis_types= 'fit','auto','quick','neur',None
  
         if not hasattr(self,'cer_analysis_best'):
             self.cer_analysis_best = {}
@@ -1205,9 +1322,9 @@ class data_loader:
             analysis_type = self.cer_analysis_best[impurity]
             
         elif analysis_type == 'best':  #find the best  
-            
             try:
                 self.MDSconn.openTree(tree, self.shot)
+
                 for analysis_type in analysis_types :
                     try:
                         nodes = self.MDSconn.get(path%analysis_type).data()
@@ -1220,7 +1337,11 @@ class data_loader:
                 printe( 'MDS error: '+ str(e))
             finally:
                 self.MDSconn.closeTree(tree, self.shot)
- 
+            
+            if analysis_type is None:
+                return   #return nothing 
+            
+            
             self.cer_analysis_best[impurity] = analysis_type
  
         return 'cer'+analysis_type
@@ -1261,14 +1382,25 @@ class data_loader:
         
         TDI  = [p+'PINJ'+s+'_'+p[-4:-1] for p in paths]
         TDI += ['dim_of('+TDI[0]+')']
+        #embed()
         try:
             pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())
         except:
-            #older discharges do not have PINJ in MDS+
-            TDI  = [p+'PTDATA_CAL' for p in paths]
-            TDI += ['dim_of('+TDI[0]+')']
-            pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())       
-
+            try:
+                #older discharges do not have PINJ in MDS+
+                TDI  = [p+'PTDATA_CAL' for p in paths]
+                TDI += ['dim_of('+TDI[0]+')']
+                pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())       
+                #oldest discharges do not have PTDATA_CAL in MDS+
+            except:
+                TDI  = [p+'BEAMSTAT' for p in paths]
+                TDI += ['dim_of('+TDI[0]+')']
+                pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())
+                #calibrate the data
+                for i, p in enumerate(pinj_scal):
+                    pow_data[i] *=  p/pow_data[i][pow_data[i] > pow_data[i].max()/5].mean()
+                
+        #embed()
  
         tvec = pow_data.pop()/1e3
         
@@ -1280,7 +1412,8 @@ class data_loader:
         gas = self.MDSconn.get('['+','.join(TDI)+']').data()
         if not isinstance(gas[0],str): 
             gas = [r.decode() for r in gas]
-                
+        gas = [r.strip() for r in gas]
+   
      
 
         if self.shot  > 169568:  #load time dependent voltage
@@ -1330,8 +1463,7 @@ class data_loader:
  
         tree = 'SPRED'
         self.MDSconn.openTree('SPECTROSCOPY', self.shot)
-        #spred_tvec, spred_data,err = np.loadtxt('C:/Users/odstrcil/Desktop/DIII-D/diagnostics/SPRED/spred_line_184844_13.47nm.txt').T
-        #spred_tvec*=1e3
+
         spred_data = self.MDSconn.get('_x=\SPECTROSCOPY::'+line).data()
         if all(spred_data==0):
             raise Exception('MDS+ data for line %s are unavailible'%line)
@@ -1357,7 +1489,7 @@ class data_loader:
         
         view_R = [1.77, 1.80]
         view_Z = [0.0530, 0.0530]
-        view_phi = [13.51, 20.15]
+        view_phi= [13.51, 20.15]
         geomfac = [3.129, 2.848]  # m**-1
 
         nbi_on_frac = np.zeros((len(spred_tvec),len(load_beams)))
@@ -1680,6 +1812,7 @@ class data_loader:
 
         loaded_chan = []
         TDI_data = []
+        TDI_tvec = []
         TDI_lineid = ''
         TDI_beam_geo = ''
         TDI_phi = ''
@@ -1696,7 +1829,7 @@ class data_loader:
             nimp['diag_names'][system] = []
             path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
             nodes = self.MDSconn.get('getnci("'+path+'","fullpath")').data()
-            lengths = self.MDSconn.get('getnci("'+path+':TIME","LENGTH")').data()
+            lengths = self.MDSconn.get('getnci("'+path+':R","LENGTH")').data()
             
             for node,length in zip(nodes, lengths):
                 if length == 0: continue
@@ -1708,10 +1841,11 @@ class data_loader:
                 node = node.strip()
                 loaded_chan.append(system[0].upper()+node[-2:])
                 
-                signals = ['TIME','STIME','R','Z','INTENSITY','INTENSITYERR','TTSUB','TTSUB_STIME']
-                bytelens += [[length]*len(signals)]
+                signals = [ 'STIME','R','Z','INTENSITY','INTENSITYERR','TTSUB','TTSUB_STIME']
+                bytelens += [[length]*(len(signals)+1)]
 
                 TDI_data += [[node+':'+sig for sig in signals]]
+                TDI_tvec += [ node+':'+'TIME']#time can have a different data type than the rest
                 
                 calib_node = '\\IONS::TOP.CER.CALIBRATION.%s.%s'%(system,node.split('.')[-1])
  
@@ -1725,7 +1859,11 @@ class data_loader:
 
         #fast fetch of MDS+ data
         order='\\IONS::TOP.CER.CALIBRATION.BEAM_ORDER'
-        beam_order = list(self.MDSconn.get(order).data())
+        try:
+            beam_order = list(self.MDSconn.get(order).data())
+        except: #old discharges
+            beam_order = ['30LT ', '30RT ', '330LT', '330RT'] 
+
         try:
             beam_order = [b.decode() for b in beam_order]
         except:
@@ -1734,17 +1872,20 @@ class data_loader:
 
         if len(loaded_chan) > 0:
             TDI_data = ','.join(np.transpose(TDI_data).flatten())
+            TDI_tvec = ','.join(TDI_tvec)
+
             bytelens = np.transpose(bytelens).flatten()
-            TDI = ['['+TDI_data+']','['+TDI_lineid[:-1]+']',
+            TDI = ['['+TDI_tvec+']','['+TDI_data+']','['+TDI_lineid[:-1]+']',
                 '['+TDI_beam_geo[:-1]+']', '['+TDI_phi[:-1]+']']
-            data,line_id,beam_geom,phi = mds_load(self.MDSconn,TDI, tree, self.shot)
-            data = np.single(data)
-            line_id = list(line_id)
-            try:
-                line_id = [l.decode() for l in line_id]
-            except:
-                pass
-   
+            tvec,data,line_id,beam_geom,phi = mds_load(self.MDSconn,TDI, tree, self.shot)
+            tvec = tvec.astype('single') #sometimes it can be double
+            
+            if len(line_id) == 0: #missing in old discharges, assume carbon
+                line_id = ['C VI 8-7']*len(loaded_chan)
+            
+            if not isinstance(line_id[0],str):
+                line_id = [l.split(b'\x00')[0].decode() for l in line_id]
+    
             if imp == 'XX':
                 #BUG hardcoded
                 imp = 'Ca18'
@@ -1755,20 +1896,22 @@ class data_loader:
             imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
             r_charge = int2roman(int(charge))
             selected_imp = np.array([l.startswith(imp_name) and r_charge in l for l in line_id])
-            #embed()
-        
+            
+            
+            
             selected_imp &= np.any(beam_geom > 0,1) #rarely some channel has all zeros!
             if not any(selected_imp):
                 if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
                     #some data were loaded before, nothing in the actually loaded system
                     return nimp
                 raise Exception('No '+imp+' data in '+analysis_type.upper(),'edition. ', 'Availible are :'+','.join(np.unique(line_id)))
-        
+            
+     
             #split in signals
             if data.ndim == 1:
-                data = np.array(split_mds_data(data, bytelens, 8),dtype=object)
+                data = np.array(split_mds_data(np.hstack((tvec,data)), bytelens, 4),dtype=object)
            
-            splitted_data = np.split( data , len(signals))
+            splitted_data = np.split( data , len(signals)+1)
             splitted_data = [s[selected_imp] for s in splitted_data]
             beam_geom = beam_geom[selected_imp]
             phi = phi[selected_imp]
@@ -1778,14 +1921,11 @@ class data_loader:
             V = ['V01', 'V02', 'V03', 'V04', 'V05', 'V06', 'V17', 'V18', 'V19','V20', 'V21', 'V22', 'V23']
             G = [0.941, 0.814, 0.827, 1.076, 1.559, 2.147, 0.836, 1.11 , 0.866, 0.809, 0.798, 0.877, 1.276]
             for ch,g in zip(V,G):
-                try:
+                if ch in loaded_chan:
                     ich = loaded_chan.index(ch)
-                except:
-                    continue
-                if beam_geom[ich,3] == 0: #not defined geometry factor
-                   beam_geom[ich,3] = g 
+                    if beam_geom[ich,3] == 0: #not defined geometry factor
+                        beam_geom[ich,3] = g 
                     
-            #corrections = [beam_geom[loaded_chan == v,3] for v in V]
             line_id = np.array(line_id)[selected_imp]
             tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST = splitted_data
    
@@ -1795,7 +1935,6 @@ class data_loader:
                 spred = self.load_nimp_spred(imp, beam_order)
             except Exception as e:
                 printe(e)
-                #raise
                 spred = None
 
 
@@ -1868,18 +2007,6 @@ class data_loader:
         utime, utime_ind = np.unique(T_all+stime_all/2, return_index=True)
         ustime = stime_all[utime_ind]
         nbi_pow = np.single(nbi_cum_pow_int(utime+ustime/2)-nbi_cum_pow_int(utime-ustime/2))/ustime
-        #embed()
-        
-        
-        #tvec  =  [t/1e3 for t in tvec]
-        #stime =  [t/1e3 for t in stime]
-        
-        #[plt.axvline(t) for t in tvec[0]]
-        #[plt.axvline(t,ls='--') for t in tvec[0]+stime[0]]
-        #plt.plot(beam_time, PINJ[:2].T)
-        #plt.show()
-        
-
 
 
         #when the NBI was turned on , downsample to reduce noise 
@@ -1900,19 +2027,6 @@ class data_loader:
             nbi_pow_sub = (nbi_cum_pow_int(utime_sub+ustime_sub)-nbi_cum_pow_int(utime_sub))/(ustime_sub+1e-6)
         else:
             nbi_pow_sub = None
-        
-  
-        ###  LSO weight function from FIDASIM
-        #loc = os.path.dirname(os.path.realpath(__file__))
-        #cer_path = loc+'/cer_los_weights.pickle'
-
-
-        #with open(cer_path , 'rb') as filehandle:
-            #import pickle
-            #cer_dat = pickle._Unpickler(filehandle)
-            #cer_dat.encoding = 'latin1'
-            #cer_dat = cer_dat.load()
-        
         
                 
         ########### create xarray dataset with the results ################
@@ -1950,23 +2064,11 @@ class data_loader:
             #mean background substracted NBI power over CER integration time 
             it = utime.searchsorted(tvec[ich]+stime[ich]/2)
             beam_pow = nbi_pow[observed_beams][:,it]
-                 
-            #if ch[0] == 'S':
-                #plt.plot(tvec[ich],beam_pow.T)
-                #plt.gca().set_prop_cycle(None)
 
-                #plt.plot(tvec[ich],nbi_pow_sub[observed_beams][:,utime_sub.searchsorted(TTSUB[ich][TTSUB[ich] > 0])].T,'--')
-                #plt.show()
-                
-                
-                #embed()
             #when background substraction was applied
             if nbi_pow_sub is not None and any(TTSUB[ich] > 0):
                 beam_pow[:,TTSUB[ich] > 0] -= nbi_pow_sub[observed_beams][:,utime_sub.searchsorted(TTSUB[ich][TTSUB[ich] > 0])]
-                
- 
 
-            
             #check if there is any timeslice when the beam was turned on
             beams_used = np.any(beam_pow > 1e5,1)
             beams = beams[beams_used]
@@ -1993,7 +2095,10 @@ class data_loader:
                 beamid[(beam_frac[bind[1]] < 0.3)] = beams[bind[0]]
                 beamid[(beam_frac[bind[0]] < 0.3)] = beams[bind[1]]
             
-            tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
+            try:
+                tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
+            except:
+                embed()
             element, charge, transition = tmp.group(1), tmp.group(2), tmp.group(3) 
             charge = roman2int(charge)     
             
@@ -2011,15 +2116,6 @@ class data_loader:
 
             tvec_ = (tvec[ich]+stime[ich]/2)
             
-        
-   
-            #[plt.axvline(t) for t in tvec[ich][beam_ind]]
-            #[plt.axvline(t,ls='--') for t in tvec[ich][beam_ind]+stime[ich][beam_ind]]
-            #plt.plot(beam_time, PINJ[observed_beams].T)
-            #plt.show()
-            
-   
-   
             #split channels by beams
             for ID in np.unique(inv_idx):
                 beam_ind = inv_idx == ID
@@ -2034,7 +2130,6 @@ class data_loader:
                 if not np.all(beams_on):
                     printe('channel %s has %d slices with zero power'%(ch, (~beams_on).sum()))
                     beam_ind[beam_ind] &= beams_on
-                    #embed()
                     
                     
                 if np.sum(beam_ind) < 2: #sometimes there is just one slice - remove
@@ -2053,28 +2148,6 @@ class data_loader:
                 beam_intervals[bname].append((tvec[ich][beam_ind],stime[ich][beam_ind]))  
                 G = beam_geom[ich, observed_beams]
                 
-                #try:
-                ##BUG location wrong when two beams are no!!!
-                    #Rweight = [cer_dat[b.lower()+'t'][ch.lower()]['eq_weight_dR'] for b in beams]
-                #except:
-                    #embed()
-                    
-                #Rweight = []
-                #for b in beams:
-                    #if ch.lower() in cer_dat[b.lower()+'t']:
-                        #ch_geom = cer_dat[b.lower()+'t'][ch.lower()]
-                        #Rweight.append(ch_geom['eq_weight_dR']) 
-                    #else:
-                        #Rweight.append(np.ones(1)) 
-
-                    
-                #Rweight = np.vstack(Rweight)+R[ich][beam_ind][:,None,None]
-                #Zweight = Z[ich][beam_ind][:,None,None]
-                #weight = beam_frac[:,beam_ind].T*G
-                #weight /= weight.sum(-1)[:,None]*Rweight.shape[2]
-                #Rweight,Zweight,weight = np.broadcast_arrays(Rweight,Zweight,weight[:,:,None])
-     
- 
                 ds = xarray.Dataset(attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
                                         'beam_geom':G,'Z':charge})
 
@@ -2090,14 +2163,7 @@ class data_loader:
                 ds['R'] = xarray.DataArray(R[ich][beam_ind],dims=['time'], attrs={'units':'m'})
                 ds['Z'] = xarray.DataArray(Z[ich][beam_ind],dims=['time'], attrs={'units':'m'})
                 ds['rho'] = xarray.DataArray(rho_all[n:n+nt][beam_ind],dims=['time'], attrs={'units':'-'})
-                #ds['R'] = xarray.DataArray(Rweight,dims=['time','beams','index'], attrs={'units':'m'})
-                #ds['Z'] = xarray.DataArray(Zweight,dims=['time','beams','index'], attrs={'units':'m'})
-                #ds['weight'] = xarray.DataArray(weight,dims=['time','beams','index'], attrs={'units':'m'})
-                #ds['R_tg'] = xarray.DataArray(R[ich][beam_ind],dims=['time'], attrs={'units':'m'})
-                #ds['rho_tg'] = xarray.DataArray(rho_all[n:n+nt][beam_ind],dims=['time'], attrs={'units':'-'})
-                #rhoweight = self.eqm.rz2rho(Rweight,Zweight,utvec,self.rho_coord)
-                #ds['rho'] = xarray.DataArray(rhoweight,dims=['time','beams','index'], attrs={'units':'-'})
- 
+
                 ds['diags']= xarray.DataArray(names[beam_ind],dims=['time'])
                 ds['stime'] = xarray.DataArray(stime[ich][beam_ind],dims=['time'], attrs={'units':'s'})
                 ds['beam_pow'] = xarray.DataArray(beam_pow[:,beam_ind],dims=['beams','time'], attrs={'units':'W'})
@@ -2125,14 +2191,14 @@ class data_loader:
     
         
     #if SOL_reflections:
-        print('BUG!!!!!! temporary fix')
-        cer = self.load_cer(0,10, load_systems)
-        if 'tangential' in nimp:
-            for ch in nimp['tangential']:
-                for cch in cer['tangential']:
-                    if ch.attrs['channel'][:3] == cch.attrs['channel']:
-                        ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
-                        ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
+        #print('BUG!!!!!! temporary fix')
+        #cer = self.load_cer(0,10, load_systems)
+        #if 'tangential' in nimp:
+            #for ch in nimp['tangential']:
+                #for cch in cer['tangential']:
+                    #if ch.attrs['channel'][:3] == cch.attrs['channel']:
+                        #ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
+                        #ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
 
 
     
@@ -2600,6 +2666,7 @@ class data_loader:
         
         #cross-section from FIDASIM fitted by a polynomial
         p = [0.0051, -0.0552, 0.1017, -0.0383, -0.3721,-34.0339]
+       
         sigmaDD = np.exp(np.polyval(p, np.log(erel/1e3)))
 
         #n=1 halo fraction, normalised to the total number of injected neutrals
@@ -2667,7 +2734,6 @@ class data_loader:
                 
                 #unavailible
                 qeff_th = qeff2_th = qeff2 = 0
-                #embed()
                 file1, file2 = atom_files[imp]
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, ne, ti, zeff)
@@ -3052,6 +3118,10 @@ class data_loader:
             SOL_reflections = False
             
         analysis_type = self.get_cer_types(selected.get(),impurity=True)
+        if analysis_type is None:
+            #try at least of CER data exists
+            analysis_type = self.get_cer_types(selected.get(),impurity=False)
+
         
         #show the selected best analysis in the GUI??
         selected.set(analysis_type[3:])
@@ -3204,8 +3274,8 @@ class data_loader:
                             nimp0 = self.load_nimp(tbeg,tend,systems_impcon,options) 
                     except:
                         printe('Error in loading of nC from IMPCON AUTO edition: '+str(e))
-                    finally:
-                        print('selected',analysis_type, analysis_type[3:] )
+                    #finally:
+                        #print('selected',analysis_type, analysis_type[3:] )
                 #set back changes made for IMPCON density fetch
                 selected.set(analysis_type[3:])
                 nimp['systems'] = systems
@@ -3441,7 +3511,7 @@ class data_loader:
             rcalib = False
        
 
-        nimp['rel_calib_'+nimp_name] |= rcalib
+        nimp['rel_calib_'+nimp_name]  = nimp.get('rel_calib_'+nimp_name, False) or rcalib
 
         #return corrected data from the right source in ch['nimp'] variable
         
@@ -3892,12 +3962,11 @@ class data_loader:
         gff = 1.35 * T_e**0.15
         
         # M A Van Zeeland et al 2010 Plasma Phys. Control. Fusion 52 045006
-        #use of this formula increases calculated Zeff in dirty discharges amd at low Te - increases the observed discrepancies even more!
+        #use of this formula increases calculated Zeff in dirty discharges and at low Te - increases the observed discrepancies even more!
         #gff = 5.542-(3.108-log(T_e/1000.))*(0.6905-0.1323/Zeff)  #add small Zeff correction in gaunt factor
  
         # hc for the quantity [hc/(Te*lambda)] for T_e in (eV) and lambda in (A)
         hc = 1.24e4
-                        #print('No data in '+diag)
 
         vb_coeff = 1.89e-28 * ((n_e*1e-6)**2)  * gff / np.sqrt(T_e)
         wl_resp = np.exp(-hc / (T_e  * lambda0))/lambda0**2 #this ter is close to 1/lambda0**2
@@ -4250,9 +4319,11 @@ class data_loader:
         #get list of all avalible CER signals
         try:
             self.MDSconn.openTree(tree, self.shot)
-            #check if corrected rotation datta are availible
+            #check if corrected rotation data are availible
             try:
-                if len(self.MDSconn.get('getnci("...:ROTC", "depth")')) > 0:
+                path = 'CER.%s.%s.CHANNEL*'%(analysis_type,'tangential')
+                lenghts = self.MDSconn.get('getnci("'+path+':ROTC","LENGTH")').data()
+                if any(lenghts > 0):
                     signals[signals.index('ROT')] += 'C'
             except MDSplus.MdsException:
                 pass
@@ -4308,7 +4379,7 @@ class data_loader:
             printe( 'MDS error: '+ str(e))
         finally:
             self.MDSconn.closeTree(tree, self.shot)
-
+        
         ##No data in MDS+
         if len(all_nodes) == 0:
             if any([s in cer for s in cer['systems']]):
@@ -4330,7 +4401,6 @@ class data_loader:
         geom_lens = mds_data.pop()
         r_lens, z_lens,phi_lens = geom_lens.reshape(-1,3).T 
         lineid = mds_data.pop()
-        #lineid, r_lens, z_lens = geom_lens.reshape(-1,3).T 
 
         if len(mds_data[-1]) == 0:
             print('Data fetching has failed!!')
@@ -4446,10 +4516,12 @@ class data_loader:
             if options is not None and 'Corrections' in options and 'Zeeman Splitting' in options['Corrections']:
                 options['Corrections']['Zeeman Splitting'].set(False)
         
-        try:
-            lineid = [l.decode('utf-8').strip() for l in lineid]
-        except:
-            lineid = [l.strip() for l in lineid]
+        
+        
+        if not isinstance( lineid[0], str):
+            lineid = [l.split(b'\x00')[0].decode('utf-8') for l in lineid]
+ 
+        lineid = [l.strip() for l in lineid]
             
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0
@@ -4461,12 +4533,19 @@ class data_loader:
             
             #add impurity name, if there are more impurities in the profile
             unreliable = np.ones(tind.stop-tind.start)
-            tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)',lineid[ich])
+            if len(lineid) > 0:
+                line = lineid[ich]
+            else: #old discharge swere missing this information
+                line = 'C VI 8-7'
+
+            
+            tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)',line)
             element, charge = tmp.group(1), roman2int(tmp.group(2))
+            
             
             if multiple_imps:
                 name += ' '+ element+str(charge) 
-                if 'C VI 8-7' in ulineid and lineid[ich] != 'C VI 8-7':
+                if 'C VI 8-7' in ulineid and line != 'C VI 8-7':
                     unreliable[:] = -1
       
             if not name in cer['diag_names'][diag]:
@@ -5246,16 +5325,17 @@ class data_loader:
         TDI_stat_t= '_u=dim_of(_y); [_u[0], _u[size(_u)-1]]'
         TDI = ['['+','.join(TDI_DENS)+']',TDI_dens_t,
                '['+','.join(TDI_STAT)+']',TDI_stat_t]
-        
+       
         #fetch data,  slow
         ne_,co2_time,stat,stat_time = mds_load(self.MDSconn, TDI, tree, self.shot)
         
-        co2_time  = np.linspace(co2_time[0]/1e3, co2_time[1]/1e3, ne_.shape[1])
+        co2_time   = np.linspace(co2_time[0]/1e3, co2_time[1]/1e3, ne_.shape[1])
         stat_time  = np.linspace(stat_time[0]/1e3, stat_time[1]/1e3, stat.shape[1])
  
         fringe_jump = 1.05e20 #/m^2
-        ne_lowres = np.median(ne_.reshape(4,-1,5),-1)*1e6/2
-        tvec_lowres = np.median(co2_time.reshape(-1,5),-1)
+        nt = len(ne_.T)//4*4
+        ne_lowres = np.median(ne_[:,:nt].reshape(4,-1,4),-1)*1e6/2
+        tvec_lowres = np.median(co2_time[:nt].reshape(-1,4),-1)
         ne_correction = ne_lowres-np.unwrap(ne_lowres*(2*np.pi/fringe_jump))*fringe_jump/(2*np.pi)
         ne_correction = interp1d(tvec_lowres, ne_correction,axis=1,kind='nearest',copy=False, fill_value='extrapolate', assume_sorted=True )(co2_time)
         
@@ -5534,7 +5614,6 @@ class data_loader:
         
         if not np.all(np.any(np.isfinite(laser_correction),1)):
             printe('CO2 rescaling was unsucessful')
-            #embed()
 
             return TS
       
@@ -5836,6 +5915,9 @@ def main():
     default_settings(MDSconn, shot  )
     shot = 182725
     shot =   180907
+    shot = 122596
+    shot =  90256
+    shot =  90257
 
     #shot = 175473 
     #shot = 163303
@@ -5923,9 +6005,9 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(1)] )},
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('quick'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                                'remove first data after blip':I(0)}  )))   }})
  
@@ -5939,8 +6021,8 @@ def main():
         
     settings.setdefault('ne', {\
         'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
-                                ( 'Reflectometer',(['all bands',I(1)],  )),
-                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(0)])) ) ),
+                                ( 'Reflectometer',(['all bands',I(0)],  )),
+                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
                         'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
                         }})
@@ -5985,7 +6067,7 @@ def main():
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     loader.load_elms(settings)
 
-    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
     settings['nimp']= {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},

@@ -96,7 +96,7 @@ class DataFit():
     kinprof_ind = None
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
-                 raw_data={},settings=OrderedDict()):
+                 raw_data={},settings=OrderedDict(),coordinate='rho_tor'):
         
         print('Accesing data from %s tokamak'%device)
         
@@ -105,6 +105,7 @@ class DataFit():
         self.MDSserver = MDSserver
         #save function from OMFITgui
         self.OMFITsave = OMFITsave
+        self.coordinate = coordinate
         self.tstep = None
         self.eqdsk = eqdsk
         self.device = device
@@ -215,6 +216,11 @@ class DataFit():
     def check_shot_num(self,num):
         if num == '':
             return True
+        
+        num = num.strip()
+        if not num.isnumeric():
+            return False
+        
         try:
             shot = int(num) 
         except:
@@ -224,14 +230,14 @@ class DataFit():
             return True
         
         if self.device == 'D3D':
-            shot_min = 1e5
+            ndig = 6
         elif self.device == 'CMOD':
-            shot_min = 1e9
+            ndig = 10
         elif self.device == 'AUG':
-            shot_min = 1e4
-            print('AUG not finished ',num)
-            exit()
-        if shot_min  < shot < shot_min*10:
+            ndig = 5
+            #print('AUG not finished ',num)
+            #exit()
+        if len(num) == ndig :
             if self.shot is not None:
                 #clean cache
                 print('Shot changed to %d, cleaning cache'%shot)
@@ -356,7 +362,7 @@ class DataFit():
             self.init_set_prof_load()
             self.main_frame.config(cursor="")   
 
-        elif shot > shot_min*10:
+        elif len(num) > ndig:
             return False
 
         return True
@@ -560,7 +566,7 @@ class DataFit():
                                   'lam':.4,
                                   'rho_max': 1.1,
                                   'rho_min': 0,                                  
-                                  'rho_coord': 'rho_tor',
+                                  'rho_coord': self.coordinate,
                                   'data_loaded':False,
                                   'fitted':False,
                                   'fit_prepared':False,
@@ -1027,7 +1033,7 @@ class DataFit():
             #correction to get proper values of R/Lx
             if 'Lx_correction' not in data:
                 try:
-                    r = self.eqm.rho2rho(rho, coord_in='rho_tor', coord_out='RMNMP')
+                    r = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], coord_out='RMNMP')
             
                     ind = rho <= 1
                     data['Lx_correction'] = np.ones_like(rho)
@@ -1111,7 +1117,7 @@ class DataFit():
             #correction to get proper values of R/Lx
             if 'Lx_correction' not in output:
                 try:
-                    r = self.eqm.rho2rho(rho, coord_in='rho_tor', coord_out='RMNMP')
+                    r = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], coord_out='RMNMP')
             
                     ind = x_out <= 1
                     output['Lx_correction'] = np.ones_like(x_out)
@@ -1120,7 +1126,7 @@ class DataFit():
                     pass
                 
                 
-            output[prof] = {'tvec':t_out, 'rho':x_out, 
+            output[prof] = {'tvec':t_out, 'rho':x_out, 'rho_lbl': self.options['rho_coord'],
                             'data':np.single(d_out), 
                             'err': np.single(d_err),
                             'unc_low':np.single(m2g.g_d),
@@ -1211,7 +1217,10 @@ def main():
     parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
     parser.add_argument('--elmsphase', help='Apply ELMs synchronisation - elm fraction',default=False,action='store_true')
     parser.add_argument('--elmstime', help='Apply ELMs synchronisation - elm time',default=False,action='store_true')
+    parser.add_argument('--map_coordinate', type=str,help='rho_pol,rho_tor ,rho_V, r_V, Psi_N, Psi,r_a',default='rho_tor')
 
+    
+ 
     args = parser.parse_args()
     
     
@@ -1263,7 +1272,7 @@ def main():
     
     
     myroot = tk.Tk(className=' Profiles')
-    mlp = DataFit(myroot, mdsserver,shot=args.shot,raw_data = raw,device=args.device)
+    mlp = DataFit(myroot, mdsserver,shot=args.shot,raw_data = raw,device=args.device,coordinate= args.map_coordinate)
     myroot.title('QUICKFIT')
     myroot.minsize(width=950, height=800)
     imgicon = tk.PhotoImage(file=icon_dir+'icon.gif',master=myroot)
