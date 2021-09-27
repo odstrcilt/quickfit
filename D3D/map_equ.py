@@ -291,14 +291,18 @@ class equ_map:
 
 
         PSIN = self.sf.get(self.gEQDSK+'PSIN').data()
-        V0 = 1  #BUG!!! total volume of the plasma
+ 
+        ##try:
+            ##V0  = self.sf.get('\\'+self.system+'::TOP.RESULTS.aEQDSK.VOLUME').data()[self.valid,None]  
+        ##except:
+        V0 = 1#BUG!!! total volume of the plasma
 
         #import IPython 
         #IPython.embed()
 # Profiles
         self.pf  = (np.outer(PSIN,(self.psix-self.psi0))+self.psi0)
         q   = self.sf.get(self.gEQDSK+'QPSI').data()#[self.valid].T
-        vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()**2#[self.valid].T**2
+        vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()**2 #BUG it is wrong!!!
         fpol  = self.sf.get(self.gEQDSK+'FPOL').data()/mu_0*2*np.pi
     
         if q.shape[0] == len(self.valid):
@@ -315,18 +319,12 @@ class equ_map:
         #self.ffp = self.sf.get(self.gEQDSK+'FFPRIM').data()[self.valid].T
         #self.ppp = self.sf.get(self.gEQDSK+'PPRIME').data()[self.valid].T
 #x        #self.pres  = self.sf.get(self.gEQDSK+'PRES').data()[self.valid].T
-        #V0  = self.sf.get('\\'+self.system+'::TOP.RESULTS.aEQDSK.VOLUME').data()[self.valid].T
 
         #self.vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()[self.valid].T**2
-        #import IPython 
-        #IPython.embed()
 
         #The toroidal flux PHI can be found by recognizing that the safety factor is the ratio of the differential toroidal and poloidal fluxes
         self.tf = integrate.cumtrapz(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0)
-        
-
-
-
+    
     def _get_nearest_index(self, tarr):
 
         tarr = np.minimum(np.maximum(tarr, self.t_eq[0]), self.t_eq[-1])
@@ -479,6 +477,7 @@ class equ_map:
             if coord_in == 'r_V' :
                 r0_in  = np.sqrt(sep_in/ (2*np.pi**2*R0[i]))
             if coord_out == 'r_V' :
+                embed()
                 r0_out = np.sqrt(sep_out/(2*np.pi**2*R0[i]))
             if coord_in == 'RMNMP' :
                 r0_in  = np.sqrt(sep_in)
