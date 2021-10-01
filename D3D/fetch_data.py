@@ -657,7 +657,7 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     val = np.ones_like(elm_start)
     elm_val = np.c_[val, -val,val*0 ].flatten()
 
-    t_elm_val = tvec[np.c_[ elm_start-1, elm_start, elm_end].flatten()]
+    t_elm_val = tvec[np.c_[ elm_start, elm_start, elm_end].flatten()]
 
     #elm free regions will be set to 2
     elm_val[:-1][np.diff(t_elm_val) > .2] = 2
@@ -674,109 +674,7 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #np.savez('/home/tomas/Dropbox (MIT)/LBO_experiment/SXR_data/elms_175901',tvec=t_elm_val,val=elm_val)
 
     return t_elm_val,elm_val, tvec[elm_start], tvec[elm_end]
-
  
-#def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
-    ##assume signal with a positive peaks during elms
-    
-    #from scipy.signal import  order_filter
-     
-    #downsample = np.int(np.ceil(0.001/(tvec[-1]-tvec[0])/(len(tvec)-1)))
-    #print('elm downsample',downsample, 8, len(tvec),tvec.mean())
-    #nt = len(tvec)//downsample*downsample
-    #signal = signal[:nt].reshape(-1,downsample).mean(1)
-    #tvec = tvec[:nt].reshape(-1,downsample).mean(1)
-    ##remove background
-
-    #filtered = signal-order_filter(signal, np.ones(51), 5)
-    #n = 25
-    #threshold_sig = np.interp(tvec,tvec[n*5::5], order_filter(filtered[::5], np.ones(n*2+1), n)[n:]*threshold)
-    ##embed()
-    ##filtered /= np.interp(tvec,tvec[::5], order_filter(filtered[::5], np.ones(51), 25))
-    ##n = 125
-    ##plt.plot( threshold_sig)
-    ##plt.plot(filtered)       
-    ##plt.show()
-    
-    #filtered[tvec < .5] = 0  #assume no elms first 500ms
-             
-    ##normalize
-    ##norm = np.nanmedian(np.abs(filtered))
-    ###if norm == 0:
-        ###printe('Invalid ELMs signal')
-        ###return [[]]*4
-    
-    ##filtered/= norm
-    ###find elms
-    #ind = filtered > threshold_sig
-    #from scipy.ndimage.morphology import binary_opening, binary_closing ,binary_erosion, binary_dilation
-    ##ind = binary_closing(ind)
-    ##plt.plot(   binary_dilation(binary_erosion(ind,[1,1,1]),[1,1,1]) )
-        
-    ##plt.plot( binary_opening(ind ,[1,1,1,1,1]))
-    ###plt.plot( ind )
-    ##plt.show()
-    
-    ##remove tiny short elms
-    #ind = binary_opening(ind ,np.ones(7))
-     
-    #ind[[0,-1]] = False
-    ##import matplotlib.pylab as plt
-    ##plt.axhline(threshold)
-    ##plt.plot(tvec, filtered)
-    ##plt.plot(tvec, signal/norm)
-
-    ##plt.show()
-    
-    ##detect start and end of each elm
-    #elm_start = np.where(np.diff(np.int_(ind))>0)[0]
-    #elm_end   = np.where(np.diff(np.int_(ind))<0)[0]
-    ##n_elms = min(len(elm_start),len(elm_end))
-    ##elm_start,elm_end = elm_start[:n_elms],elm_end[:n_elms]
- 
-    #assert not np.any( elm_end-elm_start  < 0) ,'something wrong'
- 
-    ##due to noise before and elm
-    #short = tvec[elm_start[1:]]-tvec[elm_end[:-1]] < min_elm_dist
-    #elm_start = elm_start[np.r_[True,~short ]]
-    #elm_end   = elm_end[  np.r_[~short,True ]]
-
-    ##remove too small elms
-    #short = tvec[elm_end]- tvec[elm_start] < min_elm_len
-    #elm_start = elm_start[~short]
-    #elm_end   = elm_end[~short]
-
-    ##import matplotlib.pylab as plt
-    ##plt.plot(tvec,filtered)
-
-    
-    ##filtered[filtered<threshold_sig] = np.nan
-    ##plt.plot(tvec, filtered,'r')
-    ##[plt.axvline(tvec[i],ls=':') for i in elm_start]
-    ##[plt.axvline(tvec[i],ls='--') for i in elm_end]
-    ##embed()
-
-    #val = np.ones_like(elm_start)
-    #elm_val = np.c_[val, -val,val*0 ].flatten()
-    
-    #t_elm_val = tvec[np.c_[ elm_start-1, elm_start, elm_end].flatten()]
-    
-    ##elm free regions will be set to 2
-    #elm_val[:-1][np.diff(t_elm_val) > .2] = 2 
-    
-    ##plt.plot(t_elm_val, elm_val*1e21)
-    ##plt.plot(tvec, filtered)
-
-    ##plt.plot(tvec, threshold_sig)
-    ##plt.show()
-    
-    ##embed()
-    
-    
-    ##np.savez('/home/tomas/Dropbox (MIT)/LBO_experiment/SXR_data/elms_175901',tvec=t_elm_val,val=elm_val)
-
-    #return t_elm_val,elm_val, tvec[elm_start], tvec[elm_end]
-
 
 def default_settings(MDSconn, shot):
     #Load revisions of Thompson scattering

@@ -1117,7 +1117,7 @@ class DataFit():
             #correction to get proper values of R/Lx
             if 'Lx_correction' not in output:
                 try:
-                    r = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], coord_out='RMNMP')
+                    r = self.eqm.rho2rho(x_out, coord_in=self.options['rho_coord'], coord_out='RMNMP')
             
                     ind = x_out <= 1
                     output['Lx_correction'] = np.ones_like(x_out)
@@ -1125,7 +1125,7 @@ class DataFit():
                 except:
                     pass
                 
-                
+            
             output[prof] = {'tvec':t_out, 'rho':x_out, 'rho_lbl': self.options['rho_coord'],
                             'data':np.single(d_out), 
                             'err': np.single(d_err),

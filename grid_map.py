@@ -69,6 +69,7 @@ class map2grid():
     r_max = 1.1  
     def __init__(self,R,T,Y,Yerr,P,W,nr_new,dt ):
         if debug:
+            TT = time.time()
             np.savez('map2grid',R=R,T=T,Y=np.array(Y), Yerr=np.array(Yerr),P=P,W=W, nr_new=nr_new,nt_new=dt)
   
         self.dtype='double' #single is much slower, why?
@@ -125,11 +126,15 @@ class map2grid():
         self.prepared=False
         self.fitted=False
  
-
+        if debug:
+            print('init',time.time()-TT)
+            
     def PrepareCalculation(self, zero_edge=False, core_discontinuties = [],
                            edge_discontinuties = [],transformation = None,even_fun=True,
                            robust_fit=False,pedestal_rho=None, elm_phase=None):
-        if debug: print('\nPrepareCalculation')
+        if debug:
+            TT = time.time()
+            print('\nPrepareCalculation')
    
         #BUG removing large number of points, will change missing_data index!!
         
@@ -157,7 +162,7 @@ class map2grid():
         it =  (self.T-self.t_min)/dt0
         
         #new grid for output
-        r_new  = np.linspace(self.r_min,self.r_max,self.nr_new, dtype=self.dtype )
+        r_new  = np.linspace(self.r_min,self.r_max,self.nr_new, dtype=self.dtype)
         t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0, dtype=self.dtype)
  
  
@@ -190,7 +195,8 @@ class map2grid():
         weight[1::2] *= frac_it
         weight[  :2] *= 1.-frac_ir
         weight[  2:] *= frac_ir
-
+        
+        #skip fit of temporal regions without any data
         if elm_phase is None:
             #if elm syncing is not used
             #time regions which are not covered by any measurements
@@ -236,7 +242,7 @@ class map2grid():
         #imshow(self.M[25000].todense().reshape(self.nr_new,self.nt_new), interpolation='nearest', aspect='auto');colorbar();show()
   
 
-        #prepare smoothing matrix 
+        #prepare regularisation matrix 
         
         #calculate (1+c)*d/dr(1/r*dF/dr) + (1-c)*d^2F/dt^2
         rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
@@ -256,20 +262,20 @@ class map2grid():
                 y[ind] = np.exp(-(x[ind]-x0)**2/(2*s**2))
                 return y
             self.ifun/= 1+gauss(rvec_b,pedestal_rho,0.02)*10 +gauss(rvec_b,pedestal_rho+.05,.05)*5
-        rweight = np.r_[self.ifun.max(),self.ifun]
+        
         tweight =  np.exp(-rvec)
 
         #==================time domain===============
         #prepare 3 matrices, for core, midradius and edge
         DTDT = []
         
-        #discontinuties
+        #discontinuties, regions must cover whole range and do not overlap
         self.time_breaks = OrderedDict()
         self.time_breaks['core']   = (0.,.3), core_discontinuties
-        self.time_breaks['middle'] = (.3,.7), []
-        self.time_breaks['edge']   = (.7,2.), edge_discontinuties
+        self.time_breaks['middle'] = (.3,.6), []
+        self.time_breaks['edge']   = (.6,2.), edge_discontinuties
 
-        
+        #iterate over all regions
         for region, (rho_range, time_breaks) in self.time_breaks.items():
             
             break_ind = []
@@ -282,7 +288,6 @@ class map2grid():
             #remove discontinuties when there are no measurements
             if len(break_ind) > 1 and elm_phase is None:
                 break_ind = break_ind[~binary_opening(self.missing_data)[break_ind]]
-                #print used_times.shape, break_ind.max()
                 break_ind = np.unique(used_times[break_ind])
    
             if self.nt_new > 1:
@@ -291,11 +296,11 @@ class map2grid():
                 DT[0,0:-2] =  .5/(dt[:-1]+dt[1:])/dt[:-1]
                 DT[1,1:-1] = -.5/(dt[:-1]+dt[1:])*(1/dt[:-1]+1/dt[1:])
                 DT[2,2:  ] =  .5/(dt[:-1]+dt[1:])/dt[ 1:]
-                #force zero 1. derivative at the edge
+                #force zero 1. derivative at the edge of the discontinuity
                 DT[[2,0],[1,-2]] =  1/dt0**2/2
                 DT[   1 ,[0,-1]] = -1/dt0**2/2
 
-                #discontinuties
+                #introduce discontinuties to a time derivative matrix
                 if len(break_ind) > 0:
                     DT[0, break_ind-2] =  1/dt0
                     DT[1, break_ind-1] = -1/dt0
@@ -303,68 +308,79 @@ class map2grid():
                     DT[0, break_ind-1] = 0
                     DT[1, break_ind-0] = -1/dt0
                     DT[2, break_ind+1] =  1/dt0
+                    
                 DT *= dt0**2
                 DT = sp.spdiags(DT,(-1,0,1),self.nt_new,self.nt_new)
-         
+                
+                #add correlation between timeslices at the same elm phase
                 if elm_phase is not None and region == 'edge':
                     phase = np.interp(t_new,elm_phase[0],elm_phase[1], left=0,right=0)
+                    nelm = len(elm_phase[0])
                     elm_start = elm_phase[0][elm_phase[1]==-1]
-                    elm_start_ind = np.arange(len(elm_phase[0]))[elm_phase[1]==-1]
-                    DT_elm_sync = []
+                    elm_start_ind = np.arange(nelm)[elm_phase[1]==-1]
+                    DT_elm_sync = [] #indexes and weighs in the elm synchronisatiom matrix
+                    #iterate over each timeslice of the timegrid
                     for it,(t,p) in enumerate(zip(t_new,phase)):
-                    
-                        #find point in the next elm with nearest phase value
-                        if t > elm_start[-1]: continue
-                            
-                        ip = elm_start_ind[elm_start.searchsorted(t)]  
-                        if ip < 6 or ip >= len(elm_phase[0]) -2:
-                            continue
-                    
-                        ind_next = (t_new>=elm_phase[0][ip  ])&(t_new<=elm_phase[0][ip+2])
-                        ind_prev = (t_new>=elm_phase[0][ip-6])&(t_new<=elm_phase[0][ip-4])
-             
-                        if any(ind_next):
-                            next_it2 = min(len(t_new)-1 ,t_new.searchsorted(elm_phase[0][ip])+phase[ind_next].searchsorted(p))
-                            if phase[next_it2]< p: next_it2 -= 1
-                            next_it1 = next_it2-1 if phase[next_it2-1] < phase[next_it2] else next_it2
-                            w = max(0,(phase[next_it2]-p)/(phase[next_it2]-phase[next_it1])) if next_it2!=next_it1  else .5
-                            
-                            if next_it2 < len(t_new):
-                                DT_elm_sync.append((-w, it,next_it1))  
-                                DT_elm_sync.append((-(1-w), it,next_it2))  
+                        #iterate over one left on the left and one on the right
+                        for side in ['L','R']:
+                            #find point in the next elm with nearest phase value  
+                            if (t < elm_start[-1] and side == 'R') or (t > elm_start[1] and side == 'L'): #check that the current elm is not the first/last elm
+                                #index of the previous/next elm
+                                ielm = elm_start.searchsorted(t)
                                 
+                                if side == 'L': ielm -= 2
+                                assert ielm >= 0, 'ielm > 0'
+                                
+                                #select the elm
+                                ip = elm_start_ind[ielm]                              
+                                elm_beg = elm_phase[0][ip]
+                                elm_end = np.inf if ip+3 > nelm else elm_phase[0][ip+2]
+                                
+                                #interval inside of range [elm_beg, elm_end]
+                                ind_next = slice(*t_new.searchsorted((elm_beg, elm_end)))
+                                
+                                #at least 6 time slices within the elm, else skip it
+                                if ind_next.stop-ind_next.start > 5:
+                                    iphase = phase[ind_next].searchsorted(p) 
+                                    if 0 < iphase < (ind_next.stop-ind_next.start): #inside of left and right edge
+                                        
+                                        next_it_r = ind_next.start+iphase
+                                        next_it_l = next_it_r-1
+                                        
+                                        #weight of the left point
+                                        w = (phase[next_it_r]-p)/(phase[next_it_r]-phase[next_it_l])
+                                        assert 0<=w<=1, 'w > 0'
 
-                            
-                        if any(ind_prev):
-                            prev_it2 = max(0 ,t_new.searchsorted(elm_phase[0][ip-6])+phase[ind_prev].searchsorted(p))
-                            if phase[prev_it2]< p: prev_it2 -= 1
-                            prev_it1 = prev_it2-1 if phase[prev_it2-1] < phase[prev_it2] else prev_it2
-                            w = max(0,(phase[prev_it2]-p)/(phase[prev_it2]-phase[prev_it1])) if prev_it2!=prev_it1  else .5
-                            if prev_it1 >= 0:
-                                DT_elm_sync.append((-w, it,prev_it1))  
-                                DT_elm_sync.append((-(1-w), it,prev_it2))  
+                                        
+                                        DT_elm_sync.append((it,next_it_l, -w))  
+                                        DT_elm_sync.append((it,next_it_r,-(1-w))) 
+
+                                    elif iphase == 0 and ind_next.start != 0:#if it is not edge of the grid 
+                                        DT_elm_sync.append((it,ind_next.start, -1))  
+                                    
+                                    elif iphase == (ind_next.stop-ind_next.start) and ind_next.stop != len(t_new):#if it is not edge of the grid 
+                                        DT_elm_sync.append((it,ind_next.stop-1, -1))  
+  
                     if len(DT_elm_sync) == 0:
                         print('No ELMS for synchronisation')
  
                     else:
-                        #add elm syncronisation to time derivative matrix 
-                        A,I,J = np.array(DT_elm_sync).T
-                        B = sp.coo_matrix((A,(I,J)),DT.shape)
-                        B = B- sp.spdiags(B.sum(1).T,0,*DT.shape )
-                        DT = sp.vstack((B/2., DT/4.),  format='csr', dtype=self.dtype)
-    
-                    
+                        #add elm synchronisation to time derivative matrix 
+                        I,J, W = np.array(DT_elm_sync).T
+                        B = sp.coo_matrix((W,(I,J)),(self.nt_new,self.nt_new))  #normalise it by average langht of elms??
+                        B = B- sp.spdiags(B.sum(1).T,0,self.nt_new,self.nt_new )#diagonal value at it should by +2
+                        DT = sp.vstack((B/4., DT/4.),  format='csr', dtype=self.dtype)
+
                 
             else:
                 DT = np.matrix(0)
-      
+            #apply DT just in a selected region
             r_range = (r_new>=rho_range[0])&(r_new<rho_range[1])
             W = sp.diags(tweight[r_range],0, dtype=self.dtype)
             DTDT.append(sp.kron(W**2,DT.T*DT))
+        #merge all regiosn together
         self.DTDT = sp.block_diag(DTDT, format='csc')
 
-        #import IPython
-        #IPython.embed()
     
         #==============radial domain===============
         DR = np.zeros((3,self.nr_new),dtype=self.dtype)
@@ -390,10 +406,13 @@ class map2grid():
  
     
         DR = sp.spdiags(DR,(-1,0,1),self.nr_new,self.nr_new)
-        self.DRDR = sp.kron(DR.T*DR,sp.eye(self.nt_new, dtype=self.dtype), format='csc')
+        I = sp.eye(self.nt_new, dtype=self.dtype)
+        self.DRDR = sp.kron(DR.T*DR,I, format='csc')
         self.prepared = True
             
-     
+        if debug:
+            print('prepare',time.time()-TT)
+            
     
     def PreCalculate(self ):
     
@@ -402,7 +421,10 @@ class map2grid():
         if not self.prepared:
             self.PrepareCalculation()
         
-        if debug:print('Precalculate')
+        if debug:
+            print('Precalculate')
+            TT = time.time()
+
         #first pass - decrease the weight of the outliers
 
             
@@ -459,20 +481,27 @@ class map2grid():
             self.VV = self.V.T*self.V
 
 
-            
+        if debug:
+            print('Precalculate',time.time()-TT)
+              
         
     def Calculate(self,lam,eta):
 
         if not self.corrected:
             self.PreCalculate()
-        if debug:print('Calculate')
+        if debug:
+            print('Calculate')
+            TT = time.time()
 
+        #import IPython
+        #IPython.embed()
         np.random.seed(0)
         #noise vector for estimation of uncertainty
         n_noise_vec = 50
+        #perfecty uncorrelated noise, most optimistic assumption
         noise = np.random.randn(self.n_points, n_noise_vec).astype(self.dtype)
-
-        noise += np.random.randn(n_noise_vec)#correlated noise, most pesimistic assumption
+        #correlated noise, most pesimistic assumption
+        noise += np.random.randn(n_noise_vec) 
 
         #BUG hardcodded!!
         R0 = 1.7 #m  
@@ -483,13 +512,14 @@ class map2grid():
         lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
         dtdiag = self.DTDT.diagonal().sum()
         if dtdiag== 0: dtdiag= 1
-        eta = np.exp(20*(eta-.5)+ 5)/dtdiag*vvtrace*eta/(1.001-eta)
+        eta = np.exp(20*(eta-.5)+ 5)/dtdiag*vvtrace*eta/(1.001-eta)#*(self.nt_new0/1e3)
+        #print(eta, self.nt_new0/1e3)
         if self.nt_new == 1: eta = 0
 
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
 
         #print 'TRACE %.3e  %.3e'%( self.DRDR.diagonal().sum()/vvtrace,self.DTDT.diagonal().sum()/vvtrace)
-        
+
         try:
             self.Factor.cholesky_inplace(AA)
         except:
@@ -559,7 +589,9 @@ class map2grid():
 
         self.g_t = self.t_new[valid_times] 
         self.g_r = self.r_new[valid_times] 
-        
+        if debug:
+            print('calculate',time.time()-TT)
+              
         return self.g,self.g_u,self.g_d, self.g_t, self.g_r
         
         
@@ -597,6 +629,9 @@ class map2grid():
 
 
 def main():
+ 
+    data = np.load('map2grid',R=R,T=T,Y=np.array(Y), Yerr=np.array(Yerr),P=P,W=W, nr_new=nr_new,nt_new=dt)
+    MG = map2grid(data['R'],data['T'],data['Y'],data['Yerr'],data['P'],data['W'],data['nr_new'],data['dt'] )
     
     import pickle as pkl
     from matplotlib.pylab import plt
