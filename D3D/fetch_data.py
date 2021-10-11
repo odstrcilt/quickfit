@@ -4329,6 +4329,9 @@ class data_loader:
             #estimate of reflected light properties
             T_avg = np.unique(tvec)
             int_old, rot_old, Ti_old = int_, rot, Ti
+            rot_err[~np.isfinite(rot)] = np.inf
+            rot[~np.isfinite(rot)] = 0
+
             int_err_old,rot_err_old, Ti_err_old = int_err,rot_err, Ti_err
             int_avg = np.vstack([np.interp(T_avg, tvec[ind],int_[ind]) for ind in split_ind])
             rot_avg = np.vstack([np.interp(T_avg, tvec[ind],rot[ind] ) for ind in split_ind])
@@ -4346,8 +4349,11 @@ class data_loader:
 
             A = int_ - np.interp(tvec, T_avg,int_avg )*c
             W = A/np.clip(int_, A ,100*A) #avoid zero divison if int_==0 and clip W in range 0.01 to 1
-
-            T = (Ti-np.interp(tvec, T_avg,Ti_avg)*(1-W)-W*(1-W)*(rot-np.interp(tvec, T_avg,rot_avg))**2*(m_p*12)/(2*e))/W  #BUG should I use the corrected rotation??
+            try:
+                T = (Ti-np.interp(tvec, T_avg,Ti_avg)*(1-W)-W*(1-W)*(rot-np.interp(tvec, T_avg,rot_avg))**2*(m_p*12)/(2*e))/W  #BUG should I use the corrected rotation??
+            except:
+                print(' = (Ti-np.interp(tvec, T_avg,Ti_avg)*(1-W)-W*(1-W)*(rot-np.interp(tvec, T_avg,rot_avg))**2*(m_p*12)/(2*e))/W  #BUG should I use the corrected rotation??')
+                embed()
             c_cost = np.linalg.norm(T[:,i]*W[:,i]/Ti[i],axis=1)**2+np.linalg.norm(A[:,i]/int_[i],axis=1)**2      #bias towards zero
             #panise more cases where is negaive T or intensity
             neg_T = T[:,i] < 0

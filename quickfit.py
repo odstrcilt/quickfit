@@ -94,6 +94,8 @@ class DataFit():
     options = {'eta':.5, 'lam':.5}
 
     kinprof_ind = None
+    elmstime=False
+    elmsphase=False
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
                  raw_data={},settings=OrderedDict(),coordinate='rho_tor'):
@@ -640,6 +642,7 @@ class DataFit():
                 return tk.StringVar(master=self.main_frame,value=x)
             
             raise Exception('mission type '+str(type(x))+'   ',str(x))
+        
  
         #initial profile shown in GUI after openning
         kin_prof = self.kin_profs[0]
@@ -653,6 +656,7 @@ class DataFit():
             options = self.default_settings[kin_prof]
             if not 'systems' in options: #dict is not fully initialized
                 continue
+            
             for name,config in options['systems'].items():
                 load_enabled = [[ss, tk_var(var)] for ss,var in config]
                 self.load_options[kin_prof]['systems'][name] = load_enabled
@@ -836,7 +840,7 @@ class DataFit():
         self.fit_trans_combo = tkinter.ttk.Combobox(fit_opt_frame_up,width=5,
                     textvariable=self.fit_options['transformation'],values=list(transformations.keys()))
         self.fit_trans_combo.pack(side=tk.LEFT,padx=0)
-        self.fit_trans_combo.current(0)
+        #self.fit_trans_combo.current(0)
         
         def newselection(val=None):
             transform_ind = self.fit_options['transformation'].get()

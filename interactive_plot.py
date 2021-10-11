@@ -57,6 +57,23 @@ def update_fill_between(fill,x,y_low,y_up,min,max ):
     paths, = fill.get_paths()
     nx = len(x)
     
+    
+    
+    #change between time/radius slice, create a new fill
+    if len(paths.vertices) != 2*nx+3:
+        _fill = fill
+        fill = _fill.axes.fill_between(np.arange(nx),
+                np.zeros(nx),np.zeros(nx), alpha=_fill.get_alpha(), 
+                facecolor=_fill.get_facecolor(),
+                edgecolor=_fill.get_edgecolor())
+
+        paths, = fill.get_paths()
+        #remove the only fill
+        _fill.set_visible(False)
+        del _fill #not really working
+        
+ 
+    
     y_low = np.maximum(y_low, min)
     y_low[y_low==max] = min
     y_up = np.minimum(y_up,max)
@@ -67,6 +84,8 @@ def update_fill_between(fill,x,y_low,y_up,min,max ):
     vertices[:,nx+2:-1] = x[::-1],y_low[::-1]
     vertices[:,0] = x[0],y_up[0]
     vertices[:,-1] = x[0],y_up[0]
+    
+    return fill
     
 
 def printe(message):
@@ -388,7 +407,7 @@ class FitPlot():
    
         if self.plot_type.get() in [0]:
             #time slice 
-            self.view_step.config(textvariable=self.fit_options['dr'])
+            self.view_step.config(textvariable=self.fit_options.get('dr',0.02))
             self.view_step_lbl.config(text='Radial step [-]')
             self.main_slider.label='Radius:'
             self.main_slider.valmin = self.options['rho_min']
@@ -864,33 +883,34 @@ class FitPlot():
                     c.set_visible(False)
                 self.barlinecols[idiag][0].set_visible(False)
             
-       
-       
-        if self.options['fitted']:
-            if plot_type in [1,2]:
-                if plot_type == 1:
+            #plot fit of teh data with uncertainty
+            if self.options['fitted']:
+                if plot_type == 0: #time slice
+                    y,x = self.m2g.g_t[:,0], self.m2g.g_r[0]
+                    p = r
+                    profiles = self.m2g.g.T, self.m2g.g_d.T, self.m2g.g_u.T
+                    
+                if plot_type == 1:#radial slice
                     profiles = self.m2g.g, self.m2g.g_d, self.m2g.g_u
-                if plot_type == 2:
+                    x,y = self.m2g.g_t[:,0], self.m2g.g_r[0]
+                    p = t
+
+                if plot_type == 2:#radial slice of the gradient/rho
                     profiles = self.m2g.K, self.m2g.Kerr_d, self.m2g.Kerr_u
+                    x,y = self.m2g.g_t[:,0], self.m2g.g_r[0]
+                    p = t
 
                 prof = []
                 for d in profiles:
                     if self.m2g.g_t.shape[0] == 1:
                         prof.append(d[0])
                     else:
-                        prof.append(interp1d(self.m2g.g_t[:,0], d,fill_value='extrapolate',
-                                axis=0, copy=False, assume_sorted=True)(t))
+                        prof.append(interp1d(x, d,fill_value='extrapolate',
+                                axis=0, copy=False, assume_sorted=True)(p))
 
-                self.fit_plot.set_data(self.m2g.g_r[0],prof[0])
-                self.fit_confidence.set_visible(True)
-                update_fill_between(self.fit_confidence,self.m2g.g_r[0],prof[1], prof[2],-np.infty, np.infty )
+                self.fit_plot.set_data(y,prof[0])
+                self.fit_confidence = update_fill_between(self.fit_confidence,y,prof[1], prof[2],-np.infty, np.infty )
 
-
-            if plot_type == 0:
-                prof = interp1d(self.m2g.g_r[0], self.m2g.g,axis=1,bounds_error=False,
-                                copy=False, assume_sorted=True)(np.abs(r))
-                self.fit_plot.set_data(self.m2g.g_t[:,0],prof)
-                self.fit_confidence.set_visible(False)
 
         #show discontinuties in time
         for d in self.core_discontinuties:
