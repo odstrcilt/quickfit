@@ -603,7 +603,7 @@ class DataFit():
             if kin_prof in ['Mach']:
                 dic['options']['lam']=.45  
                 
-            if kin_prof in ['Ti','Mach'] and self.device == 'D3D':
+            if kin_prof in ['Ti','Mach','vtor','omega'] and self.device == 'D3D':
                 #measurememt outside LCFS are useless
                 dic['fit_options']['null_outer']=1  
                 dic['fit_options']['outside_rho']='0.98'

@@ -68,21 +68,20 @@ class map2grid():
         self.Y = Y.ravel()
         Yerr = Yerr.ravel()
         self.Yerr = np.ma.array(Yerr)
-        self.Yerr.mask = (Yerr<=0)|~np.isfinite(Yerr)|self.Yerr.mask 
+        self.Yerr.mask = (Yerr<=0) |~np.isfinite(Yerr) | self.Yerr.mask 
 
-        self.valid   =  np.isfinite(self.Yerr.data)#&(R.ravel() < self.r_max)
+        self.valid   =  np.isfinite(self.Yerr.data)
         valid_p =  self.valid[P.flat] & (W.flat != 0)&(R.ravel() < self.r_max)
         self.n_points = np.sum(self.valid)  #BUG 
         
         #remove invalid points from P
         ind_ = np.zeros(len(self.valid), dtype='uint32')
-        ind_[np.where(self.valid)[0]] = np.arange(self.n_points, dtype='uint32')
+        ind_[self.valid] = np.arange(self.n_points, dtype='uint32')
 
         self.P = ind_[P.flat][valid_p]  #point index - for nonlocal measuremenrs
         self.W = W.flat[valid_p]  #weight   - for nonlocal measuremenrs
         self.R = R.flat[valid_p]  #radial postion 
         self.T = T.flat[valid_p]  #temporal position 
-      
 
         medY = np.median(abs(self.Y[self.valid]))
         self.norm = medY/2
@@ -96,7 +95,7 @@ class map2grid():
         it-= np.int32(it)
         t_shift = np.median(it)-1e-4 #add small constant due to rounding errors
         self.t_min += -dt+t_shift*dt
-        self.t_max = self.t_min+np.ceil((self.t_max-self.t_min)/dt+1)*dt
+        self.t_max = self.t_min+np.ceil((self.t_max-self.t_min)/dt+2)*dt
         
         
         self.dt = dt
@@ -171,8 +170,8 @@ class map2grid():
 
     
         self.robust_fit = robust_fit
-        
-        if len(self.P) != sum(self.valid) and transformation[2](100) != 1:
+        #embed()
+        if len(self.P) > self.n_points and transformation[2](100) != 1:
             print('Only linear transformation can be used with line integrated measurements')
             transformation = None
         
@@ -188,6 +187,8 @@ class map2grid():
         dr = (self.r_max-self.r_min)/(self.nr_new-1)
         it = (self.T-self.t_min)/self.dt
         ir = (self.R-self.r_min)/dr
+        
+        #print('sum(it > self.nt_new0-1)',np.sum(it > self.nt_new0-2),np.sum(it > self.nt_new0-1) ,self.missing_data.shape,  )
 
         #new grid for output
         r_new  = np.linspace(self.r_min,self.r_max,self.nr_new)
@@ -200,11 +201,13 @@ class map2grid():
         index_p = np.tile(self.P, (4,1))
         index_t = np.tile(floor_it, (4,1))
         index_r = np.tile(floor_ir, (4,1))
+        #print('sum(floor_it > self.nt_new0-2)',np.sum(floor_it > self.nt_new0-2),self.missing_data.shape,  self.nt_new0  )
 
         index_t[1::2] += 1
         index_r[2:  ] += 1
         
-        frac_it = np.uint32((it-floor_it)*1e3+0.5)/1e3#fast rounding by 3 digits to increase sparsity for regularly spaced data and remove  rounding error
+        #fast rounding by 3 digits to increase sparsity for regularly spaced data and remove  rounding error
+        frac_it = np.uint32((it-floor_it)*1e3+0.5)/1e3
         frac_ir = ir-floor_ir
         
         #bilinear weights
@@ -255,11 +258,12 @@ class map2grid():
         self.M = sp.csc_matrix((weight[nonzero],(index_p,index_rt)),
                                 shape=(self.n_points,npix))
         
-        #print('compression',self.M.data.size/(len(self.P)*4))
     
         if debug:
-            #TT = time.time()
+            print('compression',self.M.data.size/(len(self.P)*4))
             print('prepare V', time.time()-TT)
+            TT = time.time()
+
         #imshow(self.M.sum(0).reshape(self.nr_new,self.nt_new), interpolation='nearest', aspect='auto');colorbar();show()
         #imshow(self.M[25000].todense().reshape(self.nr_new,self.nt_new), interpolation='nearest', aspect='auto');colorbar();show()
   
@@ -341,7 +345,7 @@ class map2grid():
                     DT[1, break_ind-0] = -1/self.dt
                     DT[2, break_ind+1] =  1/self.dt
                     
-                DT *= self.dt**2
+                DT *= self.dt
                 DT = sp.spdiags(DT,(-1,0,1),self.nt_new,self.nt_new)
                 
         
@@ -372,7 +376,7 @@ class map2grid():
                                 ip = elm_start_ind[ielm]                              
                                 elm_beg = elm_phase[0][ip]
                                 elm_end = np.inf if ip+3 > nelm else elm_phase[0][ip+2]
-                                
+                                dt_elm = elm_end-elm_beg
                                 #interval inside of range [elm_beg, elm_end]
                                 ind_next = slice(*t_new.searchsorted((elm_beg, elm_end)))
                                 
@@ -389,15 +393,15 @@ class map2grid():
                                         assert 0<=w<=1, 'w > 0'
 
                                         
-                                        DT_elm_sync.append((it,next_it_l, -w))  
-                                        DT_elm_sync.append((it,next_it_r,-(1-w))) 
+                                        DT_elm_sync.append((it,next_it_l, -w*dt_elm))  
+                                        DT_elm_sync.append((it,next_it_r,-(1-w)*dt_elm)) 
                  
 
                                     elif iphase == 0 and ind_next.start != 0:#if it is not edge of the grid 
-                                        DT_elm_sync.append((it,ind_next.start, -1))  
+                                        DT_elm_sync.append((it,ind_next.start, -dt_elm))  
                                     
                                     elif iphase == (ind_next.stop-ind_next.start) and ind_next.stop != len(t_new):#if it is not edge of the grid 
-                                        DT_elm_sync.append((it,ind_next.stop-1, -1))  
+                                        DT_elm_sync.append((it,ind_next.stop-1, -dt_elm))  
   
                     if len(DT_elm_sync) == 0:
                         print('No ELMS for synchronisation')
@@ -405,7 +409,7 @@ class map2grid():
                     else:
                         #add elm synchronisation to time derivative matrix 
                         I,J,W = np.array(DT_elm_sync).T
-                        B = sp.coo_matrix((W,(I,J)),(self.nt_new,self.nt_new))  #normalise it by average lenght of elms??
+                        B = sp.coo_matrix((W/self.dt,(I,J)),(self.nt_new,self.nt_new))  #normalise it by average lenght of elms??
                         B = B - sp.spdiags(B.sum(1).T,0,self.nt_new,self.nt_new )#diagonal value at it should by +2
                         DT = sp.vstack((B/4., DT/4.),  format='csr')
 
@@ -457,7 +461,7 @@ class map2grid():
 
             
         if debug:
-            print('prepare',time.time()-TT)
+            print('prepare DT',time.time()-TT)
             
     
     def PreCalculate(self ):
@@ -474,8 +478,8 @@ class map2grid():
         #first pass - decrease the weight of the outliers
         #embed()
             
-        Y    = np.copy(self.Y[self.valid])/self.norm
-        Yerr = np.copy(self.Yerr.data[self.valid])/self.norm
+        Y    = self.Y[self.valid]/self.norm
+        Yerr = self.Yerr.data[self.valid]/self.norm
         Yerr *= self.deriv_trans(Y)
         
         Yerr[self.Yerr.mask[self.valid]] = np.infty
@@ -499,6 +503,8 @@ class map2grid():
         dt_diag = self.DTDT.diagonal().sum()
         if dt_diag == 0: dt_diag = 1
         eta = np.exp(11)/dt_diag*vvtrace
+        
+        #/(self.dt/0.01)
     
         if self.nt_new == 1: eta = 0
         #DRDR -s 5-diagonal, DTDT is also 5 diagonal, VV 7 diagonal, AA is 9 diagonal
@@ -506,7 +512,10 @@ class map2grid():
         #embed()
         if chol_inst:
             #t=time.time()
-            self.Factor = analyze(AA, ordering_method='colamd')
+            #TODO use NETIS oly for line interated data and elm sync??
+            self.Factor = analyze(AA, ordering_method='metis') #colamd and amd has troubles with large lower sparsity matrices
+            #self.Factor = analyze(AA, ordering_method='colamd') #colamd and amd has troubles with large lower sparsity matrices
+
             #self.Factor.cholesky_inplace(AA)#BUG
             #print('analyze',time.time()-t)
 
@@ -536,6 +545,66 @@ class map2grid():
         if debug:
             print('Precalculate',time.time()-TT)
               
+              
+              
+    def Evidence(self,lam,eta):
+        #works, but the smoothing is underestimated
+         
+        vvtrace = self.VV.diagonal().sum()
+        lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
+        
+        
+        if self.nt_new == 1: eta = 0
+
+        AA = self.VV+lam*self.DRDR+eta*self.DTDT
+
+        self.Factor.cholesky_inplace(AA)
+        
+        invSprior = np.eye(self.n_points)-self.V*self.Factor(self.V.T.todense())
+        
+        #%timeit self.Factor.apply_Pt(self.Factor.solve_Lt(self.Factor.apply_P(self.V.T),use_LDLt_decomposition=False))
+        
+        
+        #logdet = np.sum(np.log(np.diag(np.linalg.cholesky(Sprior))))*2
+        s,logdet = np.linalg.slogdet(invSprior)
+        #embed()
+        logdet *= -1 #inversion
+
+        fit = np.array(np.dot(self.f, np.dot(invSprior,self.f).T))[0,0]
+
+        logev = -0.5*(logdet+fit+self.n_points*np.log(2*np.pi))
+        
+        return logev
+    
+    def Evidence2(self,lam,eta):
+        #it does not work, why?
+        
+         
+        vvtrace = self.VV.diagonal().sum()
+        lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
+        
+        
+        if self.nt_new == 1: eta = 0
+
+        AA = lam*self.DRDR+eta*self.DTDT
+
+        self.Factor.cholesky_inplace(AA,1e-8)
+        
+        Sprior =   np.eye(self.n_points)+self.V*self.Factor(self.V.T)
+        #logdet = np.sum(np.log(np.diag(np.linalg.cholesky(Sprior))))*2
+        s,logdet = np.linalg.slogdet(Sprior)#+np.sum(np.log(Yerr))*2
+        fit = np.array(np.dot(self.f, np.linalg.solve(Sprior,self.f).T))
+        
+        logev = -0.5*(logdet+fit+self.n_points*np.log(2*np.pi))
+        
+        return logev   
+        #g_noise = self.Factor.apply_Pt(self.Factor.solve_Lt(noise,use_LDLt_decomposition=False))
+
+        
+        
+ 
         
     def Calculate(self,lam,eta):
 
@@ -544,7 +613,36 @@ class map2grid():
         if debug:
             print('Calculate')
             TT = time.time()
+            
 
+        #lambda_vals = np.linspace(.1,.9,11)
+        #eta_vals = np.linspace(.1,.9,12)
+        #EV = np.zeros((len(lambda_vals),len(eta_vals)))
+
+        #for i,l in enumerate(lambda_vals):
+            #print('%d%%'%(100*i/len(lambda_vals)))
+            #for j,ee in enumerate(eta_vals):
+                #try:
+                    #EV[i,j] = self.Evidence2(l,ee)
+                #except:
+                    #EV[i,j] = np.nan
+                    
+        #embed()
+       
+        #import matplotlib.pylab as plt
+        #i,j = np.unravel_index(np.argmax(EV),EV.shape)
+        ##take_along_axis
+        
+        #print(lambda_vals[i],eta_vals[j])
+        #plt.pcolor(lambda_vals,eta_vals,EV.T )
+        #plt.plot(lambda_vals[i],eta_vals[j],'yo')
+        #plt.ylabel('radius')
+        #plt.xlabel('time')
+        #plt.show()
+        
+        #lam,eta = lambda_vals[i],eta_vals[j]
+
+        
 
         np.random.seed(0)
         #noise vector for estimation of uncertainty
@@ -561,37 +659,19 @@ class map2grid():
 
         vvtrace = self.VV.diagonal().sum()
         lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
-        dtdiag = self.DTDT.diagonal().sum()
-        if dtdiag== 0: dtdiag= 1
-        eta = np.exp(20*(eta-.5)+ 5)/dtdiag*vvtrace*eta/(1.001-eta)#*(self.nt_new0/1e3)
-        #print(eta, self.nt_new0/1e3)
+        eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
+        
+        
         if self.nt_new == 1: eta = 0
 
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
-        #print( self.V.shape, self.VV.data.size/self.VV.shape[0]**2)
 
-        #print 'TRACE %.3e  %.3e'%( self.DRDR.diagonal().sum()/vvtrace,self.DTDT.diagonal().sum()/vvtrace)
-        #import IPython
-        #embed()
         try:
-            #t = time.time()
             self.Factor.cholesky_inplace(AA)
-            #self.Factor=cholesky(self.VV+self.DRDR+self.DTDT,1e-6)
-
-            #print('cholesky',time.time()-t)
-
         except:
             self.Factor = sp.linalg.factorized(AA)
 
-        #n = 100
-        #VV = self.V[::n].T*self.V[::n]
-        #_AA = VV+lam*self.DRDR+eta*self.DTDT
-        #print(_AA.size)
-        #t = time.time()
-        #cholesky(_AA)
-        #print(time.time()-t)
 
-  
         Y = self.Y[self.valid]/self.norm
 
         Yerr = self.deriv_trans(Y)*self.Yerr.data[self.valid]/self.norm
@@ -606,14 +686,7 @@ class map2grid():
         noise_scale = np.maximum(abs(self.V*g-self.f), 1)
           
 
-        #n_noise_vec = 50
-
-        #noise_scale = np.ones((1))
-        #noise = np.random.randn(self.n_points, n_noise_vec).astype(self.dtype)
-        t = time.time()
-
         g_noise = self.Factor((self.V.T)*(noise*noise_scale[:,None]))#SLOW but paraellised 
-        #print(time.time()-t)
 
         #correct approach how to generate samples from the posterior, but it is noisy, but in radial and temporal domain!!
         #noise = np.random.randn(self.V.shape[1], n_noise_vec)
@@ -623,9 +696,7 @@ class map2grid():
         g_noise += (g - g_noise.mean(1))[:,None]
         g_noise = g_noise.reshape(self.nr_new,self.nt_new,n_noise_vec).T
         g_noise = self.invtrans(g_noise)*self.norm
-    
-        #print '\nchi2: %.2f reg:%.2f'%(self.chi2,self.lam)
-        
+            
         
     
         self.retro_f[self.valid] = self.invtrans((self.M*g))*self.norm
@@ -637,7 +708,7 @@ class map2grid():
         #remove invalid earlier? 
         valid_times = np.reshape(self.V.sum(0) > 0,(self.nr_new,self.nt_new)).T
         valid_times = np.any(np.asarray(valid_times),1)
-        valid_times |= True
+        #valid_times |= True
 
         self.g = self.g[valid_times] 
         g_noise= g_noise[:,valid_times] 
@@ -713,7 +784,7 @@ def main():
 
     #MG = map2grid
     
-    n = 10
+    n = 100
     R = np.random.rand(n)
     T = np.random.rand(n)
     Y = R+T+np.random.randn(n)
@@ -722,7 +793,7 @@ def main():
 
     #radial resolution strongly increases computation time
     MG = map2grid(R,T,Y,Yerr,dt = 0.0001,nr_new=100)
-    MG.PrepareCalculation()
+    MG.PrepareCalculation(zero_edge=True)
     MG.PreCalculate( )
     MG.Calculate(0.1, 0.1)
     

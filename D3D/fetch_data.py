@@ -20,7 +20,8 @@ from IPython import embed
 from scipy.stats import trim_mean
 from scipy.integrate import cumtrapz
 import matplotlib.pylab as plt
-
+import warnings
+#warnings.simplefilter(action='ignore', category=FutureWarning)
 #Note about output errorbars:
 #positive finite - OK
 #positive infinite - show points but do not use in the fit
@@ -2235,7 +2236,10 @@ class data_loader:
                 tslice = slice(max(0,itmin-1),itmax+1) #use at least one measurement before and one after
                 ch_valid = np.any(TS_valid[tslice],0)
                 rho_slice = np.average(TSrho[tslice, ch_valid],0, TS_valid[tslice, ch_valid])
-                
+                if len(rho_slice) < 3:
+                    print('err len(rho_slice) < 3')
+                    embed()
+                    
                 beam_profiles['rho'][sys].append(rho_slice)  
                 ne_slice = np.exp(np.average(np.log(n_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
                 
@@ -2244,8 +2248,8 @@ class data_loader:
                 beam_profiles['ne_err'][sys].append(np.maximum(ne_err_slice, .05*ne_slice)) #minimum 5% error
                 Te_slice = np.exp(np.average(np.log(T_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
                 beam_profiles['te'][sys].append(Te_slice)
-        
-        #merge data from all systems 
+        #BUG is it sorted somewhere??
+        #merge data from all TS systems 
         for k, d in beam_profiles.items():
             merged_sys = []
             for i,t in enumerate(centroid):
@@ -2255,7 +2259,7 @@ class data_loader:
                 
                 merged_sys.append(data) 
             beam_profiles[k] = merged_sys
-        
+
 
         #create radial midplane grid based on location of TS measurements
         Rmin = [nimp_data['R'][label == i].min() for i,t in enumerate(centroid)]
@@ -2265,14 +2269,15 @@ class data_loader:
         rho_midplane = self.eqm.rz2rho(R_midplane,R_midplane*0,centroid,self.rho_coord)
         ind_axis = np.argmin(rho_midplane,axis=1)
         Raxis = R_midplane[ind_axis]
- 
+        #embed()
+        beam_profiles_ = deepcopy(beam_profiles)
         beam_profiles['Rmid'] = []
         for it, t in enumerate(centroid):   
             rho = beam_profiles['rho'][it]
             ind_axis = np.argmin(rho_midplane[it])
             #map from rho to Rmid for both LFS and HFS channel
             R_lfs = np.interp(rho,rho_midplane[it][ind_axis:],R_midplane[ind_axis:])
-            R_hfs = np.interp(rho,rho_midplane[it][ind_axis::-1],R_midplane[ind_axis::-1])
+            R_hfs = np.interp(rho,np.r_[rho_midplane[it][ind_axis::-1],1.5],np.r_[R_midplane[ind_axis::-1],1])
             R = np.hstack([R_hfs,R_lfs])
             sind = np.argsort(R)
             sind = sind[R[sind].searchsorted(Rmin[it])-1:] #just splighly outside of outermost measurement
@@ -2283,7 +2288,14 @@ class data_loader:
             for k,d in beam_profiles.items():
                 if k != 'Rmid':
                     d[it] = d[it][sind%len(rho)]
-  
+                    
+                    
+            #plot(np.hstack([R_hfs,R_lfs]), np.hstack([rho,rho]),'o')
+            #show()
+            
+            
+
+        #embed()
 
         ########################   From CER     ##########################
         #fetch ion temperature and rotation C:\Users\odstrcil\projects\quickfit\D3D\fetch_beams.py
@@ -2355,6 +2367,8 @@ class data_loader:
                     if name == 'fC':  #use carbon concetration - better properties for extrapolation!              
                         ne = np.interp(prof_rho, rho[::-1], beam_profiles['ne'][it][::-1])
                         prof_data = np.clip(prof_data/ne,0.001,1/6.-0.01)
+                        #if np.any(prof_data > 0.1):
+                            #embed()
                     _data = np.interp(rho,prof_rho, prof_data)  #TODO add radial averaging?? 
                     
                     if name == 'Ti':
@@ -2368,6 +2382,7 @@ class data_loader:
                     elif name == 'fC':
                         if len(beam_profiles[name]): #use previous profile, if availible
                             _data = beam_profiles[name][-1].mean()+rho*0
+                            #print(beam_profiles[name][-1].mean()+rho*0)
                         else: #else guess Zeff = 2
                             _data = rho*0+(2.-1.)/30. 
 
@@ -2581,7 +2596,7 @@ class data_loader:
         f0halo2 = f0halo1*(PEC*ne)/A21
         #  Rachael used FIDASIM to calculate a spatial profile of these ions
         
-        
+        #embed()
   
         ######################### Calculate CX cross-sections  ############################# 
         zeff = beam_prof_merged['zeff']
@@ -2795,7 +2810,11 @@ class data_loader:
 
                 R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
                 # sum over beam species crossection before interpolation
+                #try:
                 denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
+                #except:
+                    #embed()
+
 
                 # uncertainties in beam_att_err between species are 100% correlated, we can sum them
                 denom_err_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att_err[it] * qeff[:,:,tind], 1))  # nR x nbeam
@@ -5243,6 +5262,11 @@ class data_loader:
         ne_correction = ne_lowres-np.unwrap(ne_lowres*(2*np.pi/fringe_jump))*fringe_jump/(2*np.pi)
         ne_correction = interp1d(tvec_lowres, ne_correction,axis=1,kind='nearest',copy=False, fill_value='extrapolate', assume_sorted=True )(co2_time)
         
+        #embed()
+        
+        #plot(ne_correction.T,'--')
+        #plot(ne_.T)
+        
         
         n_path = 501
         downsample = 2
@@ -5278,6 +5302,12 @@ class data_loader:
             #Check the status channel - provides a flag for when the signal is not useable due to things like fringeskips
             #signal_invalid = stat_time[stat[ilos]>stat_error_thresh]
             last_valid_ind = -1
+            
+            #if more 3 frindge jumps, consider as unreliable
+            invalid = np.where(np.abs(ne_correction[ilos]/fringe_jump) > 3)[0]
+            if len(invalid) > 0:
+                last_valid_ind = invalid[0]
+            
             #if any(signal_invalid):
                 #min_valid_time = signal_invalid[0]
                 #last_valid_ind = np.argmin(np.abs(co2_time - min_valid_time))
@@ -5285,13 +5315,16 @@ class data_loader:
                 ##need to deal with the case where last_valid_ind is zero...?
 
 
-            #downsample 
+            #downsample
+            last_valid_ind//= downsample
             ne[:,ilos]   = np.mean(ne_[ilos][:len(ne_[ilos])//downsample*downsample].reshape( -1, downsample), -1)
             valid[:last_valid_ind, ilos] = True
+            #print(valid.sum(), name,last_valid_ind )
+            #embed()
             
             #Calculate the error for the signal based on the drift before t=0
             ne_err[:,ilos] = np.median(np.abs(ne[:,ilos][co2_time<0]))+ne[:,ilos]*.05  #guess 5% error
-            #ne_err[last_valid_ind:, ilos] *= -1  #data will be disabled, but can be enabled in the GUI
+            ne_err[last_valid_ind:, ilos] *= -1  #data will be disabled, but can be enabled in the GUI
             ne_err[:,ilos]
             R[ilos] = (LOS_pt2[0]-LOS_pt1[0])*t+LOS_pt1[0]
             Z[ilos] = (LOS_pt2[1]-LOS_pt1[1])*t+LOS_pt1[1]
@@ -5821,7 +5854,8 @@ def main():
     shot =   180907
     shot = 122596
     shot =  90256
-    shot =  90257
+    shot =  186473
+    shot = 185215  #nc is often turned off, why??
 
     #shot = 175473 
     #shot = 163303

@@ -297,16 +297,16 @@ class FitPlot():
 
         for i,d in enumerate(self.diags):
             plotline,caplines,barlinecols=self.ax_main.errorbar(0,np.nan,0,fmt='.', capsize = 4, 
-                                                            label=d,c=colors[i])
+                                                            label=d,c=colors[i], zorder=1)
             self.plotline.append(plotline)
             self.caplines.append(caplines)
             self.barlinecols.append(barlinecols)
 
-        self.fit_plot, = self.ax_main.plot([],[],'k-',linewidth=.5)
+        self.fit_plot, = self.ax_main.plot([],[],'k-',linewidth=.5, zorder=2)
         nr = self.options['nr_new']
         self.fit_confidence = self.ax_main.fill_between(np.arange(nr),
             np.zeros(nr),np.zeros(nr), alpha=.2, facecolor='k',
-            edgecolor='None')
+            edgecolor='None', zorder=0)
         
         self.lcfs_line = self.ax_main.axvline(1, ls='--',c='k',visible=False)
         self.zero_line = self.ax_main.axhline(0, ls='--',c='k',visible=False)
@@ -905,8 +905,8 @@ class FitPlot():
                     if self.m2g.g_t.shape[0] == 1:
                         prof.append(d[0])
                     else:
-                        prof.append(interp1d(x, d,fill_value='extrapolate',
-                                axis=0, copy=False, assume_sorted=True)(p))
+                        prof.append(interp1d(x, d,
+                                axis=0, copy=False, assume_sorted=True)(np.clip(p, x[0],x[-1])))
 
                 self.fit_plot.set_data(y,prof[0])
                 self.fit_confidence = update_fill_between(self.fit_confidence,y,prof[1], prof[2],-np.infty, np.infty )
@@ -1103,7 +1103,7 @@ class FitPlot():
         action = 'recovered 'if undelete else 'deleted'
 
         if what == 'channel':
-            ch = self.channel[ind]
+            ch = np.unique(self.channel[ind])
             ind = np.in1d(self.channel,ch)
             print('Channel %s was '%ch+action)
  
