@@ -737,7 +737,9 @@ class DataFit():
             for var in ('m2g','ind_diag','diags','channel','tres','xlab','ylab','plot_rho','plot_tvec'):
                 setattr(self.fitPlot,var,self.load_options[self.kin_prof][var])
             self.set_trange(*self.load_options[self.kin_prof]['trange'])
-
+        else:
+            self.fitPlot.m2g = None
+            
         #update the fit figure
         self.fitPlot.change_set_prof_load()
 
@@ -923,9 +925,7 @@ class DataFit():
                 self.eqm._read_scalars()
                 self.eqm._read_profiles()
                 print('\t done in %.1fs'%(time.time()-T))
-                
-  
-
+     
                 self.set_trange()
  
             
@@ -1259,10 +1259,11 @@ def main():
         
 
     raw = {}
-    
+    #embed()
+
     #try:
         #raw = np.load('raw_data_'+args.shot+'.npz', allow_pickle=True)
-        #raw = {k:d.item() for k,d in raw.items()}
+        #raw = {k:d.item() for k,d in raw.items()}raw_data
         ##exit()
     #except:
         #print('no raw')

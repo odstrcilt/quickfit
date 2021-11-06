@@ -112,7 +112,8 @@ class FitPlot():
     picked = False
     grid=False
     logy=False
-
+    m2g = None
+    
     def __init__(self, parent, fit_frame):
         self.parent = parent
 
@@ -600,6 +601,11 @@ class FitPlot():
     
     def calculate(self):
         
+        if self.m2g is None:
+            #print("No data to fit, let's try to load them first...")
+            self.parent.init_data()
+         
+  
         sys.stdout.write('  * Fitting  ... \t ')
         sys.stdout.flush()
         T = time.time()
@@ -609,11 +615,6 @@ class FitPlot():
         
         self.saved_profiles = False
 
-        if not hasattr(self,'m2g'):
-            print('no data to fit')
-            self.fit_frame.config(cursor="")
-            return 
-  
  
         sawteeth =  eval(self.fit_options['sawteeth_times'].get()) if self.fit_options['sawteeth'].get() else []
         
@@ -884,7 +885,7 @@ class FitPlot():
                 self.barlinecols[idiag][0].set_visible(False)
             
             #plot fit of teh data with uncertainty
-            if self.options['fitted']:
+            if self.options['fitted'] and hasattr(self.m2g,'g_t'):
                 if plot_type == 0: #time slice
                     y,x = self.m2g.g_t[:,0], self.m2g.g_r[0]
                     p = r

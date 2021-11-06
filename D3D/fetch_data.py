@@ -2088,19 +2088,19 @@ class data_loader:
             ubeam_times,ind = np.unique(beam_times,return_index=True)
             NBI[n]['beam_fire_time'] = np.sum(stime[ind])
     
-        
-    #if SOL_reflections:
-        #print('BUG!!!!!! temporary fix')
-        #cer = self.load_cer(0,10, load_systems)
-        #if 'tangential' in nimp:
-            #for ch in nimp['tangential']:
-                #for cch in cer['tangential']:
-                    #if ch.attrs['channel'][:3] == cch.attrs['channel']:
-                        #ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
-                        #ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
+            
+        #if SOL_reflections:
+        print('BUG!!!!!! temporary fix SOl refrection')
+        cer = self.load_cer(0,10, load_systems)
+        if 'tangential' in nimp:
+            for ch in nimp['tangential']:
+                for cch in cer['tangential']:
+                    if ch.attrs['channel'][:3] == cch.attrs['channel']:
+                        ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
+                        ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
 
 
-    
+
         nimp['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
         nimp['loaded_beams'] = np.unique(np.hstack((load_beams,nimp.get('loaded_beams',[]))))
 
@@ -2235,9 +2235,12 @@ class data_loader:
          
                 tslice = slice(max(0,itmin-1),itmax+1) #use at least one measurement before and one after
                 ch_valid = np.any(TS_valid[tslice],0)
+                
                 rho_slice = np.average(TSrho[tslice, ch_valid],0, TS_valid[tslice, ch_valid])
                 if len(rho_slice) < 3:
                     print('err len(rho_slice) < 3')
+                    continue
+
                     embed()
                     
                 beam_profiles['rho'][sys].append(rho_slice)  
@@ -3218,7 +3221,7 @@ class data_loader:
                 #calculate impurity density
                 nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
 
-                            
+          
         ##update uncorrected data
         diag_names = sum([nimp['diag_names'][diag] for diag in nimp['systems'] if diag in nimp['diag_names']],[])
         impurities = np.hstack([[ch['nimp'].attrs['impurity'] for ch in nimp[s] if ch.system == s] for s in nimp['systems']])
@@ -3351,10 +3354,18 @@ class data_loader:
             F = other['f'][nearest_ind] #beam fraction
             N -= F[:,ind_calib] #remove contribution from calibration beam, if there is any (175473)
             F = np.delete(F,ind_calib, axis = 1) #delete calibration beam
+
+            #find optimal values of cross-calibration
+            #initial guess using linear least squares
+            C0 = np.linalg.lstsq(F/E[:,None] , N/E,rcond=None )[0]
+            #use robust least squares
+            from scipy.optimize import least_squares
+            fun = lambda x: np.dot(F/E[:,None],x)- N/E
+            out = least_squares(fun,C0,loss='cauchy')
+            C = out.x
+            
             #embed()
 
-            #find optimal values
-            C = np.linalg.lstsq(F/E[:,None] , N/E,rcond=None )[0]
             #in some cases when beam 30L+30R+30B are used and 30R is poorly constrained, it can fail (184773)
             #plt.errorbar(np.arange(len(N)), N, E);plt.show()
                 
@@ -3363,6 +3374,11 @@ class data_loader:
             ##plt.plot( calib['n'][near_ind[nearest_ind]],':')
             #plt.plot( np.dot(F,C)* n_calib,':')
             
+            #plt.show()
+            
+            #ind = F[:,0]>.3
+            #plt.errorbar(np.where(ind)[0], N[ind],E[ind])
+            #plt.plot(np.where(ind)[0], np.dot(F,C)[ind])
             #plt.show()
             
             
@@ -3435,10 +3451,14 @@ class data_loader:
         if rcalib and len(diag_names) > 1 and 'tangential' in nimp['systems']:
             print('\t done in %.1fs'%(time()-T))
 
-        return return_nimp(nimp)
+
+        nimp = return_nimp(nimp)
+        #embed()
+
+        return nimp
  
 
-    def load_zeff(self,tbeg,tend, systems, options=None):
+    def load_zeff(self,_tbeg,_tend, systems, options=None):
         #load visible bremsstrahlung data
         TT = time()
    
@@ -4051,7 +4071,8 @@ class data_loader:
                 Z = nC['Z'].values
                 rho = nC['rho'].values
                 tvec = nC['time'].values
-    
+                t_ind = (tvec >= _tbeg)&(tvec <= _tend)
+
                 Linterp.values[:] = np.copy(n_e)[:,None]
                 ne = Linterp(np.vstack((tvec, rho)).T)/1e19
                 ne = np.maximum(ne, 1e-3) #prevents zero division
@@ -4063,7 +4084,7 @@ class data_loader:
                 Zeff = 1+(nC.attrs['Z']-1)*nC.attrs['Z']*imp_conc
                 Zeff2_err = ((nC['nimp_err'].values/1e19*(nC.attrs['Z']-1)*nC.attrs['Z'])/ne)**2
                 
-                concentrations['C6'].append(imp_conc)
+                concentrations['C6'].append(imp_conc[t_ind])
                 options = {'Analysis': (S('SPRED'), (cer_type,'fit','auto','quick')),
                         'Correction': {'Relative calibration':I(0),'nz from CER intensity': I(1)}}
                                 
@@ -4072,11 +4093,16 @@ class data_loader:
                     if imp == 'C6': continue
                     options['Impurity'] = imp
                     other_imp = self.load_nimp(tbeg,tend, ['SPRED'],options)['SPRED_'+imp][ib]
-                    imp_conc = other_imp['nimp'].values/1e19*corr/ne
+                    #rarely the number of timespices from other elemnt can be different than for carbon
+                    nimp     = np.interp(tvec, other_imp['time'].values, other_imp['nimp'].values)
+                    nimp_err = np.interp(tvec, other_imp['time'].values, other_imp['nimp_err'].values)
+
+                    imp_conc = nimp/1e19*corr/ne
+
                     ZZm1 = (other_imp.attrs['Z']-1)*other_imp.attrs['Z']
                     Zeff += ZZm1*imp_conc
-                    Zeff2_err += (np.minimum(other_imp['nimp_err'].values, other_imp['nimp'].values)/1e19*ZZm1*corr/ne)**2
-                    concentrations[imp].append(imp_conc)
+                    Zeff2_err += (np.minimum(nimp_err, nimp)/1e19*ZZm1*corr/ne)**2
+                    concentrations[imp].append(imp_conc[t_ind])
 
                 #add uncertainty in ne
                 Zeff_err = Zeff*np.sqrt(Zeff2_err/Zeff**2+(ne_err/ne)**2)
@@ -4101,8 +4127,12 @@ class data_loader:
             
             corr = np.hstack(correction).mean()
             print('\tImpurity concentrations from SPRED are rescaled by %.3f to match CER carbon density'%corr.mean())
+            print('\t Mean concentration between %.3f-%.3fs'%(_tbeg,_tend))
             imp_names = list(concentrations.keys())
-            imp_conce = [np.maximum(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
+            #embed()
+            #for k in imp_names:max(0,np.hstack(concentrations[k]).mean()) 
+ 
+            imp_conce = [max(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
             sind = np.argsort(imp_conce)[::-1]
             for i in sind:
                 print('\t\t'+imp_names[i],'\t%.2f%%'%(imp_conce[i]*100))
@@ -4133,7 +4163,7 @@ class data_loader:
             try:
                 NN_dat = NN_dat.load()
             except:
-                printe('Zeeman correction was unsucessful!! Error in loading of NN pickle')
+                #printe('Zeeman correction was unsucessful!! Error in loading of NN pickle')
                 raise
             
         NN = NN_dat['NN']
@@ -4170,6 +4200,8 @@ class data_loader:
             analysis_type = selected.get()
             
         analysis_type = self.get_cer_types(analysis_type)
+        if analysis_type is None:
+            raise Exception('No CER analysis data')
         
         #switch on/off correction in already loaded systems
         try:
@@ -4500,7 +4532,8 @@ class data_loader:
                 
             if len(Ti[tind]) > 0:
                 Ti_err[tind][np.isnan(Ti_err[tind])] = np.infty
-                corrupted = (Ti[tind]>=15e3)|(Ti[tind] <= 0)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
+                #900eV is probably initial guess, sometimes it does not move from this value
+                corrupted = (Ti[tind]==900)|(Ti[tind]>=15e3)|(Ti[tind] <= 0)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
                 Ti_err[tind][corrupted] = np.infty
                 Ti[tind][~np.isfinite(Ti[tind])] = 0
                 
@@ -5856,7 +5889,7 @@ def main():
     shot =  90256
     shot =  186473
     shot = 185215  #nc is often turned off, why??
-
+    shot =  185307
     #shot = 175473 
     #shot = 163303
     #shot = 183151 #blbe loadeni Ti!
@@ -5946,7 +5979,7 @@ def main():
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', (S('quick'), (S('best'),'fit','auto','quick'))),
-                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
+                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
                                                'remove first data after blip':I(0)}  )))   }})
  
     settings.setdefault('Te', {\
@@ -5966,8 +5999,8 @@ def main():
                         }})
         
     settings.setdefault('Zeff', {\
-        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(1)],                 )),
-                                ( 'CER VB',    (['tangential',I(1)],['vertical',I(0)])),
+        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
+                                ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
                                 ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
                                 ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
                                 )), \
@@ -6005,7 +6038,7 @@ def main():
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     loader.load_elms(settings)
 
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nimp', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
     settings['nimp']= {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},

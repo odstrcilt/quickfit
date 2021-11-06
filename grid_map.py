@@ -21,7 +21,7 @@ import numpy as np
 import matplotlib 
 import gc
 import scipy as sc
-#from matplotlib.pyplot import * 
+from matplotlib.pyplot import * 
 import scipy.sparse as sp
 import matplotlib.animation as manimation
 import os,sys
@@ -34,6 +34,7 @@ np.seterr(all='raise')
 #warnings.simplefilter('error', UserWarning)
 from  IPython import embed
 debug = False
+import matplotlib.pylab as plt
 
 #try:
 from sksparse.cholmod import  cholesky, analyze,cholesky_AAt,CholmodError
@@ -279,7 +280,23 @@ class map2grid():
         if even_fun:
             #A zero slope constraint is imposed at the magnetic axis
             #diffusion /= (rvec_b*np.arctan(np.pi*rvec_b)-np.log((np.pi*rvec_b)**2+1)/(2*np.pi))/rvec_b
-            diffusion /= np.arctan( 3/2*rvec_b)
+            #diffusion /= np.arctan( 3/2*rvec_b)
+            
+            from  scipy.special import erf
+            #erf = 2/sqrt(pi)*integral(exp(-t**2), t=0..z).
+            #diffusion /= erf(rvec_b)
+            
+            #Gamma = 1/(r*pi*2*pi*R)*integral r*S
+            #for S is a gaussian profile of the source exp(-x^2)
+            diffusion /= (1-np.exp(-rvec_b**2))/rvec_b
+
+            
+            #plt.plot(erf(rvec_b),':')
+            #plt.plot(np.arctan( 3/2*rvec_b))
+            #plt.plot((rvec_b*np.arctan(np.pi*rvec_b)-np.log((np.pi*rvec_b)**2+1)/(2*np.pi))/rvec_b,'-.')
+            #plt.plot((1-np.exp(-rvec_b**2))/rvec_b*1.5,'--')
+            #plt.show()
+
 
 
         
@@ -428,34 +445,28 @@ class map2grid():
             self.DTDT = DTDT[0]
             
     
-        #==============radial domain===============
-        DR = np.zeros((3,self.nr_new))
+        #==============radial domain===============  
+        #build operator of 1. derivative
+        DR = np.zeros((2,self.nr_new))
+        DR[0,0:] =  1
+        DR[1,0:] = -1
+        DR = sp.spdiags(DR,(1,0),self.nr_new,self.nr_new)
+        DD = sp.spdiags(diffusion,0,self.nr_new,self.nr_new)
+        #grad D grad operator
+        DR =  DR*DD*DR
 
-        #zero 2. derivative at the edge
-        DR[0, :-2] =  diffusion[:-1]
-        DR[1,1:-1] = -diffusion[:-1]-diffusion[1:]
-        DR[2,2:  ] =  diffusion[ 1:]
-        if self.deriv_trans(0) == 1:#linear regularisation
-            #zero 1. derivative at the edge
-            DR[0, -2] =  diffusion[-1]
-            DR[1,-1 ] = -diffusion[-1]
-            #DR[1,-2] += DR[0,-3]
-            #DR[0,-3] = 0
-        if zero_edge and self.trans(0) == 0:  
-            #zero 0. derivative at the edge
-            #DR[1,-2] += DR[0,-3]
-            #DR[0,-3] = 0
-            DR[0, -2] =  diffusion[-1]
-            DR[1,-1 ] = -diffusion[-1]
-            #press edge to zero 
-            DR[1,-1] = 10
- 
-    
-        DR = sp.spdiags(DR,(-1,0,1),self.nr_new,self.nr_new)
+        if zero_edge and self.trans(0) == 0: 
+            #press edge to zero
+            DR = DR.tolil()
+            DR[-1,-1] = 10
+        elif self.trans(0) != 0:
+            #zero 2. derivative at the edge
+            DR[-2,-2:] = 0
         
- 
+
         I = sp.eye(self.nt_new)
         self.DRDR = sp.kron(DR.T*DR,I, format='csc')
+        #print(self.DRDR.size)
 
         self.prepared = True
 
@@ -509,10 +520,10 @@ class map2grid():
         if self.nt_new == 1: eta = 0
         #DRDR -s 5-diagonal, DTDT is also 5 diagonal, VV 7 diagonal, AA is 9 diagonal
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
-        #embed()
+
         if chol_inst:
             #t=time.time()
-            #TODO use NETIS oly for line interated data and elm sync??
+            #TODO use METIS oly for line interated data and elm sync??
             self.Factor = analyze(AA, ordering_method='metis') #colamd and amd has troubles with large lower sparsity matrices
             #self.Factor = analyze(AA, ordering_method='colamd') #colamd and amd has troubles with large lower sparsity matrices
 
@@ -544,24 +555,33 @@ class map2grid():
 
         if debug:
             print('Precalculate',time.time()-TT)
-              
-              
+    
               
     def Evidence(self,lam,eta):
-        #works, but the smoothing is underestimated
-         
+ 
         vvtrace = self.VV.diagonal().sum()
         lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
         eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
         
+        #vvtrace = self.VV.diagonal().sum()
+        #lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        #eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
+        
         
         if self.nt_new == 1: eta = 0
+        #embed()
 
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
 
-        self.Factor.cholesky_inplace(AA)
+        self.Factor.cholesky_inplace(AA,1e-8)
+        #TODO calculate L-^1*V
+        X = self.V*self.Factor(self.V.T.todense())
+        invSprior = np.eye(self.n_points)-X
+
+        #embed()
         
-        invSprior = np.eye(self.n_points)-self.V*self.Factor(self.V.T.todense())
+        #LtVt = self.Factor.solve_Lt(self.Factor.apply_P(self.V.T.todense()),use_LDLt_decomposition=False)
+        #np.dot(LtVt.T, LtVt)
         
         #%timeit self.Factor.apply_Pt(self.Factor.solve_Lt(self.Factor.apply_P(self.V.T),use_LDLt_decomposition=False))
         
@@ -571,20 +591,121 @@ class map2grid():
         #embed()
         logdet *= -1 #inversion
 
-        fit = np.array(np.dot(self.f, np.dot(invSprior,self.f).T))[0,0]
+        fit = np.array(np.dot(self.f, np.dot(invSprior,self.f).T))
 
         logev = -0.5*(logdet+fit+self.n_points*np.log(2*np.pi))
         
-        return logev
-    
-    def Evidence2(self,lam,eta):
-        #it does not work, why?
+        #embed()
+
+
+        V = np.linalg.eigvalsh(X)
+        n = len(invSprior)
+        f = (1-np.sum(V)/n)**2
+
+        tr = (np.trace(invSprior)/n)**2
+        chi2n = np.sum(np.dot(invSprior,self.f))**2/n
         
+        #return chi2n/tr
+        
+
+        
+        
+        return logev,-np.log(chi2n/f) 
+    
+    def GCV(self,lam,eta):
+ 
+        #linear in n_p*n_t*n_r**2
          
+ 
         vvtrace = self.VV.diagonal().sum()
         lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
         eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
+         
         
+        if self.nt_new == 1: eta = 0
+
+        AA = lam*self.DRDR+eta*self.DTDT
+
+        self.Factor.cholesky_inplace(AA,1e-8)
+        #embed()
+        
+        #DV = self.Factor(self.V.T.todense())
+        
+        LPV = self.Factor.solve_L(self.Factor.apply_P(self.V.T)) 
+        zero_ins = np.array(LPV.sum(1)==0).ravel()|(self.Factor.D()<=0)
+        
+        LPV = LPV.toarray() #2.5ms
+        LPV = LPV[~zero_ins].T  #.5ms
+        sqrtD = np.sqrt(self.Factor.D()[~zero_ins])
+        LPV/= sqrtD
+  
+        LL = np.dot(LPV, LPV.T)  #Gram matrix
+  
+        from  scipy.linalg import eigh 
+        s,u = eigh(LL,overwrite_a=True, check_finite=False,lower=True)  
+        s,u = np.sqrt(np.maximum(s,0))[::-1], u[:,::-1] 
+
+        try:
+            rank = np.where(np.cumprod((np.diff(np.log(s[s!=0]))>-5)|(s[s!=0][1:]>np.median(s))))[0][-1]+2
+        except:
+            print(np.diff(np.log(s[s!=0])))
+            for r in s: print(s)
+   
+        S = s[:rank]
+        U = u[:,:rank]
+        
+        w = 1./(1.+S**-2)
+        prod = np.array(U.T.dot(self.f).T)
+        
+        gcv = (np.sum((((w-1)*prod))**2))/rank/(1-np.mean(w))**2
+        
+        from scipy.linalg import solve
+        
+        Sprior =   np.eye(self.n_points)+self.V*self.Factor(self.V.T.todense())
+        s,logdet = np.linalg.slogdet(Sprior)#+np.sum(np.log(Yerr))*2
+        try:
+            fit = np.array(np.dot(self.f, solve(Sprior,self.f,assume_a='pos').T))
+        except:
+            fit = np.array(np.dot(self.f, solve(Sprior,self.f ).T))
+
+        logev = -0.5*(logdet+fit+self.n_points*np.log(2*np.pi))
+        
+     
+    
+
+        return -np.log(gcv), logev
+        
+        #DV = self.Factor.apply_Pt(self.Factor.solve_Lt(self.V.T.todense(),use_LDLt_decomposition=False))
+        #U,S,V = np.linalg.svd(DV,full_matrices=False)
+
+        #w = 1./(1.+S**-2)
+        
+        #DV = self.Factor.apply_Pt(self.Factor.solve_Lt(self.V.T.todense(),use_LDLt_decomposition=False))
+        #U,S,V = np.linalg.svd(DV,full_matrices=False)
+        #V = solve_banded((1,1),WD,V, overwrite_ab=True,overwrite_b=True,check_finite=False) 
+
+
+        #Sprior =   np.eye(self.n_points)+self.V*self.Factor(self.V.T.todense())
+        ##logdet = np.sum(np.log(np.diag(np.linalg.cholesky(Sprior))))*2
+        #s,logdet = np.linalg.slogdet(Sprior)#+np.sum(np.log(Yerr))*2
+        #fit = np.array(np.dot(self.f, np.linalg.solve(Sprior,self.f).T))
+        
+        #logev = -0.5*(logdet+fit+self.n_points*np.log(2*np.pi))
+        
+        #return logev   
+        ##g_noise = self.Factor.apply_Pt(self.Factor.solve_Lt(noise,use_LDLt_decomposition=False))
+
+        
+            
+    def Evidence2(self,lam,eta):
+ 
+        #linear in n_p*n_t*n_r**2
+         
+ 
+        vvtrace = self.VV.diagonal().sum()
+        lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
+         
         
         if self.nt_new == 1: eta = 0
 
@@ -592,7 +713,7 @@ class map2grid():
 
         self.Factor.cholesky_inplace(AA,1e-8)
         
-        Sprior =   np.eye(self.n_points)+self.V*self.Factor(self.V.T)
+        Sprior =   np.eye(self.n_points)+self.V*self.Factor(self.V.T.todense())
         #logdet = np.sum(np.log(np.diag(np.linalg.cholesky(Sprior))))*2
         s,logdet = np.linalg.slogdet(Sprior)#+np.sum(np.log(Yerr))*2
         fit = np.array(np.dot(self.f, np.linalg.solve(Sprior,self.f).T))
@@ -614,33 +735,90 @@ class map2grid():
             print('Calculate')
             TT = time.time()
             
-
-        #lambda_vals = np.linspace(.1,.9,11)
-        #eta_vals = np.linspace(.1,.9,12)
+        #ng = 10
+        #lambda_vals = np.linspace(0,1,ng+2)[1:-1]
+        #eta_vals = np.linspace(0,1,ng+2)[1:-1]
+   
+        
         #EV = np.zeros((len(lambda_vals),len(eta_vals)))
+        #t = time.time()
+        #GCV = np.zeros((len(lambda_vals),len(eta_vals)))
 
         #for i,l in enumerate(lambda_vals):
             #print('%d%%'%(100*i/len(lambda_vals)))
             #for j,ee in enumerate(eta_vals):
                 #try:
-                    #EV[i,j] = self.Evidence2(l,ee)
+                    #GCV[i,j], EV[i,j] = self.GCV(l,ee)
                 #except:
-                    #EV[i,j] = np.nan
+                    #EV[i,j] = GCV[i,j]= -np.inf
+                ##try:
+                    ##EV[i,j],GCV[i,j] = self.Evidence(l,ee)
+                ##except:
+                    ##EV[i,j] =GCV[i,j]= -np.inf
                     
-        #embed()
-       
-        #import matplotlib.pylab as plt
+                     
+                    
+        #print((time.time()-t)/(len(lambda_vals)*len(eta_vals)))
+        ##t = time.time()
+        ##for i,l in enumerate(lambda_vals):
+            ##print('%d%%'%(100*i/len(lambda_vals)))
+            ##for j,ee in enumerate(eta_vals):
+                ##try:
+                    ##GCV[i,j] = self.GCV(l,ee)
+                ##except:
+                    ##GCV[i,j] = -np.inf
+        ##print((time.time()-t)/(len(lambda_vals)*len(eta_vals)))
+          
+        ##embed()         
+                    
+        ##EV2 = np.zeros((len(lambda_vals),len(eta_vals)))
+        ##print((time.time()-t)/(len(lambda_vals)*len(eta_vals)))
+        ##t = time.time()
+        ##for i,l in enumerate(lambda_vals):
+            ##print('%d%%'%(100*i/len(lambda_vals)))
+            ##for j,ee in enumerate(eta_vals):
+                ##try:
+                    ##EV2[i,j] = self.Evidence2(l,ee)
+                ##except:
+                    ##EV2[i,j] = -np.inf
+        ##print((time.time()-t)/(len(lambda_vals)*len(eta_vals)))
+          
+        ##embed()
+        ##import matplotlib.pylab as plt
         #i,j = np.unravel_index(np.argmax(EV),EV.shape)
-        ##take_along_axis
-        
-        #print(lambda_vals[i],eta_vals[j])
-        #plt.pcolor(lambda_vals,eta_vals,EV.T )
-        #plt.plot(lambda_vals[i],eta_vals[j],'yo')
+        ###take_along_axis
+        #lam,eta = lambda_vals[i],eta_vals[j]
+        #print(lam,eta)
+        #plt.figure()
+
+        #plt.contourf(lambda_vals,eta_vals,EV.T,30 )
+        #plt.plot(lam,eta,'go')
+        #plt.colorbar()
         #plt.ylabel('radius')
         #plt.xlabel('time')
-        #plt.show()
+        ###plt.show()
+        #plt.savefig('ev1.png')
+
+
+        #i,j = np.unravel_index(np.argmax(GCV),GCV.shape)
+        #lam,eta = lambda_vals[i],eta_vals[j]
+        #print(lam,eta)
+        #plt.clf()
+
+        ##plt.figure()
+        #plt.contourf(lambda_vals,eta_vals,GCV.T,30 )
+        #plt.plot(lam,eta,'rx')
+        #plt.colorbar()
+        #plt.ylabel('radius')
+        #plt.xlabel('time')
+        #plt.savefig('gcv.png')
+        #plt.clf()
+
+        
+
         
         #lam,eta = lambda_vals[i],eta_vals[j]
+        #print(lam,eta)
 
         
 
@@ -705,15 +883,16 @@ class map2grid():
 
  
         #if too many points was removed, it can happen  that some timepoinst was not measured at all,
-        #remove invalid earlier? 
-        valid_times = np.reshape(self.V.sum(0) > 0,(self.nr_new,self.nt_new)).T
-        valid_times = np.any(np.asarray(valid_times),1)
-        #valid_times |= True
+        #remove invalid earlier?
+      
+        valid_times = slice(None,None)
+        #valid_times = np.reshape(self.V.sum(0) > 0,(self.nr_new,self.nt_new)).T
+        #valid_times = np.any(np.asarray(valid_times),1)
 
         self.g = self.g[valid_times] 
         g_noise= g_noise[:,valid_times] 
         self.g_samples = np.copy(g_noise)
- 
+
         #find lower and upper uncertainty level, much faster then using mquantiles..
         rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
         rvec_ = (rvec[1:]+rvec[:-1])/2
@@ -736,12 +915,49 @@ class map2grid():
         self.Kerr_d = np.c_[Kerr_d,Kerr_d[:,-1]]
         self.fitted=True
 
-
         self.g_t = self.t_new[valid_times] 
         self.g_r = self.r_new[valid_times] 
         if debug:
             print('calculate',time.time()-TT)
-              
+            
+        #embed()
+        
+        #f,ax = plt.subplots(2,2,sharex=True)
+        #ax[0,0].errorbar(self.R,self.Y[self.valid],self.Yerr[self.valid],ls='none')
+        #ax[0,0].plot(self.g_r.T,self.g[0],c='k')
+        #ax[0,0].set_xlim(0,1.1)
+        #ax[0,0].set_ylim(0,5e19)
+        
+        #ax[1,0].errorbar(self.R,self.Y[self.valid],self.Yerr[self.valid],ls='none')
+        #ax[1,0].plot(self.g_r.T,self.g_samples[:,0].T,lw=.1,c='y')
+        #ax[1,0].set_xlim(0,1.1)
+        #ax[1,0].set_ylim(0,5e19)
+        
+        #dr = np.gradient(self.g_r[0])
+        ##ax[0,0].errorbar(self.R,self.Y[self.valid],self.Yerr[self.valid],ls='none')
+        #ax[0,1].plot(self.g_r[0],np.gradient(np.log(self.g[0]))/dr,c='k')
+        #ax[0,1].set_xlim(0,1.1)
+        ##ax[0,].set_ylim(0,5e19)
+        
+        ##ax[1,0].errorbar(self.R,self.Y[self.valid],self.Yerr[self.valid],ls='none')
+        #ax[1,1].plot(self.g_r[0],np.gradient(np.log(self.g_samples[:,0].T))[0]/dr[:,None],lw=.1,c='y')
+        #ax[1,1].set_xlim(0,1.1)
+        ##ax[1,1].set_ylim(0,5e19)
+        #ax[0,0].set_ylabel('n_e')
+        #ax[0,1].set_ylabel('dln(n_e)/dr/n_e')
+        #ax[1,0].set_ylabel('n_e')
+        #ax[1,1].set_ylabel('dln(n_e)/dr/n_e')
+        #for a in ax.flatten(): a.axvline(1,ls='--',c='k',lw=.5)
+             
+        
+        #plt.show()
+        
+        
+        #TODO test autoregularizace pro uela data?
+        
+        
+      
+        
         return self.g,self.g_u,self.g_d, self.g_t, self.g_r
         
         
@@ -787,15 +1003,30 @@ def main():
     n = 100
     R = np.random.rand(n)
     T = np.random.rand(n)
-    Y = R+T+np.random.randn(n)
-    Yerr = np.ones_like(Y)
+    Y = (1-R**2)**1.5*(1-T**3/3)
+    Yerr = np.ones_like(Y)/3
+
+    Y += np.random.randn(n)*Yerr
     
+    log_trans    = lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
 
     #radial resolution strongly increases computation time
-    MG = map2grid(R,T,Y,Yerr,dt = 0.0001,nr_new=100)
-    MG.PrepareCalculation(zero_edge=True)
+    MG = map2grid(R,T,Y,Yerr/10,dt = 0.01,nr_new=100)
+    MG.PrepareCalculation(zero_edge=True, transformation =None)
     MG.PreCalculate( )
-    MG.Calculate(0.1, 0.1)
+    MG.Calculate(0.4, 0.6)
+    
+    subplot(121)
+    plot( MG.g_r[0],  MG.g[::10].T,'r')
+    plot( MG.g_r[::10].T ,  np.maximum(1-MG.g_r.T**2,0)[:,::10]**1.5*np.maximum(0,1-MG.g_t.T**3/3)[:,::10],'b--')
+    subplot(122)
+    plot( MG.g_t[:,0],  MG.g[:,::10] ,'r')
+    plot( MG.g_t[:,::10] ,  np.maximum(1-MG.g_r**2,0)[:,::10]**1.5*np.maximum(0,1-MG.g_t**3/3)[:,::10],'b--')
+    show()
+    
+    
+    
+    embed()
     
     exit()
     #10, 0.01
