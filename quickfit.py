@@ -1048,12 +1048,12 @@ class DataFit():
             data[prof].plot_rho  = self.load_options[prof]['plot_rho']  
             data[prof].plot_tvec = self.load_options[prof]['plot_tvec']  
 
-            
-        if hasattr(self,'elms'):
+        #BUG just temporary 
+        #if hasattr(self,'elms'):
  
-            data['elms_time'] = self.elms['elm_beg'] 
-            data['elms_phase'] = self.elms['data'] 
-            data['elms_phase_time'] = self.elms['tvec'] 
+            #data['elms_time'] = self.elms['elm_beg'] 
+            #data['elms_phase'] = self.elms['data'] 
+            #data['elms_phase_time'] = self.elms['tvec'] 
 
         
         self.change_set_prof_load()
