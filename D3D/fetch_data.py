@@ -773,7 +773,7 @@ def default_settings(MDSconn, shot):
         'systems':{'CER system':(['tangential',True], ['vertical',False], ['SPRED',False])},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', ('best', ('best','fit','auto','quick'))),
-                                ('Correction',{'Relative calibration':True, 'nz from CER intensity':True,
+                                ('Correction',{'Relative calibration':True, 'nz from CER intensity': False,
                                                'remove first data after blip':False,
                                                'Wall reflections': False}  )))   }}
     #,'Remove first point after blip':False
@@ -5922,6 +5922,8 @@ def main():
 #210 179390 1.1 1.1
 #210 179389 1.09 1.16
 #330 178820 1.38 1.38
+
+    shot = 183504 #BUG error carbon density 
 
 
     #175694  - better match between onaxis ver and tang denisty after rescaling
