@@ -954,6 +954,7 @@ class DataFit():
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
             self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
+            #self.elm_signal = self.fit_options['elm_signal']
 
         except Exception as e:
             printe( 'Error in loading:' )

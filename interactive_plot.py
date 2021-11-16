@@ -604,6 +604,14 @@ class FitPlot():
         if self.m2g is None:
             #print("No data to fit, let's try to load them first...")
             self.parent.init_data()
+            
+            
+        if self.elms['signal'] != self.fit_options['elm_signal'].get():
+            print('Load new ELM signal '+self.fit_options['elm_signal'].get())
+            self.elms = self.parent.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
+            self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
+
+
          
   
         sys.stdout.write('  * Fitting  ... \t ')

@@ -1047,8 +1047,11 @@ class data_loader:
         #cut data in the selected range
         for i in range(len(output['data'])):
             times.append(output['data'][i]['time'].values)
-            output['data'][i]= output['data'][i].sel(time=slice(tbeg,tend))
-
+            try:
+                output['data'][i]= output['data'][i].sel(time=slice(tbeg,tend))
+            except:
+                #no data in the requested range 
+                continue
         if len(output['diag_names']) == 0 or len(output['data'])==0:
             tkinter.messagebox.showerror('No data loaded',
                     'No data were loaded. Try to change the loading options ' +str(len(output['diag_names']))+' '+str(len(output['data'])))
