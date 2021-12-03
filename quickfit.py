@@ -126,6 +126,11 @@ class DataFit():
         elif self.device == 'AUG': 
             from AUG import fetch_data 
             from AUG.map_equ import equ_map
+        elif self.device in ['NSTX','NSTXU']: 
+            self.device = 'NSTX'
+            from NSTX import fetch_data 
+            from NSTX.map_equ import equ_map
+                
         else:
             raise Exception('Device "%s" was not implemented yet'%self.device)
 
@@ -207,7 +212,7 @@ class DataFit():
                     self.MDSconn = MDSplus.Connection('localhost')
                 except:
                     #print 'MDS connection to %s failed'%self.MDSserver
-                    tkinter.messagebox.showerror('MDS error','MDS connection to %s failed'%self.MDSserver)
+                    tkinter.messagebox.showerror('MDS error','MDS connection to %s  and localhost failed'%self.MDSserver)
                     self.main_frame.config(cursor="")       
                     return False
             
@@ -231,7 +236,7 @@ class DataFit():
         if shot == self.shot:
             return True
         
-        if self.device == 'D3D':
+        if self.device in ['D3D','NSTX']:
             ndig = 6
         elif self.device == 'CMOD':
             ndig = 10
@@ -298,13 +303,20 @@ class DataFit():
                 efit_editions = [e.strip().split(':')[0] for e in efit_editions]
                 efit_editions = [e[1:] for e in efit_editions if 'EFIT' in e]
                 efit_editions+= [ 'EFITRT1','EFITRT2' ]
+                
+                
+            if self.device == 'NSTX':
+                self.MDSconn.openTree('NSTX', self.shot)
+                lengths = self.MDSconn.get('getnci("EFIT.**.USERID","length")')
+                self.MDSconn.closeTree('NSTX', self.shot)
+                efit_editions = ['EFIT%.2d'%(i+1) for i,l in enumerate(lengths) if l > 0]
 
-       
-            efits  = ['EFIT%.2d'%i for i in range(1,10)] 
+         
+            efits  = []
             if self.device == 'CMOD':#for cmod
-                efits = ['ANALYSIS','EFIT20']+efits
+                efits = ['ANALYSIS','EFIT20']+['EFIT%.2d'%i for i in range(1,10)] 
             if self.device == 'D3D':#for D3D
-                efits = ['EFIT02er','EFITS1','EFITS2','EFITS2er']+efits
+                efits = ['EFIT02er','EFITS1','EFITS2','EFITS2er']+['EFIT%.2d'%i for i in range(1,10)] 
             
             
             for efit in efits:
@@ -330,7 +342,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'ANALYSIS','EFIT20','EFIT01','EFIT02' , 'EFIT03',  'EFIT04', efit_editions[0]     
+                    prefered_efit = 'ANALYSIS','EFIT20','EFIT02', 'EFIT01' , 'EFIT03',  'EFIT04', efit_editions[0]     
                     for pref_ef in prefered_efit:
                         if pref_ef in efit_editions:
                             break
@@ -394,6 +406,8 @@ class DataFit():
             try:
                 assert self.eqm.Open(self.shot, efit, exp=self.device), 'EFIT loading problems'
             except:
+                print(self.shot, efit, self.device)
+                raise
                 tkinter.messagebox.showerror('Loading problems',efit+' could not be loaded')
                 return False
             
@@ -970,7 +984,7 @@ class DataFit():
   
         #for impurity load nimp instead of the actual name 
         kin_prof = self.kin_prof
-        if kin_prof[0] == 'n' and kin_prof != 'ne':
+        if kin_prof[0] == 'n' and kin_prof != 'ne' and self.device != 'NSTX':
             kin_prof = 'nimp'
         
         self.fitPlot.init_plot_data(kin_prof, data_d,   self.elms)
@@ -1050,11 +1064,11 @@ class DataFit():
             data[prof].plot_tvec = self.load_options[prof]['plot_tvec']  
 
         #BUG just temporary 
-        #if hasattr(self,'elms'):
+        if hasattr(self,'elms'):
  
-            #data['elms_time'] = self.elms['elm_beg'] 
-            #data['elms_phase'] = self.elms['data'] 
-            #data['elms_phase_time'] = self.elms['tvec'] 
+            data['elms_time'] = self.elms['elm_beg'] 
+            data['elms_phase'] = self.elms['data'] 
+            data['elms_phase_time'] = self.elms['tvec'] 
 
         
         self.change_set_prof_load()
@@ -1218,7 +1232,7 @@ def main():
     parser.add_argument('--tmin',type=float, metavar='S', help='optional tmin', default=None)
     parser.add_argument('--tmax',type=float, metavar='S', help='optional tmax', default=None)
     parser.add_argument('--preload', help='optional',action='store_true')
-    parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD or AUG)',default='D3D')
+    parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD, NSTX or AUG)',default='D3D')
     parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
     parser.add_argument('--elmsphase', help='Apply ELMs synchronisation - elm fraction',default=False,action='store_true')
     parser.add_argument('--elmstime', help='Apply ELMs synchronisation - elm time',default=False,action='store_true')

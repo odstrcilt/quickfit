@@ -786,14 +786,10 @@ class FitPlot():
         if hasattr(self.parent,'BRIEF'):
             self.ax_main.set_title(self.parent.BRIEF)
 
-        #try:
-            #self.ax_main.set_title(self.parent.BRIEF)
-        #except Exception as e:
-            #print( e)
-            
         minlim,maxlim = 0,1
         if self.plot_type.get() in [0,1] and self.options['data_loaded']:
-            minlim, maxlim = mquantiles(self.m2g.Y[~self.m2g.Yerr.mask],[.001,.995])
+            valid = ~self.m2g.Yerr.mask&(self.m2g.Y.data > self.m2g.Yerr.data)
+            minlim, maxlim = mquantiles(self.m2g.Y[valid],[.001,.995])
         if self.plot_type.get() in [2] and self.options['data_loaded'] and self.m2g.prepared:
             minlim, maxlim = mquantiles(self.m2g.K[self.m2g.g_r<.8],[.02,.98])
             maxlim*=2
