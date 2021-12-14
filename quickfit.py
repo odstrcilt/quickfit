@@ -426,7 +426,7 @@ class DataFit():
             except:
                 #print(self.shot, efit, self.device)
                 #raise
-                tkinter.messagebox.showerror('Loading problems',efit+' could not be loaded')
+                tkinter.messagebox.showerror('Loading problems',efit+' could not be loaded, try another edition')
                 return False
             
         self.efit_description.config(text=getattr(self.eqm, 'comment', '')[:50])
@@ -949,9 +949,14 @@ class DataFit():
 
     def init_data(self):
         #load equilibrium and requested data
-  
+        if not hasattr(self,'data_loader'):
+            print('Load EFIT first')
+            return 
+        
         self.fit_frame.config(cursor="watch")
         self.fit_frame.update()
+        
+
         try:
             if not hasattr(self.eqm, 'pfm'):                
                 sys.stdout.write('  * Fetching %s ...  '%self.eqm.system)
