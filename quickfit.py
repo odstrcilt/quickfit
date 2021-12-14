@@ -168,7 +168,7 @@ class DataFit():
         #self.MDSconn = None
         self.shot = None
 
-        self.zipfit = {}
+        self.spline_fits = {}
 
         self.init_data_frame()
         self.load_default_options()
@@ -190,7 +190,14 @@ class DataFit():
         if shot is not None: 
             self.shot_entry.insert(0,shot)
 
-
+    def __del__(self):        
+        try:
+            if isinstance(self.MDSserver,str):
+                self.MDSconn.disconnect()
+                print('MDS+ disconnected')
+        except:
+            pass
+    
     def isfloat(self,num):
         #sanity check for input numbers
         if num == '':
@@ -205,10 +212,12 @@ class DataFit():
     def connectMDSplus(self):
         
         if isinstance(self.MDSserver,str):
+            #embed()
             try:
                 self.MDSconn = MDSplus.Connection(self.MDSserver)
             except:
                 try:
+                    assert self.MDSserver != 'localhost'
                     self.MDSconn = MDSplus.Connection('localhost')
                 except:
                     #print 'MDS connection to %s failed'%self.MDSserver
@@ -306,10 +315,15 @@ class DataFit():
                 
                 
             if self.device == 'NSTX':
-                self.MDSconn.openTree('NSTX', self.shot)
-                lengths = self.MDSconn.get('getnci("EFIT.**.USERID","length")')
-                self.MDSconn.closeTree('NSTX', self.shot)
-                efit_editions = ['EFIT%.2d'%(i+1) for i,l in enumerate(lengths) if l > 0]
+      
+                self.MDSconn.openTree('EFIT', self.shot)
+ 
+                efit_names = self.MDSconn.get(r'getnci("\\EFIT::TOP.*.RESULTS","minpath")')
+                lengths = self.MDSconn.get(r'getnci("\\EFIT::TOP.*.RESULTS.GEQDSK:GTIME","length")')
+
+                self.MDSconn.closeTree('EFIT', self.shot)
+                efit_editions = [n.split('.')[1] for n,l in zip(efit_names, lengths) if l > 0]
+
 
          
             efits  = []
@@ -395,6 +409,10 @@ class DataFit():
                 from D3D.map_equ_eqdsk import equ_map as equ_map_eqdsk
             elif self.device == 'CMOD': 
                 from CMOD.map_equ_eqdsk import equ_map as equ_map_eqdsk
+            elif self.device == 'NSTX': 
+                from NSTX.map_equ_eqdsk import equ_map as equ_map_eqdsk
+            else:
+                raise Exception(self.device + ' does ot support loading of eqdsk, yet')
             self.eqm = equ_map_eqdsk(self.eqdsk)
             self.eqm.Open()
        
@@ -406,12 +424,12 @@ class DataFit():
             try:
                 assert self.eqm.Open(self.shot, efit, exp=self.device), 'EFIT loading problems'
             except:
-                print(self.shot, efit, self.device)
-                raise
+                #print(self.shot, efit, self.device)
+                #raise
                 tkinter.messagebox.showerror('Loading problems',efit+' could not be loaded')
                 return False
             
-        self.efit_description.config(text=self.eqm.comment[:50])
+        self.efit_description.config(text=getattr(self.eqm, 'comment', '')[:50])
 
         if self.kinprof_ind  != -1:   
             self.data_load.config(stat=tk.NORMAL)
@@ -502,10 +520,10 @@ class DataFit():
         if self.kinprof_ind is not None:
             self.diag_nb.select(self.kinprof_ind  )
         
-        self.show_zipfit = tk.IntVar(master=self.data_frame,value=0)
-        if self.device == 'D3D':
-            zipfit_frame = tk.LabelFrame(self.data_frame, padx=2, pady=2,relief='groove')
-            zipfit_frame.pack(side=tk.BOTTOM,fill=tk.BOTH ) 
+        self.show_splines = tk.IntVar(master=self.data_frame,value=0)
+        if self.device in ['D3D','NSTX']:
+            spline_frame = tk.LabelFrame(self.data_frame, padx=2, pady=2,relief='groove')
+            spline_frame.pack(side=tk.BOTTOM,fill=tk.BOTH ) 
 
             def newselection():
                 #update view of zip fit and load data if not availible
@@ -513,21 +531,25 @@ class DataFit():
                 self.main_frame.update()
                 try:
                 
-                    if self.show_zipfit.get()==1:
-                        self.zipfit = self.data_loader(zipfit=True)
+                    if self.show_splines.get()==1:
+                        self.splines = self.data_loader(spline_fits=True)
 
                     if self.options['data_loaded']:
-                        self.fitPlot.zip_fit_min.set_visible(self.show_zipfit.get())
-                        self.fitPlot.zip_fit_mean.set_visible(self.show_zipfit.get())
-                        self.fitPlot.zip_fit_max.set_visible(self.show_zipfit.get())
+                        self.fitPlot.spline_min.set_visible(self.show_splines.get())
+                        self.fitPlot.spline_mean.set_visible(self.show_splines.get())
+                        self.fitPlot.spline_max.set_visible(self.show_splines.get())
                         self.fitPlot.plot_step()
                     
                 finally:
                     self.main_frame.config(cursor="")
-
-
-            tk.Checkbutton(zipfit_frame, text='Show ZIPFIT',
-                        command=newselection,variable=self.show_zipfit).pack(anchor='w')
+                #print('splines done', self.options['data_loaded'])
+            
+            label = self.device+' splines'
+            if self.device == 'D3D':
+                label = 'ZIPFIT'
+                
+            tk.Checkbutton(spline_frame, text='Show '+label,
+                        command=newselection,variable=self.show_splines).pack(anchor='w')
 
    
         vcmd = self.dataload_frame.register(self.isfloat) 
@@ -614,14 +636,15 @@ class DataFit():
             if kin_prof in ['Te','ne']:
                 dic['options']['eta']=.5 #due to slow core laser
 
-            if kin_prof in ['Mach']:
-                dic['options']['lam']=.45  
-                
             if kin_prof in ['Ti','Mach','vtor','omega'] and self.device == 'D3D':
                 #measurememt outside LCFS are useless
                 dic['fit_options']['null_outer']=1  
                 dic['fit_options']['outside_rho']='0.98'
                 dic['fit_options']['elmrem']=0
+
+            if kin_prof in ['Mach']:
+                dic['options']['lam']=.45  
+                dic['fit_options']['null_outer']=0  
 
             if kin_prof in [ 'ne','omega','vtor' ]:
                 #measurememt outside LCFS are useless
@@ -963,8 +986,8 @@ class DataFit():
                 self.options['data_loaded'] = False
 
                 return
-            if self.show_zipfit.get():
-                self.zipfit = self.data_loader(zipfit=True)
+            if self.show_splines.get():
+                self.spline_fits = self.data_loader(spline_fits=True)
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
             self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})

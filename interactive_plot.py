@@ -316,9 +316,9 @@ class FitPlot():
         self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
 
       
-        self.zip_fit_mean, = self.ax_main.plot([],[],'--',c='.5',linewidth=1,visible=False)
-        self.zip_fit_min,  = self.ax_main.plot([],[],':', c='.5',linewidth=1,visible=False)
-        self.zip_fit_max,  = self.ax_main.plot([],[],':', c='.5',linewidth=1,visible=False)
+        self.spline_mean, = self.ax_main.plot([],[],'--',c='.5',linewidth=1,visible=False)
+        self.spline_min,  = self.ax_main.plot([],[],':', c='.5',linewidth=1,visible=False)
+        self.spline_max,  = self.ax_main.plot([],[],':', c='.5',linewidth=1,visible=False)
 
 
         
@@ -335,7 +335,7 @@ class FitPlot():
             legline.set_picker(20)  # 20 pts tolerance
             self.leg_diag_ind[legline] = idiag
             
-        description = 'DIII-D %d'%self.shot
+        description = self.parent.device +' %d'%self.shot
         self.plot_description = self.ax_main.text(1.01,.05,description,rotation='vertical', 
             transform=self.ax_main.transAxes,verticalalignment='bottom',
             size=10,backgroundcolor='none',zorder=100)
@@ -919,57 +919,73 @@ class FitPlot():
 
         #show discontinuties in time
         for d in self.core_discontinuties:
-            d.set_visible( r < .3 and plot_type == 0)           
+            d.set_visible(r < .3 and plot_type == 0)           
         for d in self.edge_discontinuties:
-            d.set_visible( r > .7 and plot_type == 0 )
+            d.set_visible(r > .7 and plot_type == 0)
 
 
 
         #show also zipfit profiles
         #BUG how to avoid access of parent class?
-        zipfit = self.parent.show_zipfit.get() == 1
-        if zipfit and self.parent.kin_prof in self.parent.zipfit:
-            zipfit = self.parent.zipfit[self.parent.kin_prof]
+        show_splines = self.parent.show_splines.get() == 1
+        prof = self.parent.kin_prof
+        if show_splines and prof in self.parent.splines:
+            splines = self.parent.splines[prof]
             
-            if plot_type in [1,2]:
-                y = zipfit['tvec'].values
-                x = zipfit['rho'].values
-                z = zipfit['data'].values 
-                ze = zipfit['err'].values
-                y0 = t
+            #if plot_type in [1,2]
+            y = splines['time'].values
+            x = splines['rho'].values
+            z = splines[prof].values 
+            ze = z*0
+
+            if prof+'_err' in splines:
+                ze = splines[prof+'_err'].values
+           
+            y0 = t
                 
-            if plot_type == 0:
-                x = zipfit['tvec'].values
-                y = zipfit['rho'].values
-                z = zipfit['data'].values.T
-                ze= zipfit['err'].values.T
+            if plot_type == 0: #temporal profiles
+                z,ze,x = z.T,ze.T, x.T
+                y,x = x,y
                 y0 = r
                 
-            prof = interp1d(y, z,axis=0,bounds_error=False, 
-                            copy=False, assume_sorted=True,kind='nearest')(y0)
-            prof_e = interp1d(y,ze,axis=0,bounds_error=False, 
-                            copy=False, assume_sorted=True,kind='nearest')(y0)
+            if np.ndim(y) == 2:
+                y = y.mean(1)
 
+            i = np.argmin(np.abs(y-y0))
+
+            if np.ndim(x) == 2:
+                x = x[i]
+                #x = interp1d(y,x,axis=0,bounds_error=False, 
+                            #copy=False, assume_sorted=True,kind='nearest')(y0)            
+            #embed()
+            z = z[i]
+            ze = ze[i]
+            #z = interp1d(y, z,axis=0,bounds_error=False, 
+                                #copy=False, assume_sorted=True,kind='nearest')(y0)
+            
+            #ze = interp1d(y,ze,axis=0,bounds_error=False, 
+                            #copy=False, assume_sorted=True,kind='nearest')(y0)
             
 
             if plot_type in [2]:
+                #BUG!!!!
                 a0 = 0.6
                 R0 = 1.7
-                prof_ = (prof[1:]+prof[:-1])/2
-                x_ =  (x[1:]+x[:-1])/2
-                prof = -(np.diff(prof)/np.diff(x*a0)*R0/x_)[prof_!=0]/prof_[prof_!=0]
-                prof_e = 0
-                x = x_[prof_!=0]
+                z_ = (z[1:]+z[:-1])/2
+                x_ = (x[1:]+x[:-1])/2
+                z = -(np.diff(z)/np.diff(x*a0)*R0/x_)[z_!=0]/z_[z_!=0]
+                ze = 0
+                x = x_[z_!=0]
                 
-            self.zip_fit_mean.set_data(x,prof)
-            self.zip_fit_min.set_data(x,prof-prof_e)
-            self.zip_fit_max.set_data(x,prof+prof_e)
+            self.spline_mean.set_data(x,z)
+            self.spline_min.set_data(x,z-ze)
+            self.spline_max.set_data(x,z+ze)
 
 
         
-        self.zip_fit_mean.set_visible(zipfit)
-        self.zip_fit_min.set_visible(zipfit)
-        self.zip_fit_max.set_visible(zipfit)
+        self.spline_mean.set_visible(show_splines)
+        self.spline_min.set_visible(show_splines)
+        self.spline_max.set_visible(show_splines)
 
         self.fig.canvas.draw_idle()
 

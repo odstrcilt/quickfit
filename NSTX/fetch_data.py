@@ -67,31 +67,41 @@ def default_settings(MDSconn, shot):
             CHERS_revisions = CHERS_revisions[revision_len > 0]
             if not isinstance(CHERS_revisions[0],str): 
                 CHERS_revisions = [r.decode() for r in CHERS_revisions]
-            CHERS_revisions = [r.strip() for i,r in CHERS_revisions]
+            CHERS_revisions = [r.strip() for r in CHERS_revisions]
 
             MDSconn.closeTree('ACTIVESPEC', shot)
-        except:
-            pass
+        except Exception as e:
+            printe('Error '+str(e))
+            embed()
+            
  
     
     #build a large dictionary with all settings
     default_settings = OrderedDict()
+            #'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
+                                      #'Corrections':{'Zeeman Splitting':True, 'Wall reflections':False}} }}
+        
+    #share position error between all diags
+    horiz_error =  {'R shift [cm]':0.0}
+    cf_correction = ('Poloidal asymmetry correction',('None',['None','LFS','FSA']))
 
     default_settings['Ti']={'systems':{'CER system':[]},\
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Corrections':{'Zeeman Splitting':True }}},
+        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}},
         }
 
     default_settings['omega']= {'systems':{'CER system':[]},
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}
+        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}}}
    
     default_settings['nC6'] = {'systems':{'CER system':[] },
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}
+        'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),('Position error',horiz_error), cf_correction))}}
     
-    TS_options = OrderedDict((("TS revision",('BEST', ts_revisions)),('Position error',{'R shift [cm]':0.0})))
+    TS_options = OrderedDict((("TS revision",('BEST', ts_revisions)),('Position error',horiz_error) ))
     
     default_settings['Te']= {'systems':{'TS system':(['LFS',True],['HFS',True]) },
     'load_options':{'TS system':TS_options}}
-
+    
+    TS_options = OrderedDict((("TS revision",('BEST', ts_revisions)),('Position error',horiz_error),cf_correction))
+    
     default_settings['ne']= {'systems':{'TS system':(['LFS',True],['HFS',True])},
     'load_options':{'TS system':TS_options}}
       
@@ -106,7 +116,7 @@ def default_settings(MDSconn, shot):
  
     default_settings['Zeff']= {\
         'systems':{'CER system':[]},
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}        
+        'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),cf_correction))}}        
  
  
  
@@ -163,9 +173,13 @@ class data_loader:
                 if isinstance(diag[sys], list):
                     for ch,ind in zip(diag[sys],I):
                         ch['rho'].values  = rho[ind,0]
+                elif 'rho' in diag[sys]:
+                    diag[sys]['rho'].values  =  rho                     
                 else:
-                    diag[sys]['rho'].values  =  rho 
+                    diag[sys]['rho'] = xarray.DataArray(rho, dims=['time','channel'])
+                    
             except Exception as e:
+                print('Error eq_mapping')
                 printe(e)
                 embed()
                 
@@ -175,10 +189,10 @@ class data_loader:
             
             
         
-    def __call__(self,  quantity=[], options=None,zipfit=False, tbeg=0, tend=10 ):
+    def __call__(self,  quantity=[], options=None,spline_fits=False, tbeg=0, tend=10 ):
    
-        if zipfit:
-            return self.load_zipfit()
+        if spline_fits:
+            return self.load_splines()
         
         
         if quantity == 'elms':
@@ -247,38 +261,42 @@ class data_loader:
             TS = self.load_ts(tbeg,tend,['LFS','HFS'] )
             CER = self.load_cer(tbeg,tend, systems ,options['load_options']['CER system'] )
 
-            rho_Te,tvec_Te,data_Te,err_Te = [],[],[],[]
+            R_Te,tvec_Te,data_Te,err_Te = [],[],[],[]
+            
             for sys in TS['systems']:
                 if sys not in TS: continue 
                 t = TS[sys]['time'].values
                 te = TS[sys]['Te'].values
                 e = TS[sys]['Te_err'].values
-                r = TS[sys]['rho'].values
-                t = np.tile(t, (r.shape[1],1)).T
+                r = TS[sys]['R'].values
+                r,t = np.meshgrid(r,t)
+ 
                 ind = np.isfinite(e)|(te>0)|(e>0)
                 tvec_Te.append(t[ind])
                 data_Te.append(te[ind])
                 err_Te.append(e[ind])
-                rho_Te.append(r[ind]) 
+                R_Te.append(r[ind]) 
  
-            rho_Te  = np.hstack(rho_Te)
+            R_Te  = np.hstack(R_Te)
             tvec_Te = np.hstack(tvec_Te)
             data_Te = np.hstack(data_Te)
             err_Te  = np.hstack(err_Te)
 
-            interp = NearestNDInterpolator(np.vstack((tvec_Te,rho_Te)).T, np.copy(data_Te))
+            interp = LinearNDInterpolator(np.vstack((tvec_Te,R_Te)).T, np.copy(data_Te),fill_value=-100)
             Te_Ti = deepcopy(CER)
             for sys in CER['systems']:
                 if sys not in CER: continue
                 
-                r = CER[sys]['rho'].values
-                t = np.tile(CER[sys]['time'].values,( r.shape[1],1)).T
-                xi = np.dstack((t, r))
-                interp.values[:] = np.copy(data_Te)                 
-                Te = np.single(interp(xi))
-                interp.values[:] = np.copy(err_Te) 
-                Te_err = np.single(interp(xi))
+                r = CER[sys]['R'].values
+                t = CER[sys]['time'].values
+                r,t = np.meshgrid(r,t)
                 
+                interp.values[:] = np.copy(data_Te)[:,None]                 
+                Te = np.single(interp(t,r))
+                
+                interp.values[:] = np.copy(err_Te)[:,None] 
+                Te_err = np.single(interp(t,r))
+ 
                 Ti = CER[sys]['Ti'].values
                 Ti_err = CER[sys]['Ti_err'].values
                 
@@ -294,40 +312,43 @@ class data_loader:
             
  
         if quantity == "Zeff" :
-            TS = self.load_ts(tbeg,tend,['LFS','HFS'] )
+            TS = self.load_ts(tbeg,tend,['LFS','HFS'],options['load_options']['CER system'] )
             CER = self.load_cer(tbeg,tend, systems ,options['load_options']['CER system'] )
 
-            rho_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
+            R_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
             for sys in TS['systems']:
                 if sys not in TS: continue 
                 t = TS[sys]['time'].values
                 ne = TS[sys]['ne'].values
                 e = TS[sys]['ne_err'].values
-                r = TS[sys]['rho'].values
-                t = np.tile(t, (r.shape[1],1)).T
+                r = TS[sys]['R'].values
+                r,t = np.meshgrid(r,t)
                 ind = np.isfinite(e)|(ne>0)|(e>0)
                 tvec_ne.append(t[ind])
                 data_ne.append(ne[ind])
                 err_ne.append(e[ind])
-                rho_ne.append(r[ind]) 
+                R_ne.append(r[ind]) 
  
-            rho_ne  = np.hstack(rho_ne)
+            R_ne  = np.hstack(R_ne)
             tvec_ne = np.hstack(tvec_ne)
             data_ne = np.hstack(data_ne)
             err_ne  = np.hstack(err_ne)
+            interp = LinearNDInterpolator(np.vstack((tvec_ne,R_ne)).T, np.copy(data_ne),fill_value=-100)
 
-            interp = NearestNDInterpolator(np.vstack((tvec_ne,rho_ne)).T, np.copy(data_ne))
+ 
             Zeff = deepcopy(CER)
             for sys in CER['systems']:
                 if sys not in CER: continue
                 
-                r = CER[sys]['rho'].values
-                t = np.tile(CER[sys]['time'].values,(r.shape[1],1)).T
-                xi = np.dstack((t, r))
-                interp.values[:] = np.copy(data_ne)                 
-                ne = np.single(interp(xi))
-                interp.values[:] = np.copy(err_ne) 
-                ne_err = np.single(interp(xi))
+                r = CER[sys]['R'].values
+                t = CER[sys]['time'].values
+                r,t = np.meshgrid(r,t)
+          
+                interp.values[:] = np.copy(data_ne)[:,None]                
+                ne = np.single(interp(t,r))
+                
+                interp.values[:] = np.copy(err_ne)[:,None]   
+                ne_err = np.single(interp(t,r))
                 
                 nC = CER[sys]['nC6'].values
                 nC_err = CER[sys]['nC6_err'].values
@@ -352,7 +373,7 @@ class data_loader:
                 VB_Zeff = self.MDSconn.get('_x=\\'+tree+'::TOP.VISIBLEBREM:Z_EFFECTIVE').data()
                 VB_tvec = self.MDSconn.get('dim_of(_x,0)').data()
                 self.MDSconn.closeTree(tree, self.shot)
-                ind = VB_Zeff < 6
+                ind = (VB_Zeff < 6)&(VB_Zeff > 1)
                 VB_Zeff = VB_Zeff[ind]
                 VB_tvec = VB_tvec[ind]
 
@@ -360,13 +381,14 @@ class data_loader:
                 VB['Zeff'] = xarray.DataArray(VB_Zeff,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
                 VB['Zeff_err'] = xarray.DataArray(VB_Zeff*.1,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
                 #location is just a guess
-                VB['rho'] = xarray.DataArray(np.zeros_like(VB_tvec)+.1,dims=['time'] )
+                VB['rho']  = xarray.DataArray(np.zeros_like(VB_tvec)+.1,dims=['time'] )
                 VB['diags']= xarray.DataArray(np.tile(('VB',), VB_tvec.size),dims=['time'])           
                 VB['time'] = xarray.DataArray(VB_tvec,dims=['time'], attrs={'units':'s'})
 
                 Zeff['systems'].append('VB')
                 Zeff['diag_names']['VB']=['VB']            
-            except:
+            except Exception as e:
+                print('VB Zeff error ',e)
                 pass
             
             data.append(Zeff)
@@ -415,28 +437,251 @@ class data_loader:
 
 
 
-    def load_zipfit(self):
-        return {}
+    def load_splines(self):
+        
+        
+        
+        
+        if 'SPLINES' in self.RAW:            
+            return self.eq_mapping(self.RAW['SPLINES'])
+
+        
+        TT = time()
+        print_line('  * Fetching SPLINES ... ')
+                    
+        tree = 'ACTIVESPEC'
+        chers_edition = 'CT1'
+        chers_signals = ['ZEFFS', 'VTS','TIS', 'NCS', 'RS', 'TIME']
+        TDI = [f'\\{tree}::TOP.CHERS.ANALYSIS.{chers_edition}:{sig}' for sig in chers_signals]
+        mdts_signals = ['SPLINE_NE','SPLINE_TE', 'SPLINE_RADII','TS_TIMES']
+        TDI += [f'\\{tree}::TOP.MPTS.OUTPUT_DATA.BEST:'+sig for sig in mdts_signals]
+
+        Zeff,Vtor,Ti, nC, R,T, TS_ne,TS_Te,TS_R,TS_T = mds_load(self.MDSconn, TDI, tree, self.shot)
+        print('\t done in %.1fs'%(time()-TT))
+
+        #use SI units!!
+        Vtor *= 1e3 #m/s
+        Ti *= 1e3 #eV
+        TS_Te *= 1e3 #eV
+        TS_ne *= 1e6 #m^3
+        nC *= 1e6 #m^3
+        
+        R /= 100 #m
+        TS_R /= 100 #m
+        
+    
+        invalid = Ti <= 0
+        
+        Vtor[invalid] = np.nan
+        Ti[invalid] = np.nan
+        nC[invalid] = np.nan
+        Zeff[invalid] = np.nan
+        Ti= np.maximum(Ti,10)
+
+        ##hydrogen Mach number        
+        from scipy.constants import e,m_u
+        mach = np.sqrt(2*m_u/e*Vtor**2/(2*Ti))
+        
+        #truncate maximum mach number
+        mach = np.minimum(mach,1)
+
+
+        #Map Te on CHERS radial and temporal base
+        Te_Ti = RectBivariateSpline(TS_R, TS_T, TS_Te,kx=1,ky=1)(R,T).T.astype('single')/Ti
+
+        
+        self.RAW['SPLINES'] = splines = {}
+        
+        splines['Te'] = splines['ne'] = ds = xarray.Dataset( )
+        ds['ne'] = xarray.DataArray(TS_ne.T, dims=['time','R'])
+        ds['Te'] = xarray.DataArray(TS_Te.T, dims=['time','R'])
+        ds['Z']  = xarray.DataArray(TS_R*0, dims=['R'])
+        ds['R']  = xarray.DataArray(TS_R, dims=['R'])
+        ds['time'] = xarray.DataArray(TS_T, dims=['time'])
+ 
+        ds = xarray.Dataset( )
+        splines['Zeff'] = splines['Mach'] = splines['Ti'] = splines['nC6']  = splines['Te/Ti'] = splines['omega'] = ds
+        ds['Ti'] = xarray.DataArray(Ti, dims=['time','R'])
+        ds['Zeff'] = xarray.DataArray(Zeff, dims=['time','R'])
+        ds['nC6'] = xarray.DataArray(nC, dims=['time','R'])
+        ds['omega'] = xarray.DataArray(Vtor/R, dims=['time','R'])
+        ds['Mach'] = xarray.DataArray(mach, dims=['time','R'])
+        ds['Te/Ti'] = xarray.DataArray(Te_Ti, dims=['time','R'])
+        ds['Z']  = xarray.DataArray(R*0, dims=['R'])
+        ds['R']  = xarray.DataArray(R, dims=['R'])
+        ds['time'] = xarray.DataArray(T, dims=['time'])
+        
+        print('\t done in %.1fs'%(time()-TT))
+        
+        splines['systems'] = ['Te','Ti','Zeff','ne','nC6','omega','Te/Ti','Mach']
+        
+        
+        self.eq_mapping(splines)
+        
+        
+        splines['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+
+
+        
+        return splines
+    
+    
+    
            
 
+    def load_asymmetry(self,chers_edition='CT1',dR=0):
+        
+        
+        self.RAW.setdefault('Asymmetry',{})
+        asym = self.RAW['Asymmetry']
+
+        A = 2 #Main ion mass
+        Z = 1 #Main ion charge
+        Zc = 6  #C charge
+        Ac = 12 #C mass
+    
+        #calculate asymmetry correction factors on CHERS timebase as function of R?
+        splines = self.load_splines()
+            
+        EQM = {'id':id(self.eqm),'ed':self.eqm.diag}
+         
+        if 'EQM' not in asym or EQM != asym['EQM']:
+            asym['EQM'] = EQM
+            
+            rho_grid = np.linspace(0,1,51)[1:]
+            theta_grid = np.linspace(0,np.pi*2,101,endpoint=False)
+            #get flux surfaces 
+            T = splines['Mach']['time'].values
+            R,Z = self.eqm.rhoTheta2rz(rho_grid,theta_grid,T,coord_in=self.rho_coord, n_line=101)
+            
+            # calculate elemental dV for each R,Z
+            dRdZ = np.array((np.gradient(Z,axis=[1,2]), 
+                             np.gradient(R,axis=[1,2]))).T
+            
+            dV = 2*np.pi*R*np.linalg.det(dRdZ).T
+           
+            asym['FSA'] = FSA = xarray.Dataset()
+            FSA['dV'] = xarray.DataArray(dV,dims=['time','theta','rho'], attrs={'units':'m^3'})
+            FSA['R']  = xarray.DataArray(R,dims=['time','theta','rho'], attrs={'units':'m'})
+            FSA['Rlfs'] = xarray.DataArray(R[:,0],dims=['time','rho'], attrs={'units':'m'})
+            FSA['rho'] = xarray.DataArray(rho_grid,dims=['rho'], attrs={'units':'-'})
+            FSA['theta'] = xarray.DataArray(theta_grid,dims=['theta'], attrs={'units':'rad'})
+            FSA['time'] = xarray.DataArray(T,dims=['time'], attrs={'units':'s'})
+            
+        
+            
+        #load from cache 
+        FSA = asym['FSA']
+        sepR = self.eqm.separatrixR[self.eqm.separatrixR > 0]
+        Rgrid = np.linspace(sepR.min(),sepR.max(),100)
+
+    
+        mach = splines['Mach']['Mach'].values
+        Te_Ti = splines['Te/Ti']['Te/Ti'].values
+        Zeff = splines['Zeff']['Zeff'].values
+        spline_R = splines['Mach']['R'].values
+        spline_T = splines['Mach']['time'].values
+        
+ 
+        
+        Aeff = Zeff*A  #effective ion mass estimated from zeff, valid for D+C
+        asym_factor_e = 1/(1+Zeff*Te_Ti)* Aeff * mach**2
+        asym_factor_c = (1-Zc/Ac* Aeff*Te_Ti/(1+Zeff*Te_Ti))*Ac*mach**2
+        
+        
+        valid = np.isfinite(asym_factor_c)
+
+        rho_grid = self.eqm.rz2rho(Rgrid,Rgrid*0,spline_T,self.rho_coord)
+
+        
+        ne0_ne = np.zeros((len(spline_T), len(Rgrid)),dtype='single')
+        nc0_nc = np.zeros((len(spline_T), len(Rgrid)),dtype='single')
+
+        nefsa_ne = np.zeros((len(spline_T), len(Rgrid)),dtype='single')
+        ncfsa_nc = np.zeros((len(spline_T), len(Rgrid)),dtype='single')
+
+        for it in range(len(spline_T)):
+            #find index closest to magnetic axis
+            imin = np.argmin(rho_grid[it])
+            
+            #use only LFS CHERS data, HFS are often too poor
+            valid[it] &= spline_R > spline_R[imin]
+                        
+            #LFS R for each radial location 
+            Rlfs_grid = np.interp(rho_grid[it], rho_grid[it,imin:], Rgrid[imin:]+dR)
+                        
+
+            #interpolate asymmetry factors on the LFS radial grid
+            asym_factor_e_ = np.interp(Rlfs_grid, spline_R[valid[it]], asym_factor_e[it][valid[it]],right=0)
+            asym_factor_c_ = np.interp(Rlfs_grid, spline_R[valid[it]], asym_factor_c[it][valid[it]],right=0)
+
+            dR2 = (Rgrid/Rlfs_grid)**2-1
+            
+            #ratio between LFS and loal density
+            ne0_ne[it] = np.exp(-asym_factor_e_*dR2)
+            nc0_nc[it] = np.exp(-asym_factor_c_*dR2)
+            
+                        
+            i_eq = np.argmin(np.abs(spline_T[it]-FSA['time'].values))
+            #interpolate asymmetry factors on the LFS radial grid
+            R = FSA['R'].values[i_eq]
+            Rlfs = FSA['Rlfs'].values[i_eq]
+
+            asym_factor_e_ = np.interp(R, spline_R[valid[it]], asym_factor_e[it][valid[it]])
+            asym_factor_c_ = np.interp(R, spline_R[valid[it]], asym_factor_c[it][valid[it]])
+            
+            dR2 = (R/Rlfs)**2-1
+
+            neR_ne0 = np.exp(asym_factor_e_*dR2)
+            ncR_nc0 = np.exp(asym_factor_c_*dR2)
+            
+            #calculate flux surface average
+            dV = FSA['dV'].values[i_eq]
+            
+            
+            #ratio between FSA and LFS density
+            nefsa_ne0 = np.average(neR_ne0,0, dV)
+            ncfsa_nc0 = np.average(ncR_nc0,0, dV) 
+            
+            #ratio between FSa and local density
+            nefsa_ne[it] = np.interp(Rlfs_grid, Rlfs, nefsa_ne0)*ne0_ne[it]
+            ncfsa_nc[it] = np.interp(Rlfs_grid, Rlfs, ncfsa_nc0)*nc0_nc[it]
+     
+        #embed()
+        asym['correction'] = corr = xarray.Dataset()
+        corr['ne0_ne'] = xarray.DataArray(ne0_ne,dims=['time','Rgrid'], attrs={'units':'-'})
+        corr['nc0_nc'] = xarray.DataArray(nc0_nc,dims=['time','Rgrid'], attrs={'units':'-'})
+        corr['nefsa_ne'] = xarray.DataArray(nefsa_ne,dims=['time','Rgrid'], attrs={'units':'-'})
+        corr['ncfsa_nc'] = xarray.DataArray(ncfsa_nc,dims=['time','Rgrid'], attrs={'units':'-'})
+        corr['time'] = xarray.DataArray(spline_T,dims=['time'], attrs={'units':'s'})
+        corr['Rgrid'] = xarray.DataArray(Rgrid,dims=['Rgrid'], attrs={'units':'m'})
+        
+        return corr
+         
 
     def load_cer(self,tbeg,tend, systems, options=None):
         #load Ti and omega at once
         TT = time()
+        rshift = 0
+        cf_correction = 'None'
+        edition = 'CT1'
 
         tree = 'ACTIVESPEC'
-        if options is None:
-            edition = 'CT1'
-        else:
+        if options is not None:
             selected,editions = options['Analysis']
             edition = selected.get()
-            
+            if 'Position error' in options:
+                rshift = options['Position error']['R shift [cm]'].get()/100. #[m] 
+            if 'Poloidal asymmetry correction' in options:
+                cf_correction = options['Poloidal asymmetry correction'][0].get()
+
+ 
         #TODO check if data exists at all!
         if edition is None:
             raise Exception('No CHERS analysis data')
         
-
-            
+        #Ti below 300eV is unreliable??
+        
         self.RAW.setdefault('CHERS',{})
         cer = self.RAW['CHERS'].setdefault(edition,{})
 
@@ -448,10 +693,10 @@ class data_loader:
         load_systems = list(set(systems)-set(cer.keys()))
  
         #update equilibrium for already loaded systems
-        cer = self.eq_mapping(cer)
+        cer = self.eq_mapping(cer, dr=rshift)
  
   
-        if len(load_systems) == 0:
+        if len(load_systems) == 0 and np.all([cer[sys].attrs['cf_correction'] == cf_correction for sys in cer['systems']]):
             return cer
         
    
@@ -459,7 +704,7 @@ class data_loader:
         
         #AW, AWB active and background aplitude, unknown units 
         data = {
-            'Ti': {'label':'Ti','unit':'eV','sig':['TI','DTI'],'scale':1e3},
+            'Ti': {'label':'Ti','unit':'eV','sig':['ZTI','DTI'],'scale':1e3},
             'omega': {'label':r'\omega_\varphi','unit':'rad/s','sig':['VT','DVT'],'scale':1e3},
             'nimp': {'label':r'n_c','unit':'m^{-3}','sig':['NC','DNC'],'scale':1e6},
             }
@@ -467,12 +712,7 @@ class data_loader:
         #list of MDS+ signals for each channel
         signals = data['Ti']['sig']+data['omega']['sig']+data['nimp']['sig']+['RADIUS', 'TIME', 'VALID']
 
-        try:
-            zeem_split = options['Corrections']['Zeeman Splitting'].get()   
-            if zeem_split:
-                signals[signals.index('TI')] = 'ZTI'
-        except:
-            pass
+     
 
         TDI = []
         #prepare list of loaded signals
@@ -486,34 +726,51 @@ class data_loader:
 
         
         Z = R*0
-        R/= 100 #[m]
-        omega = Vtor/R
-        omega_err = Vtorerr/R
+        R /= 100 #[m]
+
         valid = np.bool_(valid)
-        #TODO correction of nC on centrifugal force
         
         #map to radial coordinate 
-        rho = self.eqm.rz2rho(R,Z,tvec,self.rho_coord)
+        rho = self.eqm.rz2rho(R+rshift,Z,tvec,self.rho_coord)
         
         
         #show these points but ignore them in the fit
         valid &=  np.isfinite(Nc > 0)&np.isfinite(Nc_err)
         valid[valid] &= (Ti[valid] > 0)&(Tierr[valid] > 0)
-        valid[valid] &=  (omega_err[valid] > 0)
         valid[valid] &=  (Nc[valid] > 0)&(Nc_err[valid] > 0)
 
-        valid = np.bool_(valid)
+        #valid = np.bool_(valid)
         Tierr[~valid]  = -np.inf
         Vtorerr[~valid]  = -np.inf
         channel = np.arange(len(R))
         
+        omega = Vtor/R
+        omega_err = Vtorerr/R
+        
         #guess of nC errorbars from time scatter
         Nc_err[:] = np.std(np.gradient(Nc)[0],0)[None]
         Nc_err[~valid]  = -np.inf
+        
+        
+        if cf_correction != 'None':
+            corr = self.load_asymmetry(chers_edition=edition,dR=rshift)
+            if cf_correction == 'LFS':
+                nratio = corr['nc0_nc'].values 
+            elif cf_correction == 'FSA':
+                nratio = corr['ncfsa_nc'].values 
+            else:
+                raise Exception('Asymetry correction '+cf_correction+' is not supported')
+
+            corr = RectBivariateSpline(corr['time'].values,corr['Rgrid'].values, nratio)(tvec,R)
+
+            Nc[valid] *= corr[valid]
+            Nc_err[valid] *= corr[valid]
+            
+ 
 
         for sys in systems:
             cer['diag_names'][sys]=['CHERS']            
-            cer[sys] = xarray.Dataset(attrs={'system':sys})
+            cer[sys] = xarray.Dataset(attrs={'system':sys, 'cf_correction': cf_correction})
             cer[sys]['Ti'] = xarray.DataArray(Ti*data['Ti']['scale'],dims=['time','channel'], attrs={'units':'eV','label':'T_i'})
             cer[sys]['Ti_err'] = xarray.DataArray(Tierr*data['Ti']['scale'],dims=['time','channel'] )
             cer[sys]['omega'] = xarray.DataArray(omega*data['omega']['scale'],dims=['time','channel'], attrs={'units':'rad/s','label':r'\omega_\phi'})
@@ -531,7 +788,7 @@ class data_loader:
             
 
         
-        cer['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+        cer['EQM'] = {'id':id(self.eqm),'dr':rshift, 'dz':0,'ed':self.eqm.diag}
         print('\t done in %.1fs'%(time()-TT))
         
         return cer
@@ -547,27 +804,36 @@ class data_loader:
 
         revision = 'BEST'
         rshift = 0
+        cf_correction = 'LFS'
         if options is not None:
-            selected,revisions = options['TS revision']
-            revision = selected.get()
+            if 'TS revision' in options:
+                selected,revisions = options['TS revision']
+                revision = selected.get()
             if 'Position error' in options:
                 rshift = options['Position error']['R shift [cm]'].get()/100. #[m] 
-  
+            if 'Poloidal asymmetry correction' in options:
+                cf_correction = options['Poloidal asymmetry correction'][0].get()
+ 
+
         #use cached data
         self.RAW.setdefault('TS',{})
         ts = self.RAW['TS'].setdefault(revision,{'systems':systems})
 
         ts['systems'] = list(systems)
         systems = list(set(systems)-set(ts.keys()))
+
+  
         
         
         #update mapping of the catched data
         ts = self.eq_mapping(ts, dr =rshift)            
         ts.setdefault('diag_names',{})
-
-        if len(systems) == 0:
+ 
+        if len(systems) == 0 and np.all([ts[sys].attrs['cf_correction'] == cf_correction for sys in ts['systems']]):
             #assume that equilibrium could be changed
             return ts
+        else:
+            systems = ts['systems']
 
         print_line( '  * Fetching TS data ...')
 
@@ -588,7 +854,8 @@ class data_loader:
         Te_err *= 1e3 #eV
         ne *= 1e6 #m^-3
         ne_err *= 1e6 #m^-3
-
+        
+ 
         #these points will be ignored and not plotted (negative errobars )
         invalid = (Te_err<=0) | (Te <=0 ) | (ne_err<=0) | (ne <=0 )
         Te_err[invalid]  = -np.infty
@@ -598,12 +865,28 @@ class data_loader:
 
         rho = self.eqm.rz2rho(R+rshift,Z,tvec,self.rho_coord)
         
-        index = {'HFS':slice(0,11), 'LFS':slice(11,None)}
+                  
+        if cf_correction !=  'None':
+            corr = self.load_asymmetry(dR=rshift)
+            if cf_correction == 'LFS':
+                nratio = corr['ne0_ne'].values 
+            if cf_correction == 'FSA':
+                nratio = corr['nefsa_ne'].values 
+
+            corr = RectBivariateSpline(corr['time'].values,corr['Rgrid'].values, nratio)(tvec,R).T
+
+            ne[~invalid] *= corr[~invalid]
+            ne_err[~invalid] *= corr[~invalid]
+            
+   
+      
+        imin = np.argmin(rho.mean(0))
+        index = {'HFS':slice(0,imin), 'LFS':slice(imin,None)}
         for sys in systems:
             ind = index[sys]
             ts['diag_names'][sys]=['TS:'+sys]
 
-            ts[sys] = xarray.Dataset(attrs={'system':sys})
+            ts[sys] = xarray.Dataset(attrs={'system':sys, 'cf_correction': cf_correction})
             ts[sys]['ne'] = xarray.DataArray(ne[ind].T,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
             ts[sys]['ne_err'] = xarray.DataArray(ne_err[ind].T,dims=['time','channel'], attrs={'units':'m^{-3}'})
             ts[sys]['Te'] = xarray.DataArray(Te[ind].T,dims=['time','channel'], attrs={'units':'eV','label':'T_e'})
@@ -661,8 +944,10 @@ def main():
     mdsserver = 'localhost'
     MDSconn = MDSplus.Connection(mdsserver)
     TT = time()
-    shot = 141716
-    shot = 204179
+    shot = 115559
+    #shot = 204179
+    shot = 141040
+    shot = 141040
     rho_coord = 'rho_tor'
    
  
@@ -699,7 +984,7 @@ def main():
     default_settings = OrderedDict()
 
     default_settings['Ti']={'systems':{'CER system':([], )},\
-        'load_options':{'CER system':{'Analysis':(S('CT1'), CHERS_revisions),
+        'load_options':{'CER system':{'Analysis':(S('CT2'), CHERS_revisions),
         'Corrections':{'Zeeman Splitting':I(1) }}}}
 
     default_settings['omega']= {'systems':{'CER system':([], )},
@@ -722,11 +1007,11 @@ def main():
         'systems':{'CER system':[]},
         'load_options':{'CER system':{'Analysis':(S('CT1'), CHERS_revisions)}}}
      
- 
-    data = loader( 'Te', default_settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
-    
- 
-
+    loader.load_splines()
+    try:
+        data = loader( 'ne', default_settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    finally:
+        MDSconn.disconnect()
     print('\t done in %.1f'%(time()-T))
      
     print('\n\t\t\t Total time %.1fs'%(time()-TT))

@@ -716,8 +716,9 @@ def default_settings(MDSconn, shot):
             
             line_id = []
             for l in np.unique(_line_id):
-                l = l.split(b'\x00')[0] #sometimes are names quite wierd
+                
                 if not isinstance(l,str):
+                    l = l.split(b'\x00')[0] #sometimes are names quite wierd
                     l = l.decode()
                 l = l.strip()
                 line_id.append(l)
@@ -877,9 +878,9 @@ class data_loader:
             
             
         
-    def __call__(self,  quantity=[], options=None,zipfit=False, tbeg=0, tend=10 ):
+    def __call__(self,  quantity=[], options=None,spline_fits=False, tbeg=0, tend=10 ):
    
-        if zipfit:
+        if spline_fits:
             return self.load_zipfit()
         
         
@@ -1014,9 +1015,9 @@ class data_loader:
                     if not 'Ti' in ch: continue
                     interp.values[:] = np.copy(data_Te)#[:,None]
                     t = ch['time'].values
-                    Te = interp(np.vstack((t, ch['rho'].values)).T)
+                    Te = interp(np.vstack((t, ch['rho'].values)).T).astype('single')
                     interp.values[:] = np.copy(err_Te)#[:,None]
-                    Te_err = interp(np.vstack((t, ch['rho'].values)).T)
+                    Te_err = interp(np.vstack((t, ch['rho'].values)).T).astype('single')
                     Ti = ch['Ti'].values
                     Ti_err = ch['Ti_err'].values
                     if 'omega' in ch: ch = ch.drop(['omega','omega_err'])
@@ -1100,7 +1101,7 @@ class data_loader:
                 ds = xarray.Dataset( )
                 ds['data'] = xarray.DataArray(self.MDSconn.get('_x=\\'+tree+path+node+'FIT').data()*scale_fact, dims=['time','rho'])
                 ds['rho']  = xarray.DataArray(self.MDSconn.get('dim_of(_x,0)').data(), dims=['rho'])
-                ds['tvec'] = xarray.DataArray(self.MDSconn.get('dim_of(_x,1)').data()/1000, dims=['tvec'])
+                ds['time'] = xarray.DataArray(self.MDSconn.get('dim_of(_x,1)').data()/1000, dims=['time'])
 
                 try:
                     ds['err'] = xarray.DataArray(abs(self.MDSconn.get('error_of(_x)').data())*scale_fact, dims=['time','rho'])
@@ -1112,12 +1113,12 @@ class data_loader:
                     rhot = ds['rho'].values
                     data = ds['data'].values
                     err = ds['err'].values
-                    rho = self.eqm.rho2rho(rhot, t_in=ds['tvec'].values,coord_in='rho_tor', coord_out=self.rho_coord)
-                    for it,t in enumerate(ds['tvec'].values):
+                    rho = self.eqm.rho2rho(rhot, t_in=ds['time'].values,coord_in='rho_tor', coord_out=self.rho_coord)
+                    for it,t in enumerate(ds['time'].values):
                         data[it] = np.interp(rhot, rho[it], data[it])
                         err[it]  = np.interp(rhot, rho[it], err[it])
-                    ds['data'].values = data
-                    ds['err'].values = err
+                    ds[prof].values = data
+                    ds[prof+'_err'].values = err
                     
                 zipfit[prof] = ds
             except Exception as e:
@@ -1131,9 +1132,9 @@ class data_loader:
         
 
         try:
-            tvec = np.sort(list((set(zipfit['omega']['tvec'].values)&set(zipfit['Ti']['tvec'].values))))
-            ind_ti  = np.in1d( zipfit['Ti']['tvec'].values,tvec, assume_unique=True) 
-            ind_omg = np.in1d( zipfit['omega']['tvec'].values,tvec, assume_unique=True) 
+            tvec = np.sort(list((set(zipfit['omega']['time'].values)&set(zipfit['Ti']['time'].values))))
+            ind_ti  = np.in1d( zipfit['Ti']['time'].values,tvec, assume_unique=True) 
+            ind_omg = np.in1d( zipfit['omega']['time'].values,tvec, assume_unique=True) 
 
             from scipy.constants import e,m_u
             rho = np.mean(zipfit['Ti']['rho'].values,0)
@@ -1149,18 +1150,18 @@ class data_loader:
             zipfit['Mach']['data'] = xarray.DataArray(np.sqrt(2*m_u/e*vtor**2/(2*ti)), dims=['time','rho'])
             zipfit['Mach']['err'] = xarray.DataArray(zipfit['Mach']['data'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','rho'])
             zipfit['Mach']['rho']  = xarray.DataArray(rho, dims=['rho'])
-            zipfit['Mach']['tvec'] = xarray.DataArray(np.array(tvec), dims=['tvec'])
+            zipfit['Mach']['time'] = xarray.DataArray(np.array(tvec), dims=['time'])
         except:
             pass
              
 
         try:
-            tvec = zipfit['Ti']['tvec'].values
-            ind_t = (tvec >= zipfit['Te']['tvec'].values[0])&(tvec<= zipfit['Te']['tvec'].values[-1])
+            tvec = zipfit['Ti']['time'].values
+            ind_t = (tvec >= zipfit['Te']['time'].values[0])&(tvec<= zipfit['Te']['time'].values[-1])
             #rho is the same for  both zipfits
-            Te     = interp1d(zipfit['Te']['tvec'].values,zipfit['Te']['data'].values,axis=0,
+            Te     = interp1d(zipfit['Te']['time'].values,zipfit['Te']['data'].values,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
-            Te_err = interp1d(zipfit['Te']['tvec'].values,zipfit['Te']['err'].values ,axis=0,
+            Te_err = interp1d(zipfit['Te']['time'].values,zipfit['Te']['err'].values ,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
             Ti     = np.maximum(zipfit['Ti']['data'].values[ind_t],.1) #prevent zero division
             Te     = np.maximum(Te,1e-2) #prevent zero division
@@ -1171,18 +1172,18 @@ class data_loader:
             zipfit['Te/Ti']['data'] = xarray.DataArray(Te/Ti, dims=['time','rho'])
             zipfit['Te/Ti']['err'] = xarray.DataArray(Te/Ti*np.hypot(Ti_err/Ti,Te_err/Te), dims=['time','rho'])
             zipfit['Te/Ti']['rho']  = xarray.DataArray(zipfit['Ti']['rho'].values, dims=['rho'])
-            zipfit['Te/Ti']['tvec'] = xarray.DataArray(tvec[ind_t], dims=['time'])
+            zipfit['Te/Ti']['time'] = xarray.DataArray(tvec[ind_t], dims=['time'])
             
         except:
             pass
         
         try:
-            tvec = zipfit['nimp']['tvec'].values
-            ind_t = (tvec >= zipfit['ne']['tvec'].values[0])&(tvec<= zipfit['ne']['tvec'].values[-1])
+            tvec = zipfit['nimp']['time'].values
+            ind_t = (tvec >= zipfit['ne']['time'].values[0])&(tvec<= zipfit['ne']['time'].values[-1])
             #rho is the same for  both zipfits
-            ne     = interp1d(zipfit['ne']['tvec'].values,zipfit['ne']['data'].values,axis=0,
+            ne     = interp1d(zipfit['ne']['time'].values,zipfit['ne']['data'].values,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
-            ne_err = interp1d(zipfit['ne']['tvec'].values,zipfit['ne']['err'].values ,axis=0,
+            ne_err = interp1d(zipfit['ne']['time'].values,zipfit['ne']['err'].values ,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
             nimp     =  zipfit['nimp']['data'].values[ind_t] 
             nimp_err = zipfit['nimp']['err'].values[ind_t]
@@ -1193,12 +1194,13 @@ class data_loader:
             # NOTE suppose the impruity ion in ZIPFITprofiles is always carbon and bulk ions are D
             Zimp = 6 
             Zmain = 1
+            #Rtan is ~0.6m
             
             zipfit['Zeff'] = xarray.Dataset( )
             zipfit['Zeff']['data'] = xarray.DataArray(Zimp*(Zimp - Zmain)*nimp/ne + Zmain, dims=['time','rho'])
             zipfit['Zeff']['err'] = xarray.DataArray((zipfit['Zeff']['data'].values - Zmain)*np.hypot(ne_err/ne,nimp_err/nimp), dims=['time','rho'])
             zipfit['Zeff']['rho']  = xarray.DataArray(zipfit['nimp']['rho'].values, dims=['rho']) #rho toroidal
-            zipfit['Zeff']['tvec'] = xarray.DataArray(tvec[ind_t], dims=['time'])
+            zipfit['Zeff']['time'] = xarray.DataArray(tvec[ind_t], dims=['time'])
             
         except:
             pass
@@ -2534,6 +2536,7 @@ class data_loader:
             # assume 5% error in beam power
             beam_att_err[-1] = np.hypot(beam_att_err[-1], 0.05 * beam_att[-1])
             n += nR
+            
 
         n2frac = np.dstack(n2frac)
 
@@ -5106,7 +5109,7 @@ class data_loader:
         try:
             zipfit = self.load_zipfit()
 
-            Te_tvec = zipfit['Te']['tvec'].values
+            Te_tvec = zipfit['Te']['time'].values
             Te_tvec[[0,-1]] = -10,100
     
             Te_ = interp1d(Te_tvec, zipfit['Te']['data'].values,axis=0,copy=False, assume_sorted=True)(t_eq)
@@ -5139,7 +5142,7 @@ class data_loader:
             ne_ = zipfit['ne']['data'].values.copy()
             ne_err =  zipfit['ne']['data'].values*0.05 #zipfit errorbars are often wrong, while the fit is OK 
             ne_ += ne_err # upper boundary, to be sure that affected measurements will be removed
-            ne_tvec = zipfit['ne']['tvec'].values
+            ne_tvec = zipfit['ne']['time'].values
             ne = np.zeros((len(ne_tvec), len(r_in)))
             for it,t in enumerate(ne_tvec ):
                 iteq = np.argmin(abs(t_eq-t))
@@ -5983,7 +5986,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('quick'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
                                                'remove first data after blip':I(0)}  )))   }})
  
