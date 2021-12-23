@@ -572,7 +572,7 @@ class data_loader:
             
         #load from cache 
         FSA = asym['FSA']
-        sepR = self.eqm.separatrixR[self.eqm.separatrixR > 0]
+        sepR = np.hstack([sr[sr > 0] for sr in self.eqm.separatrixR]) 
         Rgrid = np.linspace(sepR.min(),sepR.max(),100)
 
     

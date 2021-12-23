@@ -43,19 +43,19 @@ class equ_map:
         if exp.upper() in ['D3D' ]:
             gEQDSK = 'gEQDSK' 
             aEQDSK = 'aEQDSK' 
-            time_scale = 1e-3
+            self.time_scale = 1e-3
         
         elif exp.upper() in [ 'NSTX','NSTXU']:
             gEQDSK = 'gEQDSK' 
             aEQDSK = 'aEQDSK' 
-            time_scale = 1
+            self.time_scale = 1
             if exp.upper() == 'NSTXU':
                 chi2_max = 400
 
         elif exp.upper()=='CMOD':
             gEQDSK = 'G_EQDSK'
             aEQDSK = 'A_EQDSK'
-            time_scale = 1
+            self.time_scale = 1
 
             
         else:
@@ -82,7 +82,7 @@ class equ_map:
             self.Rmesh = self.sf.get(self.gEQDSK+'R').data()[0]
             self.Zmesh = self.sf.get(self.gEQDSK+'Z').data()[0]
             # Time grid of equilibrium shotfile
-            self.t_eq  = np.atleast_1d(self.sf.get(self.gEQDSK+'GTIME').data()*time_scale)
+            self.t_eq  = np.atleast_1d(self.sf.get(self.gEQDSK+'GTIME').data()*self.time_scale)
             self.valid = np.ones_like(self.t_eq,dtype='bool')
             try:
                 self.comment  = self.sf.get('\\'+diag+'::TOP.COMMENTS').data()
@@ -90,14 +90,16 @@ class equ_map:
                 pass
             
             try:
-                atimes = self.sf.get(self.aEQDSK+'ATIME').data()*time_scale
-                chi2 = self.sf.get(self.aEQDSK+'CHISQ').data()
+                atimes = self.sf.get(self.aEQDSK+'ATIME').data()*self.time_scale
+                chi2  = self.sf.get(self.aEQDSK+'CHISQ').data()
+                error = self.sf.get(self.aEQDSK+'ERROR').data()
+ 
                 valid = np.isfinite(chi2)
-                valid[valid] &= (chi2[valid]>0)&(chi2[valid] < chi2_max)
+                valid[valid] &= (chi2[valid]>0)&(chi2[valid] < chi2_max) &(error[valid] < 0.01)
                 self.valid &= np.in1d(self.t_eq,atimes[valid])&(self.t_eq>0)
                 
                 ip = self.sf.get(self.gEQDSK+'CPASMA').data() 
-                self.valid &= np.abs(ip) > 0
+                self.valid[self.valid] &= np.abs(ip[self.valid]) > 0
                 self.t_eq = self.t_eq[self.valid]
                 
             except:
@@ -133,8 +135,12 @@ class equ_map:
             del self.psi0
         if hasattr(self, 'ssq'):
             del self.ssq
+            
         self.eq_open = False
-
+        try:
+            self.MDSconn.closeTree(self.system, self.shot)
+        except:
+            pass
 
 
     def _read_pfm(self):
@@ -150,12 +156,11 @@ class equ_map:
             return
 
         if self.debug: print('Reading PFM matrix')
-        try:
-            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
-        except:
-            self.sf.openTree(self.diag,self.shot)
-            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
-
+        #try:
+        self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
+        #except:
+            #self.sf.openTree(self.diag,self.shot)
+            #self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
             
             
 
@@ -176,12 +181,21 @@ class equ_map:
         
         self.ssq['Rmag'] = self.sf.get(self.gEQDSK+'RMAXIS').data()[self.valid]
         self.ssq['Zmag'] = self.sf.get(self.gEQDSK+'ZMAXIS').data()[self.valid]
-        #separatrix = self.sf.get(self.gEQDSK+'BDRY').data()[self.valid]
+        #separatrix_R = self.sf.get(self.gEQDSK+'RBDRY').data()[self.valid]
+        #separatrix_Z = self.sf.get(self.gEQDSK+'ZBDRY').data()[self.valid]
+        self.separatrixR = self.sf.get(self.gEQDSK+'RBDRY').data()[self.valid]
+        self.separatrixZ = self.sf.get(self.gEQDSK+'ZBDRY').data()[self.valid]
+        #self.volume = self.sf.get(self.gEQDSK+'VOLUME').data()[self.valid]
+
+        #plt.plot(separatrix_R.T,separatrix_Z.T)
+        #plt.show()
+        
+
         #self.ssq['Zunt'] = separatrix[:,:,1].min(1)
         #self.ssq['Zoben'] = separatrix[:,:,1].max(1)
 
         try:
-            atimes = self.sf.get(self.aEQDSK+'ATIME').data()/1000
+            atimes = self.sf.get(self.aEQDSK+'ATIME').data()*self.time_scale
             self.ssq['chi2'] = np.interp(self.t_eq, atimes,self.sf.get(self.aEQDSK+'CHISQ').data())
             self.ssq['CONDNO'] = np.interp(self.t_eq, atimes,self.sf.get(self.aEQDSK+'CONDNO').data())
             self.ssq['ERROR'] = np.interp(self.t_eq, atimes,self.sf.get(self.aEQDSK+'ERROR').data())
@@ -961,7 +975,7 @@ class equ_map:
         line_r = np.empty((len(unique_idx), ntheta, n_line))
         line_z = np.empty((len(unique_idx), ntheta, n_line))
 
-        line_m = 1.4 # line length: 0.9 m
+        line_m = 1.6 # line length: 0.9 m
         t = np.linspace(0, 1, n_line)**.5*line_m
         c, s = np.cos(theta_in), np.sin(theta_in)
 

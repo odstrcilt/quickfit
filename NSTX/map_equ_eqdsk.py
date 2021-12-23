@@ -183,17 +183,14 @@ class equ_map:
 
         self.ssq = {}
 
-        self.ssq['Rmag'] = [self.eqdsk[t]['RMAXIS'] for t in self.times]
-        self.ssq['Zmag'] = [self.eqdsk[t]['ZMAXIS'] for t in self.times]
-        # separatrix = self.sf.get('\\'+self.system+'::TOP.RESULTS.gEQDSK.BDRY').data()
-        Rseparatrix = [self.eqdsk[t]['RBBBS'] for t in self.times]
-        Zseparatrix = [self.eqdsk[t]['ZBBBS'] for t in self.times]
-        self.ssq['Zunt'] = [zs.min() for zs in Zseparatrix]
-        self.ssq['Zoben'] = [zs.max() for zs in Zseparatrix]
+        self.ssq['Rmag'] = np.array([self.eqdsk[t]['RMAXIS'] for t in self.times])
+        self.ssq['Zmag'] = np.array([self.eqdsk[t]['ZMAXIS'] for t in self.times])
+        self.separatrixR = [self.eqdsk[t]['RBBBS'] for t in self.times]
+        self.separatrixZ = [self.eqdsk[t]['ZBBBS'] for t in self.times]
+        self.ssq['Zunt'] = np.array([zs.min() for zs in self.separatrixZ])
+        self.ssq['Zoben'] = np.array([zs.max() for zs in self.separatrixZ])
 
-
-
-
+ 
     def _read_scalars(self):
 
         """
