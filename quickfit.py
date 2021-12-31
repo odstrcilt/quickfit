@@ -317,12 +317,17 @@ class DataFit():
             if self.device == 'NSTX':
       
                 self.MDSconn.openTree('EFIT', self.shot)
+                
+                TDI = r'_y = getnci("\\EFIT::TOP.*.RESULTS","minpath");'
+                TDI+= r'_s = getnci("\\EFIT::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
+                TDI+= r'PACK(_y,_s)'
  
-                efit_names = self.MDSconn.get(r'getnci("\\EFIT::TOP.*.RESULTS","minpath")')
-                lengths = self.MDSconn.get(r'getnci("\\EFIT::TOP.*.RESULTS.GEQDSK:GTIME","length")')
-
+                efit_names = self.MDSconn.get(TDI)
+                if not isinstance(efit_names[0],str):
+                    efit_names = [e.decode() for e in efit_names] 
+ 
                 self.MDSconn.closeTree('EFIT', self.shot)
-                efit_editions = [n.split('.')[1] for n,l in zip(efit_names, lengths) if l > 0]
+                efit_editions = [n.split('.')[1] for n in efit_names]
 
 
          
@@ -1239,6 +1244,7 @@ class DataFit():
 
           
     def Quit(self):
+        print('Quit', self.options['fitted'], self.saved_profiles)
         
         if  self.options['fitted'] and not self.saved_profiles:
             if tkinter.messagebox.askyesno("Fit is ready", "Save fit? "):
