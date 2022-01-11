@@ -298,7 +298,7 @@ class DataFit():
                 #BUG is there a better way how to access all EFITS? 
                 try:
                     self.MDSconn.openTree('MHD', self.shot)
-                    efit_editions = self.MDSconn.get('getnci(".EFIT**.*","path")')
+                    efit_editions = self.MDSconn.get('getnci(".EFIT**.*","path")').data()
                     self.MDSconn.closeTree('MHD', self.shot)
                     assert  len(efit_editions) > 0, 'error efitedit '+ efit_editions
                 except:
@@ -322,7 +322,7 @@ class DataFit():
                 TDI+= r'_s = getnci("\\EFIT::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
                 TDI+= r'PACK(_y,_s)'
  
-                efit_names = self.MDSconn.get(TDI)
+                efit_names = self.MDSconn.get(TDI).data()
                 if not isinstance(efit_names[0],str):
                     efit_names = [e.decode() for e in efit_names] 
  
@@ -1244,7 +1244,7 @@ class DataFit():
 
           
     def Quit(self):
-        print('Quit', self.options['fitted'], self.saved_profiles)
+        #print('Quit', self.options['fitted'], self.saved_profiles)
         
         if  self.options['fitted'] and not self.saved_profiles:
             if tkinter.messagebox.askyesno("Fit is ready", "Save fit? "):

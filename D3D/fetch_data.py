@@ -5301,10 +5301,13 @@ class data_loader:
         ne_correction = ne_lowres-np.unwrap(ne_lowres*(2*np.pi/fringe_jump))*fringe_jump/(2*np.pi)
         ne_correction = interp1d(tvec_lowres, ne_correction,axis=1,kind='nearest',copy=False, fill_value='extrapolate', assume_sorted=True )(co2_time)
         
-        #embed()
         
-        #plot(ne_correction.T,'--')
-        #plot(ne_.T)
+        #plt.plot(ne_[3]-ne_correction[3]/1e6*2-3*fringe_jump-ne_[3,:100].mean(),'--')
+        ##plt.plot(ne_[3])
+        #plt.show()
+        
+        
+
         
         
         n_path = 501
@@ -5358,8 +5361,7 @@ class data_loader:
             last_valid_ind//= downsample
             ne[:,ilos]   = np.mean(ne_[ilos][:len(ne_[ilos])//downsample*downsample].reshape( -1, downsample), -1)
             valid[:last_valid_ind, ilos] = True
-            #print(valid.sum(), name,last_valid_ind )
-            #embed()
+          
             
             #Calculate the error for the signal based on the drift before t=0
             ne_err[:,ilos] = np.median(np.abs(ne[:,ilos][co2_time<0]))+ne[:,ilos]*.05  #guess 5% error
@@ -5574,9 +5576,10 @@ class data_loader:
         valid = CO2['valid'].values
         time_co2 = CO2['time'].values
         
-        ne = CO2['ne'].values*CO2['L_cross'].values 
- 
+        ne = CO2['ne'].values*CO2['L_cross'].values  #m^-2
+        fringe_jump = 1.05e20 #/m^2
 
+        import matplotlib.pylab as plt
         for il, l in enumerate(core_lasers):
             ind = laser_index == l
   
@@ -5584,16 +5587,29 @@ class data_loader:
                 if not np.any(valid[:,ilos]): continue
                 t_ind = (tvec_compare > time_co2[valid[:,ilos]][0]) & (tvec_compare < time_co2[valid[:,ilos]][-1])
                 if not np.any(ind&t_ind): continue
-                ratio = LOS_ne_int[ind&t_ind ,ilos]/np.interp(tvec_compare[ind&t_ind],time_co2[valid[:,ilos]],ne[valid[:,ilos], ilos])
-                laser_correction[il,ilos] = np.median(ratio)
-                laser_correction_err[il,ilos] = ratio.std()/np.sqrt(len(ratio))
+                co2_interp = np.interp(tvec_compare[ind&t_ind],time_co2[:],ne[:, ilos])
+
+                #most likely overlooked fringe jump 
+                valid_ = (abs(co2_interp-LOS_ne_int[ind&t_ind ,ilos]) < fringe_jump/2)&(co2_interp>0)
+                
+                
+                ratio = LOS_ne_int[ind&t_ind ,ilos]/co2_interp
+                #plt.plot(co2_interp[valid_])
+                #plt.plot(LOS_ne_int[ind&t_ind ,ilos][valid_])
+                #plt.show()
+                
+                laser_correction[il,ilos] = np.median(ratio[valid_])
+                laser_correction_err[il,ilos] = ratio[valid_].std()/np.sqrt(np.sum(valid_))
+                
+ 
+                
         
         if not np.all(np.any(np.isfinite(laser_correction),1)):
             printe('CO2 rescaling was unsucessful')
 
             return TS
       
-        mean_laser_correction = np.nanmean(laser_correction,1)
+        mean_laser_correction = np.nanmedian(laser_correction,1)
               
 
         plot = False
@@ -5651,8 +5667,7 @@ class data_loader:
                 del interf_fig
             except:
                 pass
-        
-        
+ 
 
          #correction of laser intensity variation and absolute value
         for sys in ['core', 'tangential']:
@@ -5929,7 +5944,7 @@ def main():
 #210 179389 1.09 1.16
 #330 178820 1.38 1.38
 
-    shot = 183504 #BUG error carbon density 
+    shot = 186473 #BUG error carbon density 
 
 
     #175694  - better match between onaxis ver and tang denisty after rescaling
@@ -6046,7 +6061,7 @@ def main():
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     loader.load_elms(settings)
 
-    data = loader( 'nimp', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
     settings['nimp']= {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
