@@ -548,8 +548,8 @@ class data_loader:
         if 'EQM' not in asym or EQM != asym['EQM']:
             asym['EQM'] = EQM
             
-            rho_grid = np.linspace(0,1,51)[1:]
-            theta_grid = np.linspace(0,np.pi*2,101,endpoint=False)
+            rho_grid = np.linspace(0,1,102)[1:]
+            theta_grid = np.linspace(0,np.pi*2,50,endpoint=False)
             #get flux surfaces 
             T = splines['Mach']['time'].values
             R,Z = self.eqm.rhoTheta2rz(rho_grid,theta_grid,T,coord_in=self.rho_coord, n_line=101)
@@ -563,6 +563,7 @@ class data_loader:
             asym['FSA'] = FSA = xarray.Dataset()
             FSA['dV'] = xarray.DataArray(dV,dims=['time','theta','rho'], attrs={'units':'m^3'})
             FSA['R']  = xarray.DataArray(R,dims=['time','theta','rho'], attrs={'units':'m'})
+            FSA['Z']  = xarray.DataArray(Z,dims=['time','theta','rho'], attrs={'units':'m'})
             FSA['Rlfs'] = xarray.DataArray(R[:,0],dims=['time','rho'], attrs={'units':'m'})
             FSA['rho'] = xarray.DataArray(rho_grid,dims=['rho'], attrs={'units':'-'})
             FSA['theta'] = xarray.DataArray(theta_grid,dims=['theta'], attrs={'units':'rad'})
@@ -587,11 +588,12 @@ class data_loader:
         Aeff = Zeff*A  #effective ion mass estimated from zeff, valid for D+C
         asym_factor_e = 1/(1+Zeff*Te_Ti)* Aeff * mach**2
         asym_factor_c = (1-Zc/Ac* Aeff*Te_Ti/(1+Zeff*Te_Ti))*Ac*mach**2
-        
-        
+
+ 
         valid = np.isfinite(asym_factor_c)
 
-        rho_grid = self.eqm.rz2rho(Rgrid,Rgrid*0,spline_T,self.rho_coord)
+        rho_grid   = self.eqm.rz2rho(Rgrid,Rgrid*0,spline_T,self.rho_coord)
+        spline_rho = self.eqm.rz2rho(spline_R,spline_R*0,spline_T,self.rho_coord)
 
         
         ne0_ne = np.zeros((len(spline_T), len(Rgrid)),dtype='single')
@@ -605,7 +607,7 @@ class data_loader:
             imin = np.argmin(rho_grid[it])
             
             #use only LFS CHERS data, HFS are often too poor
-            valid[it] &= spline_R > spline_R[imin]
+            valid[it] &= spline_R > Rgrid[imin]
                         
             #LFS R for each radial location 
             Rlfs_grid = np.interp(rho_grid[it], rho_grid[it,imin:], Rgrid[imin:]+dR)
@@ -617,23 +619,26 @@ class data_loader:
 
             dR2 = (Rgrid/Rlfs_grid)**2-1
             
-            #ratio between LFS and loal density
+            #ratio between LFS and local density
             ne0_ne[it] = np.exp(-asym_factor_e_*dR2)
             nc0_nc[it] = np.exp(-asym_factor_c_*dR2)
+            
             
                         
             i_eq = np.argmin(np.abs(spline_T[it]-FSA['time'].values))
             #interpolate asymmetry factors on the LFS radial grid
             R = FSA['R'].values[i_eq]
             Rlfs = FSA['Rlfs'].values[i_eq]
+            rho = FSA['rho'].values
 
-            asym_factor_e_ = np.interp(R, spline_R[valid[it]], asym_factor_e[it][valid[it]])
-            asym_factor_c_ = np.interp(R, spline_R[valid[it]], asym_factor_c[it][valid[it]])
+            asym_factor_e_ = np.interp(rho, spline_rho[it,valid[it]], asym_factor_e[it,valid[it]])
+            #plt.plot( spline_rho[it,valid[it]], asym_factor_e[it,valid[it]] )
+            asym_factor_c_ = np.interp(rho, spline_rho[it,valid[it]], asym_factor_c[it,valid[it]])
             
             dR2 = (R/Rlfs)**2-1
 
-            neR_ne0 = np.exp(asym_factor_e_*dR2)
-            ncR_nc0 = np.exp(asym_factor_c_*dR2)
+            neR_ne0 = np.exp(asym_factor_e_[None]*dR2)
+            ncR_nc0 = np.exp(asym_factor_c_[None]*dR2)
             
             #calculate flux surface average
             dV = FSA['dV'].values[i_eq]
@@ -646,8 +651,7 @@ class data_loader:
             #ratio between FSa and local density
             nefsa_ne[it] = np.interp(Rlfs_grid, Rlfs, nefsa_ne0)*ne0_ne[it]
             ncfsa_nc[it] = np.interp(Rlfs_grid, Rlfs, ncfsa_nc0)*nc0_nc[it]
-     
-        #embed()
+  
         asym['correction'] = corr = xarray.Dataset()
         corr['ne0_ne'] = xarray.DataArray(ne0_ne,dims=['time','Rgrid'], attrs={'units':'-'})
         corr['nc0_nc'] = xarray.DataArray(nc0_nc,dims=['time','Rgrid'], attrs={'units':'-'})
