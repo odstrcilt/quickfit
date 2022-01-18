@@ -577,7 +577,7 @@ class data_loader:
         Rgrid = np.linspace(sepR.min(),sepR.max(),100)
 
     
-        mach = splines['Mach']['Mach'].values/sqrt(2) #hydrogen Mach number 
+        mach = splines['Mach']['Mach'].values/np.sqrt(2) #hydrogen Mach number 
         Te_Ti = splines['Te/Ti']['Te/Ti'].values
         Zeff = splines['Zeff']['Zeff'].values
         spline_R = splines['Mach']['R'].values
