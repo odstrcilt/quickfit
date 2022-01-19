@@ -605,6 +605,9 @@ class FitPlot():
             #print("No data to fit, let's try to load them first...")
             self.parent.init_data()
             
+            if self.m2g is None:
+                raise Exception('Loading of data failed!')
+            
             
         if self.elms['signal'] != self.fit_options['elm_signal'].get():
             print('Load new ELM signal '+self.fit_options['elm_signal'].get())
@@ -932,7 +935,6 @@ class FitPlot():
         if show_splines and prof in self.parent.splines:
             splines = self.parent.splines[prof]
             
-            #if plot_type in [1,2]
             y = splines['time'].values
             x = splines['rho'].values
             z = splines[prof].values 
@@ -955,17 +957,10 @@ class FitPlot():
 
             if np.ndim(x) == 2:
                 x = x[i]
-                #x = interp1d(y,x,axis=0,bounds_error=False, 
-                            #copy=False, assume_sorted=True,kind='nearest')(y0)            
-            #embed()
+
             z = z[i]
             ze = ze[i]
-            #z = interp1d(y, z,axis=0,bounds_error=False, 
-                                #copy=False, assume_sorted=True,kind='nearest')(y0)
-            
-            #ze = interp1d(y,ze,axis=0,bounds_error=False, 
-                            #copy=False, assume_sorted=True,kind='nearest')(y0)
-            
+
 
             if plot_type in [2]:
                 #BUG!!!!

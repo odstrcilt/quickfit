@@ -18,6 +18,16 @@ from IPython import embed
 import matplotlib.pylab as plt
 import warnings
 
+try: 
+    #preferably use OMFITprofiles class from OMFIT, data will be stored as CDF files
+    from omfit_classes.omfit_profiles import OMFITprofiles
+    Dataset = OMFITprofiles
+except:
+    #ignore file argument
+    def Dataset(file,*args, **kwargs):
+        return xarray.Dataset(*args, **kwargs)
+   
+
 def print_line(string):
     sys.stdout.write(string)
     sys.stdout.flush()
@@ -377,7 +387,7 @@ class data_loader:
                 VB_Zeff = VB_Zeff[ind]
                 VB_tvec = VB_tvec[ind]
 
-                Zeff['VB'] = VB = xarray.Dataset(attrs={'system':'VB'})
+                Zeff['VB'] = VB = Dataset('Zeff_VB', attrs={'system':'VB'})
                 VB['Zeff'] = xarray.DataArray(VB_Zeff,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
                 VB['Zeff_err'] = xarray.DataArray(VB_Zeff*.1,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
                 #location is just a guess
@@ -492,14 +502,14 @@ class data_loader:
         
         self.RAW['SPLINES'] = splines = {}
         
-        splines['Te'] = splines['ne'] = ds = xarray.Dataset( )
+        splines['Te'] = splines['ne'] = ds = Dataset('spline_TS')
         ds['ne'] = xarray.DataArray(TS_ne.T, dims=['time','R'])
         ds['Te'] = xarray.DataArray(TS_Te.T, dims=['time','R'])
         ds['Z']  = xarray.DataArray(TS_R*0, dims=['R'])
         ds['R']  = xarray.DataArray(TS_R, dims=['R'])
         ds['time'] = xarray.DataArray(TS_T, dims=['time'])
  
-        ds = xarray.Dataset( )
+        ds = Dataset('spline_CHERS') 
         splines['Zeff'] = splines['Mach'] = splines['Ti'] = splines['nC6']  = splines['Te/Ti'] = splines['omega'] = ds
         ds['Ti'] = xarray.DataArray(Ti, dims=['time','R'])
         ds['Zeff'] = xarray.DataArray(Zeff, dims=['time','R'])
@@ -560,7 +570,7 @@ class data_loader:
             
             dV = 2*np.pi*R*np.linalg.det(dRdZ).T
            
-            asym['FSA'] = FSA = xarray.Dataset()
+            asym['FSA'] = FSA = Dataset('FSA')
             FSA['dV'] = xarray.DataArray(dV,dims=['time','theta','rho'], attrs={'units':'m^3'})
             FSA['R']  = xarray.DataArray(R,dims=['time','theta','rho'], attrs={'units':'m'})
             FSA['Z']  = xarray.DataArray(Z,dims=['time','theta','rho'], attrs={'units':'m'})
@@ -652,7 +662,7 @@ class data_loader:
             nefsa_ne[it] = np.interp(Rlfs_grid, Rlfs, nefsa_ne0)*ne0_ne[it]
             ncfsa_nc[it] = np.interp(Rlfs_grid, Rlfs, ncfsa_nc0)*nc0_nc[it]
   
-        asym['correction'] = corr = xarray.Dataset()
+        asym['correction'] = corr = Dataset('asym_correction')
         corr['ne0_ne'] = xarray.DataArray(ne0_ne,dims=['time','Rgrid'], attrs={'units':'-'})
         corr['nc0_nc'] = xarray.DataArray(nc0_nc,dims=['time','Rgrid'], attrs={'units':'-'})
         corr['nefsa_ne'] = xarray.DataArray(nefsa_ne,dims=['time','Rgrid'], attrs={'units':'-'})
@@ -774,7 +784,7 @@ class data_loader:
 
         for sys in systems:
             cer['diag_names'][sys]=['CHERS']            
-            cer[sys] = xarray.Dataset(attrs={'system':sys, 'cf_correction': cf_correction})
+            cer[sys] = Dataset('CHERS_'+sys,attrs={ 'system':sys, 'cf_correction': cf_correction})
             cer[sys]['Ti'] = xarray.DataArray(Ti*data['Ti']['scale'],dims=['time','channel'], attrs={'units':'eV','label':'T_i'})
             cer[sys]['Ti_err'] = xarray.DataArray(Tierr*data['Ti']['scale'],dims=['time','channel'] )
             cer[sys]['omega'] = xarray.DataArray(omega*data['omega']['scale'],dims=['time','channel'], attrs={'units':'rad/s','label':r'\omega_\phi'})
@@ -890,7 +900,7 @@ class data_loader:
             ind = index[sys]
             ts['diag_names'][sys]=['TS:'+sys]
 
-            ts[sys] = xarray.Dataset(attrs={'system':sys, 'cf_correction': cf_correction})
+            ts[sys] = Dataset( 'TS:'+sys ,attrs={'system':sys, 'cf_correction': cf_correction})
             ts[sys]['ne'] = xarray.DataArray(ne[ind].T,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
             ts[sys]['ne_err'] = xarray.DataArray(ne_err[ind].T,dims=['time','channel'], attrs={'units':'m^{-3}'})
             ts[sys]['Te'] = xarray.DataArray(Te[ind].T,dims=['time','channel'], attrs={'units':'eV','label':'T_e'})

@@ -21,6 +21,16 @@ from scipy.stats import trim_mean
 from scipy.integrate import cumtrapz
 import matplotlib.pylab as plt
 import warnings
+
+try: 
+    #preferably use OMFITprofiles class from OMFIT, data will be stored as CDF files
+    from omfit_classes.omfit_profiles import OMFITprofiles
+    Dataset = OMFITprofiles
+except:
+    #ignore file argument
+    def Dataset(file,*args, **kwargs):
+        return xarray.Dataset(*args, **kwargs)
+   
 #warnings.simplefilter(action='ignore', category=FutureWarning)
 #Note about output errorbars:
 #positive finite - OK
@@ -1098,21 +1108,22 @@ class data_loader:
 
                 path = '::TOP.PROFILE_FITS.ZIPFIT.'
                 self.MDSconn.openTree(tree, self.shot)
-                ds = xarray.Dataset( )
-                ds['data'] = xarray.DataArray(self.MDSconn.get('_x=\\'+tree+path+node+'FIT').data()*scale_fact, dims=['time','rho'])
+                ds = Dataset('zipfit_'+prof)
+                ds[prof] = xarray.DataArray(self.MDSconn.get('_x=\\'+tree+path+node+'FIT').data()*scale_fact, dims=['time','rho'])
                 ds['rho']  = xarray.DataArray(self.MDSconn.get('dim_of(_x,0)').data(), dims=['rho'])
                 ds['time'] = xarray.DataArray(self.MDSconn.get('dim_of(_x,1)').data()/1000, dims=['time'])
 
                 try:
-                    ds['err'] = xarray.DataArray(abs(self.MDSconn.get('error_of(_x)').data())*scale_fact, dims=['time','rho'])
+                    ds[prof+'_err'] = xarray.DataArray(abs(self.MDSconn.get('error_of(_x)').data())*scale_fact, dims=['time','rho'])
                 except:
-                    ds['err'] = 0*ds['data'] #old shots
+                    pass
+                    #ds[prof+'_err'] = 0*ds['data'] #old shots
 
                 #remap to a new coordinate
                 if self.rho_coord != 'rho_tor':
                     rhot = ds['rho'].values
-                    data = ds['data'].values
-                    err = ds['err'].values
+                    data = ds[prof].values
+                    err = ds[prof+'_err'].values
                     rho = self.eqm.rho2rho(rhot, t_in=ds['time'].values,coord_in='rho_tor', coord_out=self.rho_coord)
                     for it,t in enumerate(ds['time'].values):
                         data[it] = np.interp(rhot, rho[it], data[it])
@@ -1128,7 +1139,8 @@ class data_loader:
         
             
         if 'nimp' in zipfit:
-            zipfit['nC6'] = zipfit['nimp'] 
+            zipfit['nC6'] = zipfit.pop('nimp')
+            zipfit['nC6']['nC6'] = zipfit['nC6']['nimp']
         
 
         try:
@@ -1141,14 +1153,14 @@ class data_loader:
             Rho,Tvec = np.meshgrid(rho,tvec)
             R = self.eqm.rhoTheta2rz(Rho,0, t_in=tvec,coord_in=self.rho_coord)[0][:,0]
             
-            vtor = zipfit['omega']['data'][ind_omg].values*R
-            vtor_err = zipfit['omega']['err'][ind_omg].values*R
-            ti = zipfit['Ti']['data'][ind_ti].values
-            ti_err = zipfit['Ti']['err'][ind_ti].values
+            vtor = zipfit['omega']['omega'][ind_omg].values*R
+            vtor_err = zipfit['omega']['omega_err'][ind_omg].values*R
+            ti = zipfit['Ti']['Ti'][ind_ti].values
+            ti_err = zipfit['Ti']['Ti_err'][ind_ti].values
             ti[ti<=0] = 1 #avoid zero division
-            zipfit['Mach'] = xarray.Dataset( )
-            zipfit['Mach']['data'] = xarray.DataArray(np.sqrt(2*m_u/e*vtor**2/(2*ti)), dims=['time','rho'])
-            zipfit['Mach']['err'] = xarray.DataArray(zipfit['Mach']['data'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','rho'])
+            zipfit['Mach'] = Dataset('zipfit_mach' )
+            zipfit['Mach']['Mach'] = xarray.DataArray(np.sqrt(2*m_u/e*vtor**2/(2*ti)), dims=['time','rho'])
+            zipfit['Mach']['Mach_err'] = xarray.DataArray(zipfit['Mach']['Mach'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','rho'])
             zipfit['Mach']['rho']  = xarray.DataArray(rho, dims=['rho'])
             zipfit['Mach']['time'] = xarray.DataArray(np.array(tvec), dims=['time'])
         except:
@@ -1159,18 +1171,18 @@ class data_loader:
             tvec = zipfit['Ti']['time'].values
             ind_t = (tvec >= zipfit['Te']['time'].values[0])&(tvec<= zipfit['Te']['time'].values[-1])
             #rho is the same for  both zipfits
-            Te     = interp1d(zipfit['Te']['time'].values,zipfit['Te']['data'].values,axis=0,
+            Te     = interp1d(zipfit['Te']['time'].values,zipfit['Te']['Te'].values,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
-            Te_err = interp1d(zipfit['Te']['time'].values,zipfit['Te']['err'].values ,axis=0,
+            Te_err = interp1d(zipfit['Te']['time'].values,zipfit['Te']['Te_err'].values ,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
-            Ti     = np.maximum(zipfit['Ti']['data'].values[ind_t],.1) #prevent zero division
+            Ti     = np.maximum(zipfit['Ti']['Ti'].values[ind_t],.1) #prevent zero division
             Te     = np.maximum(Te,1e-2) #prevent zero division
 
-            Ti_err = zipfit['Ti']['err'].values[ind_t]
+            Ti_err = zipfit['Ti']['Ti_err'].values[ind_t]
             
-            zipfit['Te/Ti'] = xarray.Dataset( )
-            zipfit['Te/Ti']['data'] = xarray.DataArray(Te/Ti, dims=['time','rho'])
-            zipfit['Te/Ti']['err'] = xarray.DataArray(Te/Ti*np.hypot(Ti_err/Ti,Te_err/Te), dims=['time','rho'])
+            zipfit['Te/Ti'] = Dataset('zipfit_Te_Ti')
+            zipfit['Te/Ti']['Te/Ti'] = xarray.DataArray(Te/Ti, dims=['time','rho'])
+            zipfit['Te/Ti']['Te/Ti_err'] = xarray.DataArray(Te/Ti*np.hypot(Ti_err/Ti,Te_err/Te), dims=['time','rho'])
             zipfit['Te/Ti']['rho']  = xarray.DataArray(zipfit['Ti']['rho'].values, dims=['rho'])
             zipfit['Te/Ti']['time'] = xarray.DataArray(tvec[ind_t], dims=['time'])
             
@@ -1181,12 +1193,12 @@ class data_loader:
             tvec = zipfit['nimp']['time'].values
             ind_t = (tvec >= zipfit['ne']['time'].values[0])&(tvec<= zipfit['ne']['time'].values[-1])
             #rho is the same for  both zipfits
-            ne     = interp1d(zipfit['ne']['time'].values,zipfit['ne']['data'].values,axis=0,
+            ne     = interp1d(zipfit['ne']['time'].values,zipfit['ne']['ne'].values,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
-            ne_err = interp1d(zipfit['ne']['time'].values,zipfit['ne']['err'].values ,axis=0,
+            ne_err = interp1d(zipfit['ne']['time'].values,zipfit['ne']['ne_err'].values ,axis=0,
                                 assume_sorted=True,copy=False)(tvec[ind_t])
-            nimp     =  zipfit['nimp']['data'].values[ind_t] 
-            nimp_err = zipfit['nimp']['err'].values[ind_t]
+            nimp     =  zipfit['nimp']['nimp'].values[ind_t] 
+            nimp_err = zipfit['nimp']['nimp_err'].values[ind_t]
             
             ne     = np.maximum(ne,1) #prevent zero division
             nimp   = np.maximum(nimp,1) #prevent zero division
@@ -1196,9 +1208,9 @@ class data_loader:
             Zmain = 1
             #Rtan is ~0.6m
             
-            zipfit['Zeff'] = xarray.Dataset( )
-            zipfit['Zeff']['data'] = xarray.DataArray(Zimp*(Zimp - Zmain)*nimp/ne + Zmain, dims=['time','rho'])
-            zipfit['Zeff']['err'] = xarray.DataArray((zipfit['Zeff']['data'].values - Zmain)*np.hypot(ne_err/ne,nimp_err/nimp), dims=['time','rho'])
+            zipfit['Zeff'] = Dataset('zipfit_Zeff' )
+            zipfit['Zeff']['Zeff'] = xarray.DataArray(Zimp*(Zimp - Zmain)*nimp/ne + Zmain, dims=['time','rho'])
+            zipfit['Zeff']['Zeff_err'] = xarray.DataArray((zipfit['Zeff']['Zeff'].values - Zmain)*np.hypot(ne_err/ne,nimp_err/nimp), dims=['time','rho'])
             zipfit['Zeff']['rho']  = xarray.DataArray(zipfit['nimp']['rho'].values, dims=['rho']) #rho toroidal
             zipfit['Zeff']['time'] = xarray.DataArray(tvec[ind_t], dims=['time'])
             
@@ -2052,7 +2064,7 @@ class data_loader:
                 beam_intervals[bname].append((tvec[ich][beam_ind],stime[ich][beam_ind]))  
                 G = beam_geom[ich, observed_beams]
                 
-                ds = xarray.Dataset(attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
+                ds = Dataset('CER_'+str(ID), attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
                                         'beam_geom':G,'Z':charge})
 
                 #fill by zeros for now, 
@@ -3230,7 +3242,7 @@ class data_loader:
           
         ##update uncorrected data
         diag_names = sum([nimp['diag_names'][diag] for diag in nimp['systems'] if diag in nimp['diag_names']],[])
-        impurities = np.hstack([[ch['nimp'].attrs['impurity'] for ch in nimp[s] if ch.system == s] for s in nimp['systems']])
+        impurities = np.hstack([[ch['nimp'].attrs['impurity'] for ch in nimp[s] if ch.attrs['system'] == s] for s in nimp['systems']])
         unique_impurities = np.unique(impurities)
         T = time()
         all_channels = [ch for s in nimp['systems'] for ch in nimp[s]]
@@ -3634,7 +3646,7 @@ class data_loader:
                 VB_err[~valid[imin:]] *= -1 #posibly invalid, can be enabled in the GUI
 
                 
-                zeff[VB_array] = xarray.Dataset(attrs={'system':VB_array,'wavelength': 5230.0})
+                zeff[VB_array] = Dataset('ZeffVB',attrs={'system':VB_array,'wavelength': 5230.0})
 
                 zeff[VB_array]['VB'] = xarray.DataArray(VB,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
                 zeff[VB_array]['VB_err'] = xarray.DataArray(VB_err,dims=['time','channel'], attrs={'units':'W/cm**2/A'})
@@ -3783,7 +3795,7 @@ class data_loader:
                     
                     convert = h * c/(lam*1.e-10) * (4. * np.pi) * 1e-4 * (lam/lambda0)**2
                     ind = slice(*tvec.searchsorted([tbeg,tend]))
-                    ds = zeff[cer_subsys[diag]] = xarray.Dataset(attrs={'system':'CER VB','wavelength': lambda0})
+                    ds = zeff[cer_subsys[diag]] = Dataset('ZeffCER', attrs={'system':'CER VB','wavelength': lambda0})
                     ds['VB'] = xarray.DataArray(VB[ind]*convert,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
                     ds['VB_err'] = xarray.DataArray(VB_err[ind]*convert,dims=['time','channel']) 
                     ds['R_start'] = xarray.DataArray(R1, dims=['channel'], attrs={'units':'m'})
@@ -4114,7 +4126,7 @@ class data_loader:
                 Zeff_err = Zeff*np.sqrt(Zeff2_err/Zeff**2+(ne_err/ne)**2)
 
                 #create dataset
-                ds = xarray.Dataset(attrs={'system':'SPRED', 'channel':channel})
+                ds = Dataset('Zeff_SPRED', attrs={'system':'SPRED', 'channel':channel})
 
                 ds['R'] = xarray.DataArray(R, dims=['time'], attrs={'units':'m'})
                 ds['Z'] = xarray.DataArray(Z ,dims=['time'], attrs={'units':'m'})
@@ -4512,7 +4524,7 @@ class data_loader:
             if not name in cer['diag_names'][diag]:
                 cer['diag_names'][diag].append(name)
                 
-            ds = xarray.Dataset(attrs={'channel':name[0]+ch[-2:],'imp':element+str(charge)})
+            ds = Dataset(name[0]+ch[-2:], attrs={'channel':name[0]+ch[-2:],'imp':element+str(charge)})
             ds['R'] = xarray.DataArray(R[tind], dims=['time'], attrs={'units':'m'})
             ds['Z'] = xarray.DataArray(Z[tind], dims=['time'], attrs={'units':'m'})
             ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
@@ -4837,7 +4849,7 @@ class data_loader:
             
             rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
          
-            ts[sys] = xarray.Dataset(attrs={'system':sys})
+            ts[sys] = Dataset('TS'+sys,attrs={'system':sys})
             ts[sys]['ne'] = xarray.DataArray(ne[isys].T,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
             ts[sys]['ne_err'] = xarray.DataArray(ne_err[isys].T,dims=['time','channel'], attrs={'units':'m^{-3}'})
             ts[sys]['Te'] = xarray.DataArray(Te[isys].T,dims=['time','channel'], attrs={'units':'eV','label':'T_e'})
@@ -4961,7 +4973,7 @@ class data_loader:
             refl[band] = {}
 
             refl['diag_names'][band] = ['REFL:'+band+'BAND']
-            refl[band] = xarray.Dataset(attrs={'band':band})
+            refl[band] = Dataset('REFL_'+band,  attrs={'band':band})
 
             refl[band]['ne'] = xarray.DataArray(ne,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
              #just guess! of 10% errors!!
@@ -4999,7 +5011,7 @@ class data_loader:
         self.RAW['ECE'].setdefault(rate,{})
 
         
-        self.RAW['ECE'][rate].setdefault('ECE',xarray.Dataset(attrs={'system':rate } ))
+        self.RAW['ECE'][rate].setdefault('ECE',Dataset('ECE', attrs={'system':rate } ))
 
         ece = self.RAW['ECE'][rate]['ECE']
         self.RAW['ECE'][rate]['diag_names'] = {'ECE':['ECE']}
@@ -5408,7 +5420,7 @@ class data_loader:
         ne_err[ne < 0]  = np.infty
  
 
-        CO2['CO2'] = xarray.Dataset()
+        CO2['CO2'] = Dataset('CO2interfer')
         CO2['CO2']['channel'] = xarray.DataArray( los_names ,dims=['channel'])
         CO2['CO2']['path'] = xarray.DataArray( t ,dims=['path'])
         CO2['CO2']['time'] = xarray.DataArray( co2_time ,dims=['time'], attrs={'units':'s'})

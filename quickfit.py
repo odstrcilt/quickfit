@@ -94,11 +94,10 @@ class DataFit():
     options = {'eta':.5, 'lam':.5}
 
     kinprof_ind = None
-    elmstime=False
-    elmsphase=False
+
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
-                 raw_data={},settings=OrderedDict(),coordinate='rho_tor'):
+                 raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False):
         
         print('Accesing data from %s tokamak'%device)
         
@@ -115,6 +114,9 @@ class DataFit():
         self.raw_data = raw_data
         #dict or OMFITtree from OMFIT
         self.default_settings = deepcopy(settings)
+        
+        self.elmstime = elmstime
+        self.elmsphase = elmsphase
         
         if device == 'DIII-D': self.device = 'D3D'
         if self.device == 'D3D':
@@ -1132,6 +1134,10 @@ class DataFit():
                             printe(('Error in saving',system,name,var,  options  ))
                             
         settings['EFIT'] = self.eqm.diag
+        settings['elmsphase'] = self.elmsphase
+        settings['elmstime'] = self.elmstime
+
+        
         if len(data):
             self.OMFITsave.runNoGUI(shot=self.shot, fitted_profiles=data, setting=settings) 
             self.saved_profiles = True
@@ -1326,7 +1332,9 @@ def main():
     
     
     myroot = tk.Tk(className=' Profiles')
-    mlp = DataFit(myroot, mdsserver,shot=args.shot,raw_data = raw,device=args.device,coordinate= args.map_coordinate)
+    mlp = DataFit(myroot, mdsserver,shot=args.shot,raw_data = raw,
+                  elmsphase=args.elmsphase, elmstime=args.elmstime, 
+                  device=args.device,coordinate= args.map_coordinate)
     myroot.title('QUICKFIT')
     myroot.minsize(width=950, height=800)
     imgicon = tk.PhotoImage(file=icon_dir+'icon.gif',master=myroot)
