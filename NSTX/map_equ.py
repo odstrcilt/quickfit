@@ -253,7 +253,7 @@ class equ_map:
         from scipy.constants import mu_0
 
 
-        PSIN = self.sf.get(self.gEQDSK+'PSIN').data()
+        self.PSIN = self.sf.get(self.gEQDSK+'PSIN').data()
  
         ##try:
             ##V0  = self.sf.get('\\'+self.system+'::TOP.RESULTS.aEQDSK.VOLUME').data()[self.valid,None]  
@@ -263,7 +263,7 @@ class equ_map:
         #import IPython 
         #IPython.embed()
 # Profiles
-        self.pf = np.outer(np.max(PSIN,0),(self.psix-self.psi0))+self.psi0
+        self.pf = np.outer(np.max(self.PSIN,0),(self.psix-self.psi0))+self.psi0
         q   = self.sf.get(self.gEQDSK+'QPSI').data()#[self.valid].T
         vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()**2 #BUG it is wrong!!!
         fpol  = self.sf.get(self.gEQDSK+'FPOL').data()/mu_0*2*np.pi

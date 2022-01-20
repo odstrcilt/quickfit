@@ -72,6 +72,8 @@ class map2grid():
         self.Yerr.mask = (Yerr<=0) |~np.isfinite(Yerr) | self.Yerr.mask 
 
         self.valid   =  np.isfinite(self.Yerr.data)
+        
+ 
         valid_p =  self.valid[P.flat] & (W.flat != 0)&(R.ravel() < self.r_max)
         self.n_points = np.sum(self.valid)  #BUG 
         
