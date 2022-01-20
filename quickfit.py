@@ -433,7 +433,7 @@ class DataFit():
             except:
                 #print(self.shot, efit, self.device)
                 #raise
-                tkinter.messagebox.showerror('Loading problems',efit+' could not be loaded, try another edition')
+                tkinter.messagebox.showerror('Loading problems','EFIT '+efit+' could not be loaded, try another edition')
                 return False
             
         self.efit_description.config(text=getattr(self.eqm, 'comment', '')[:50])
@@ -1136,6 +1136,11 @@ class DataFit():
         settings['EFIT'] = self.eqm.diag
         settings['elmsphase'] = self.elmsphase
         settings['elmstime'] = self.elmstime
+        
+        
+        data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], coord_out='Psi_N')
+        data['PsiN_time'] = self.eqm.t_eq
+
 
         
         if len(data):

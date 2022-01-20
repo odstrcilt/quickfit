@@ -23,9 +23,9 @@ import matplotlib.pylab as plt
 import warnings
 
 try: 
-    #preferably use OMFITprofiles class from OMFIT, data will be stored as CDF files
-    from omfit_classes.omfit_profiles import OMFITprofiles
-    Dataset = OMFITprofiles
+    #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
+    from omfit_classes.omfit_data import OMFITncDataset
+    Dataset = OMFITncDataset
 except:
     #ignore file argument
     def Dataset(file,*args, **kwargs):

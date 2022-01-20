@@ -276,9 +276,9 @@ class equ_map:
             time
         rho_in : float, ndarray
             radial coordinates, 1D (time constant) or 2D+ (time variable) of size (nt,nx,...)
-        coord_in:  str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a']
+        coord_in:  str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a','Psi_N']
             input coordinate label
-        coord_out: str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a']
+        coord_out: str ['rho_pol', 'rho_tor' ,'rho_V', 'r_V', 'Psi','r_a','Psi_N']
             output coordinate label
         extrapolate: bool
             extrapolate rho_tor, r_V outside the separatrix
@@ -304,43 +304,43 @@ class equ_map:
 
         if rho.ndim == 1:
             rho = np.tile(rho, (nt_in, 1))
-
+            
 # Trivial case
-        if coord_out == coord_in:
+        if coord_out == coord_in: 
             return rho
 
         self._read_scalars()
         self._read_profiles()
-
+        
         unique_idx, idx =  self._get_nearest_index(tarr)
 
-
-        if coord_in in ['rho_pol', 'Psi']:
+            
+        if coord_in in ['rho_pol', 'Psi','Psi_N']:
             label_in = self.pf
         elif coord_in == 'rho_tor':
             label_in = self.tf
         elif coord_in in ['rho_V','r_V']:
             label_in = self.vol
             R0 = self.ssq['Rmag']
-        elif coord_in == 'r_a':
+        elif coord_in in ['r_a','RMNMP']:
             R, _ = self.rhoTheta2rz(self.pf.T, [0, np.pi], coord_in='Psi')
-            label_in = (R[:, 0] - R[:, 1]).T**2
+            label_in = (R[:, 0] - R[:, 1]).T**2/4
         else:
             raise Exception('unsupported input coordinate')
 
 
-        if coord_out in ['rho_pol', 'Psi']:
+        if coord_out in ['rho_pol', 'Psi','Psi_N']:
             label_out = self.pf
         elif coord_out == 'rho_tor':
             label_out = self.tf
         elif coord_out in ['rho_V','r_V']:
             label_out = self.vol
             R0 = self.ssq['Rmag']
-        elif coord_out == 'r_a':
+        elif coord_out in ['r_a','RMNMP']:
             R, _ = self.rhoTheta2rz(self.pf.T[unique_idx], [0, np.pi],
                                 t_in=self.t_eq[unique_idx],coord_in='Psi')
             label_out = np.zeros_like(self.pf)
-            label_out[:,unique_idx] = (R[:, 0] - R[:, 1]).T**2
+            label_out[:,unique_idx] = (R[:, 0] - R[:, 1]).T**2/4
         else:
             raise Exception('unsupported output coordinate')
 
@@ -348,22 +348,23 @@ class equ_map:
         PSIX = self.orientation*self.psix
         PSI0 = self.orientation*self.psi0
 
-        rho_output = np.ones_like(rho)*np.nan
+        rho_output = np.ones_like(rho)#*np.nan
 
-
+   
         for i in unique_idx:
-
-# Calculate a normalized input and output flux
+  
+# Calculate a normalized input and output flux 
             sort_wh = np.argsort(PFL[:, i])
             #get rid of the point out of the separatrix
             ind = (label_out[sort_wh, i] != 0) & (label_in[sort_wh, i] != 0)
             ind[0] = True
-            sort_wh = sort_wh[ind]
+            sort_wh = sort_wh[ind]        
 
             sep_out, mag_out = np.interp([PSIX[i], PSI0[i]], PFL[sort_wh,i], label_out[sort_wh,i])
             sep_in , mag_in  = np.interp([PSIX[i], PSI0[i]], PFL[sort_wh,i], label_in[sort_wh,i])
 
             if (abs(sep_out - mag_out) < 1e-4) or (abs(sep_in - mag_in) < 1e-4) or np.isnan(sep_in*sep_out): #corrupted timepoint
+                #print 'corrupted'
                 continue
 
 # Normalize between 0 and 1
@@ -375,11 +376,11 @@ class equ_map:
 
             rho_out = np.r_[np.sqrt(rho_out), 1]
             rho_in  = np.r_[np.sqrt(rho_in ), 1]
-
+            
 
             ind = (rho_out==0) | (rho_in==0)
             rho_out, rho_in = rho_out[~ind], rho_in[~ind]
-
+            
 # Profiles can be noisy!  smooth spline must be used
             sortind = np.unique(rho_in, return_index=True)[1]
             w = np.ones_like(sortind)*rho_in[sortind]
@@ -387,25 +388,35 @@ class equ_map:
             ratio = rho_out[sortind]/rho_in[sortind]
             rho_in = np.r_[0, rho_in[sortind]]
             ratio = np.r_[ratio[0], ratio]
+            
 
-
-            s = UnivariateSpline(rho_in, ratio, w=w, k=4, s=5e-3,ext=3)  #BUG s = 5e-3 can be sometimes too much, sometimes not enought :(
-
+            s = UnivariateSpline(rho_in, ratio, w=w, k=4, s=5e-3,ext=3)  #BUG s = 5e-3 can be sometimes too much, sometimes not enought :( 
+            
 
 
             jt = idx == i
+            #print  np.where(jt)[0]
+            #if 826 in np.where(jt)[0]:
+                #import IPython 
+                #IPython.embed()
 
             rho_ = np.copy(rho[jt])
 
-            r0_in = 1
+            r0_in,r0_out = 1,1
             if coord_in == 'r_V' :
                 r0_in  = np.sqrt(sep_in/ (2*np.pi**2*R0[i]))
-            r0_out = 1
             if coord_out == 'r_V' :
+                embed()
                 r0_out = np.sqrt(sep_out/(2*np.pi**2*R0[i]))
-
+            if coord_in == 'RMNMP' :
+                r0_in  = np.sqrt(sep_in)
+            if coord_out == 'RMNMP' :
+                r0_out = np.sqrt(sep_out)                
             if coord_in == 'Psi' :
                 rho_  = np.sqrt(np.maximum(0, (rho_ - self.psi0[i])/(self.psix[i] - self.psi0[i])))
+            if coord_in == 'Psi_N' :
+                rho_  = np.sqrt(np.maximum(0, rho_ ))
+                
 
 # Evaluate spline
 
@@ -413,7 +424,7 @@ class equ_map:
 
             if np.any(np.isnan(rho_output[jt])):  # UnivariateSpline failed
                 rho_output[jt] = np.interp(rho_/r0_in, rho_in, ratio)*rho_*r0_out/r0_in
-
+                
             if not extrapolate:
                 rho_output[jt] = np.minimum(rho_output[jt],r0_out) # rounding errors
 
@@ -421,8 +432,10 @@ class equ_map:
 
             if coord_out  == 'Psi':
                 rho_output[jt]  = rho_output[jt]**2*(self.psix[i] - self.psi0[i]) + self.psi0[i]
+            if coord_in == 'Psi_N' :
+                rho_output[jt]  = rho_output[jt]**2 
 
-
+        
         return rho_output
 
 
