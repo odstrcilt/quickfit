@@ -1139,7 +1139,7 @@ class DataFit():
         
         
         data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
-                                          coord_out='Psi_N',extrapolate=False)
+                                          coord_out='Psi_N',extrapolate=True)
         data['PsiN_time'] = self.eqm.t_eq
 
 
@@ -1153,7 +1153,8 @@ class DataFit():
         #save everything as UFILES
         if not self.options['fitted']:
             return
-        
+ 
+                
         path = os.path.expanduser( self.output_path.get().strip())+os.sep
         
         if not os.path.isdir(path):

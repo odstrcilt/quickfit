@@ -439,14 +439,14 @@ class equ_map:
                 continue
 
 # Normalize between 0 and 1
-            rho_out = (label_out[sort_wh,i] - mag_out)/(sep_out - mag_out)
-            rho_in  = (label_in [sort_wh,i] - mag_in )/(sep_in  - mag_in )
+            Psi_out = (label_out[sort_wh,i] - mag_out)/(sep_out - mag_out)
+            Psi_in  = (label_in [sort_wh,i] - mag_in )/(sep_in  - mag_in )
 
-            rho_out[(rho_out > 1) | (rho_out < 0)] = 0  #remove rounding errors
-            rho_in[ (rho_in  > 1) | (rho_in  < 0)] = 0
+            Psi_out[(Psi_out > 1) | (Psi_out < 0)] = 0  #remove rounding errors
+            Psi_in[ (Psi_in  > 1) | (Psi_in  < 0)] = 0
 
-            rho_out = np.r_[np.sqrt(rho_out), 1]
-            rho_in  = np.r_[np.sqrt(rho_in ), 1]
+            rho_out = np.r_[np.sqrt(Psi_out), 1]
+            rho_in  = np.r_[np.sqrt(Psi_in ), 1]
             
 
             ind = (rho_out==0) | (rho_in==0)
@@ -503,7 +503,7 @@ class equ_map:
 
             if coord_out  == 'Psi':
                 rho_output[jt]  = rho_output[jt]**2*(self.psix[i] - self.psi0[i]) + self.psi0[i]
-            if coord_in == 'Psi_N' :
+            if coord_out == 'Psi_N' :
                 rho_output[jt]  = rho_output[jt]**2 
 
         

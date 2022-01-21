@@ -435,7 +435,7 @@ class equ_map:
 
             if coord_out  == 'Psi':
                 rho_output[jt]  = rho_output[jt]**2*(self.psix[i] - self.psi0[i]) + self.psi0[i]
-            if coord_in == 'Psi_N' :
+            if coord_out == 'Psi_N' :
                 rho_output[jt]  = rho_output[jt]**2 
 
         

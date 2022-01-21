@@ -234,11 +234,12 @@ class equ_map:
         self._read_scalars()
 
 
-        PSIN = np.array([self.eqdsk[t]['AuxQuantities']['PSI_NORM'] for t in self.times]).T
+        ##PSIN = np.array([self.eqdsk[t]['AuxQuantities']['PSI_NORM'] for t in self.times]).T
 
-
+        
 # Profiles
         self.pf  = (PSIN*(self.psix-self.psi0)+self.psi0)
+        self.pf =  np.array([self.eqdsk[t]['AuxQuantities']['PSI'] for t in self.times]).T
         self.ffp = np.array([self.eqdsk[t]['FFPRIM'] for t in self.times]).T
         self.ppp = np.array([self.eqdsk[t]['PPRIME'] for t in self.times]).T
         self.q   = np.array([self.eqdsk[t]['QPSI'] for t in self.times]).T
@@ -432,7 +433,7 @@ class equ_map:
 
             if coord_out  == 'Psi':
                 rho_output[jt]  = rho_output[jt]**2*(self.psix[i] - self.psi0[i]) + self.psi0[i]
-            if coord_in == 'Psi_N' :
+            if coord_out == 'Psi_N' :
                 rho_output[jt]  = rho_output[jt]**2 
 
         
