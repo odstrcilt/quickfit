@@ -1139,7 +1139,7 @@ class DataFit():
         
         
         data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
-                                        coord_in='rho_tor', coord_out='Psi_N',extrapolate=False)
+                                          coord_out='Psi_N',extrapolate=False)
         data['PsiN_time'] = self.eqm.t_eq
 
 
