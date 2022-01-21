@@ -1138,7 +1138,8 @@ class DataFit():
         settings['elmstime'] = self.elmstime
         
         
-        data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], coord_out='Psi_N')
+        data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
+                                        coord_out='rho_tor', coord_out='Psi_N',extrapolate=False)
         data['PsiN_time'] = self.eqm.t_eq
 
 
