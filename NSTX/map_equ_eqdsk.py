@@ -234,7 +234,7 @@ class equ_map:
         self._read_scalars()
 
 
-        ##PSIN = np.array([self.eqdsk[t]['AuxQuantities']['PSI_NORM'] for t in self.times]).T
+        PSIN = np.array([self.eqdsk[t]['AuxQuantities']['PSI_NORM'] for t in self.times]).T
 
         
 # Profiles
