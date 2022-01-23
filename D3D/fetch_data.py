@@ -2107,14 +2107,14 @@ class data_loader:
     
             
         #if SOL_reflections:
-        print('BUG!!!!!! temporary fix SOl refrection')
-        cer = self.load_cer(0,10, load_systems)
-        if 'tangential' in nimp:
-            for ch in nimp['tangential']:
-                for cch in cer['tangential']:
-                    if ch.attrs['channel'][:3] == cch.attrs['channel']:
-                        ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
-                        ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
+        #print('BUG!!!!!! temporary fix SOl refrection')
+        #cer = self.load_cer(0,10, load_systems)
+        #if 'tangential' in nimp:
+            #for ch in nimp['tangential']:
+                #for cch in cer['tangential']:
+                    #if ch.attrs['channel'][:3] == cch.attrs['channel']:
+                        #ch['int'].values = np.interp(ch['time'].values, cch['time'].values, cch['int'].values )
+                        #ch['int_err'].values = np.interp(ch['time'].values, cch['time'].values, cch['int_err'].values )
 
 
 
@@ -2254,11 +2254,11 @@ class data_loader:
                 ch_valid = np.any(TS_valid[tslice],0)
                 
                 rho_slice = np.average(TSrho[tslice, ch_valid],0, TS_valid[tslice, ch_valid])
-                if len(rho_slice) < 3:
-                    print('err len(rho_slice) < 3')
-                    continue
+                #if len(rho_slice) < 3:
+                    #print('Too low number of valid radial points from TS %s system'%sys)
+                    #continue
 
-                    embed()
+                    #embed()
                     
                 beam_profiles['rho'][sys].append(rho_slice)  
                 ne_slice = np.exp(np.average(np.log(n_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
@@ -2273,7 +2273,10 @@ class data_loader:
         for k, d in beam_profiles.items():
             merged_sys = []
             for i,t in enumerate(centroid):
-                data = np.hstack([d[sys][i] for sys in TS['systems']])
+                #try:
+                data = np.hstack([d[sys][i] for sys in TS['systems'] if sys in d])
+                #except:
+                    #embed()
                 if len(data) == 0:
                     data = merged_sys[-1] #use last existing value 
                 
@@ -5956,7 +5959,7 @@ def main():
 #210 179389 1.09 1.16
 #330 178820 1.38 1.38
 
-    shot = 186473 #BUG error carbon density 
+    shot = 176278 #BUG error carbon density 
 
 
     #175694  - better match between onaxis ver and tang denisty after rescaling
@@ -6014,7 +6017,7 @@ def main():
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
-                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
+                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                                'remove first data after blip':I(0)}  )))   }})
  
     settings.setdefault('Te', {\
@@ -6073,14 +6076,14 @@ def main():
     #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     loader.load_elms(settings)
 
-    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
-    settings['nimp']= {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
-        'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('auto'), (S('auto'),'fit','auto','quick'))),
-                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
-                                               'remove first data after blip':I(0)}  )))   }}
+    #settings['nimp']= {\
+        #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
+        #'load_options':{'CER system':OrderedDict((
+                                #('Analysis', (S('auto'), (S('auto'),'fit','auto','quick'))),
+                                #('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
+                                               #'remove first data after blip':I(0)}  )))   }}
     #data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #print('--------------------')
  
