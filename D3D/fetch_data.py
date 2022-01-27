@@ -26,10 +26,16 @@ try:
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
     from omfit_classes.omfit_data import OMFITncDataset
     Dataset = OMFITncDataset
+    from omfit_classes.omfit_base import OMFITtree
+    def Tree(init={}): #emulate behavior of dictionary
+        tree = OMFITtree()
+        tree.update(init)
+        return tree    
 except:
     #ignore file argument
     def Dataset(file,*args, **kwargs):
         return xarray.Dataset(*args, **kwargs)
+    Tree = dict
    
 #warnings.simplefilter(action='ignore', category=FutureWarning)
 #Note about output errorbars:
@@ -824,7 +830,7 @@ def default_settings(MDSconn, shot):
 
 class data_loader:
     
-    def __init__(self,MDSconn, shot, eqm, rho_coord, raw={}):
+    def __init__(self,MDSconn, shot, eqm, rho_coord, raw=Tree()):
         
         self.MDSconn = MDSconn
         self.shot = shot
@@ -880,7 +886,7 @@ class data_loader:
                 printe(e)
                 embed()
                 
-        diag['EQM'] = {'id':id(self.eqm),'dr':np.mean(dr), 'dz':np.mean(dz),'ed':self.eqm.diag}
+        diag['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(dr), 'dz':np.mean(dz),'ed':self.eqm.diag})
  
 
 
@@ -1097,18 +1103,16 @@ class data_loader:
                         'ne'   :(1e19, 'EDENS', 'ELECTRONS')}
 
 
-        zipfit = {}
+        zipfit = Tree()
 
         print_line('  * Fetching ZIPFIT ... ')
         T = time()
 
         for prof, (scale_fact,node, tree) in loading_dict.items():
             try:
-                data = {}
-
                 path = '::TOP.PROFILE_FITS.ZIPFIT.'
                 self.MDSconn.openTree(tree, self.shot)
-                ds = Dataset('zipfit_'+prof)
+                ds = Dataset('zipfit_'+prof+'.nc')
                 ds[prof] = xarray.DataArray(self.MDSconn.get('_x=\\'+tree+path+node+'FIT').data()*scale_fact, dims=['time','rho'])
                 ds['rho']  = xarray.DataArray(self.MDSconn.get('dim_of(_x,0)').data(), dims=['rho'])
                 ds['time'] = xarray.DataArray(self.MDSconn.get('dim_of(_x,1)').data()/1000, dims=['time'])
@@ -1117,7 +1121,6 @@ class data_loader:
                     ds[prof+'_err'] = xarray.DataArray(abs(self.MDSconn.get('error_of(_x)').data())*scale_fact, dims=['time','rho'])
                 except:
                     pass
-                    #ds[prof+'_err'] = 0*ds['data'] #old shots
 
                 #remap to a new coordinate
                 if self.rho_coord != 'rho_tor':
@@ -1158,7 +1161,7 @@ class data_loader:
             ti = zipfit['Ti']['Ti'][ind_ti].values
             ti_err = zipfit['Ti']['Ti_err'][ind_ti].values
             ti[ti<=0] = 1 #avoid zero division
-            zipfit['Mach'] = Dataset('zipfit_mach' )
+            zipfit['Mach'] = Dataset('zipfit_mach.nc')
             zipfit['Mach']['Mach'] = xarray.DataArray(np.sqrt(2*m_u/e*vtor**2/(2*ti)), dims=['time','rho'])
             zipfit['Mach']['Mach_err'] = xarray.DataArray(zipfit['Mach']['Mach'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','rho'])
             zipfit['Mach']['rho']  = xarray.DataArray(rho, dims=['rho'])
@@ -1180,7 +1183,7 @@ class data_loader:
 
             Ti_err = zipfit['Ti']['Ti_err'].values[ind_t]
             
-            zipfit['Te/Ti'] = Dataset('zipfit_Te_Ti')
+            zipfit['Te/Ti'] = Dataset('zipfit_Te_Ti.nc')
             zipfit['Te/Ti']['Te/Ti'] = xarray.DataArray(Te/Ti, dims=['time','rho'])
             zipfit['Te/Ti']['Te/Ti_err'] = xarray.DataArray(Te/Ti*np.hypot(Ti_err/Ti,Te_err/Te), dims=['time','rho'])
             zipfit['Te/Ti']['rho']  = xarray.DataArray(zipfit['Ti']['rho'].values, dims=['rho'])
@@ -1208,7 +1211,7 @@ class data_loader:
             Zmain = 1
             #Rtan is ~0.6m
             
-            zipfit['Zeff'] = Dataset('zipfit_Zeff' )
+            zipfit['Zeff'] = Dataset('zipfit_Zeff.nc')
             zipfit['Zeff']['Zeff'] = xarray.DataArray(Zimp*(Zimp - Zmain)*nimp/ne + Zmain, dims=['time','rho'])
             zipfit['Zeff']['Zeff_err'] = xarray.DataArray((zipfit['Zeff']['Zeff'].values - Zmain)*np.hypot(ne_err/ne,nimp_err/nimp), dims=['time','rho'])
             zipfit['Zeff']['rho']  = xarray.DataArray(zipfit['nimp']['rho'].values, dims=['rho']) #rho toroidal
@@ -1263,7 +1266,7 @@ class data_loader:
         return 'cer'+analysis_type
     
  
-    def nbi_info(self,  load_beams, nbi={}, fast=False):
+    def nbi_info(self,  load_beams, nbi=Tree(), fast=False):
         #TODO assumes a constant voltage!! do not load NBI gas, it it slow 
         
         _load_beams = list(set(load_beams)-set(nbi.keys()))
@@ -1348,7 +1351,7 @@ class data_loader:
         #rmin=[1.15,.77,1.15,.77,1.15,.77,1.15,.77] in   ./4dlib/BEAMS/atten.pro
         #fill NBI info dictionary
         for i,b in enumerate(_load_beams):
-            beam = nbi.setdefault(b,{})
+            beam = nbi.setdefault(b,Tree())
             beam['fired'] = pinj_scal[i] > 1e3
             beam['volts'] = volt_data[i]
             if np.size(volt_data[i]) > 1:
@@ -2064,7 +2067,7 @@ class data_loader:
                 beam_intervals[bname].append((tvec[ich][beam_ind],stime[ich][beam_ind]))  
                 G = beam_geom[ich, observed_beams]
                 
-                ds = Dataset('CER_'+str(ID), attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
+                ds = Dataset('CER_'+str(ID)+'.nc', attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
                                         'beam_geom':G,'Z':charge})
 
                 #fill by zeros for now, 
@@ -2118,7 +2121,7 @@ class data_loader:
 
 
 
-        nimp['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+        nimp['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
         nimp['loaded_beams'] = np.unique(np.hstack((load_beams,nimp.get('loaded_beams',[]))))
 
         print('\t done in %.1fs'%(time()-TT))
@@ -2935,9 +2938,6 @@ class data_loader:
         
 
         print('\t done in %.1fs'%(time()-TT))
-  
-
-
         
         return nimp
       
@@ -2946,9 +2946,7 @@ class data_loader:
         #load IMPCON data and split them by CER systems
         #in nimp are already preload channels
         #currently there is no SPRED density from impcon
-        #if 'SPRED' in load_systems:
-            #printe('SPRED density is not in IMPCON')
-            #load_systems.remove('SPRED')
+
         load_systems = [sys for sys in load_systems if 'SPRED' not in sys]
             
             
@@ -3091,10 +3089,10 @@ class data_loader:
  
 
         #load from catch if possible
-        self.RAW.setdefault('nimp',{})
+        self.RAW.setdefault('nimp',Tree())
 
-        nimp = self.RAW['nimp'].setdefault(analysis_type+suffix ,{} )
-        self.RAW['nimp'].setdefault('NBI',{})
+        nimp = self.RAW['nimp'].setdefault(analysis_type+suffix ,Tree() )
+        self.RAW['nimp'].setdefault('NBI',Tree())
 
         
         #which cer systems should be loaded
@@ -3111,7 +3109,7 @@ class data_loader:
   
         nimp['systems'] = systems
         nimp.setdefault('rel_calib_'+nimp_name, rcalib)
-        nimp.setdefault('diag_names',{})
+        nimp.setdefault('diag_names',Tree())
         
 
         def return_nimp(nimp):
@@ -3139,7 +3137,7 @@ class data_loader:
                 nimp['horiz_cut'] = {'time':self.eqm.t_eq, 'rho': np.single(rho_horiz), 'R':R}
             
             #build a new dictionary only with the requested and time sliced channels            
-            nimp_out = {'systems':systems,'diag_names':{}}
+            nimp_out = {'systems':systems,'diag_names':Tree()}
             for sys in systems:
                 nimp_out[sys] = []
                 #list only diag_names which are actually loaded
@@ -3485,7 +3483,7 @@ class data_loader:
    
         tbeg,tend = self.eqm.t_eq[[0,-1]]
         #use cached data
-        zeff = self.RAW.setdefault('VB',{})
+        zeff = self.RAW.setdefault('VB',Tree())
         
         cer_vb_diags = 'CER VB tang', 'CER VB vert'
         cer_diags = 'vertical', 'tangential'
@@ -3519,7 +3517,7 @@ class data_loader:
         systems = list(set(systems)-set(zeff.keys()))  #get only systems which are not loaded yet
         #update mapping of the catched data
         zeff = self.eq_mapping(zeff)            
-        zeff.setdefault('diag_names',{})
+        zeff.setdefault('diag_names',Tree())
  
         #update equilibrium for already loaded systems
         zeff = self.eq_mapping(zeff)
@@ -3649,7 +3647,7 @@ class data_loader:
                 VB_err[~valid[imin:]] *= -1 #posibly invalid, can be enabled in the GUI
 
                 
-                zeff[VB_array] = Dataset('ZeffVB',attrs={'system':VB_array,'wavelength': 5230.0})
+                zeff[VB_array] = Dataset('ZeffVB.nc',attrs={'system':VB_array,'wavelength': 5230.0})
 
                 zeff[VB_array]['VB'] = xarray.DataArray(VB,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
                 zeff[VB_array]['VB_err'] = xarray.DataArray(VB_err,dims=['time','channel'], attrs={'units':'W/cm**2/A'})
@@ -3798,7 +3796,7 @@ class data_loader:
                     
                     convert = h * c/(lam*1.e-10) * (4. * np.pi) * 1e-4 * (lam/lambda0)**2
                     ind = slice(*tvec.searchsorted([tbeg,tend]))
-                    ds = zeff[cer_subsys[diag]] = Dataset('ZeffCER', attrs={'system':'CER VB','wavelength': lambda0})
+                    ds = zeff[cer_subsys[diag]] = Dataset('ZeffCER.nc', attrs={'system':'CER VB','wavelength': lambda0})
                     ds['VB'] = xarray.DataArray(VB[ind]*convert,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
                     ds['VB_err'] = xarray.DataArray(VB_err[ind]*convert,dims=['time','channel']) 
                     ds['R_start'] = xarray.DataArray(R1, dims=['channel'], attrs={'units':'m'})
@@ -3820,7 +3818,7 @@ class data_loader:
 
         ##########################################  EQ mapping  ###############################################
 
-        zeff['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+        zeff['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
 
         #calculate LOS coordinates in rho 
         for sys in systems:
@@ -4129,7 +4127,7 @@ class data_loader:
                 Zeff_err = Zeff*np.sqrt(Zeff2_err/Zeff**2+(ne_err/ne)**2)
 
                 #create dataset
-                ds = Dataset('Zeff_SPRED', attrs={'system':'SPRED', 'channel':channel})
+                ds = Dataset('Zeff_SPRED.nc', attrs={'system':'SPRED', 'channel':channel})
 
                 ds['R'] = xarray.DataArray(R, dims=['time'], attrs={'units':'m'})
                 ds['Z'] = xarray.DataArray(Z ,dims=['time'], attrs={'units':'m'})
@@ -4237,11 +4235,11 @@ class data_loader:
             
 
             
-        self.RAW.setdefault('CER',{})
-        cer = self.RAW['CER'].setdefault(analysis_type,{})
+        self.RAW.setdefault('CER',Tree())
+        cer = self.RAW['CER'].setdefault(analysis_type,Tree())
 
         #load from catch if possible
-        cer.setdefault('diag_names',{})
+        cer.setdefault('diag_names',Tree())
         cer['systems'] = systems
         
         #if sol_corr is different from previously loaded, reload data
@@ -4527,7 +4525,7 @@ class data_loader:
             if not name in cer['diag_names'][diag]:
                 cer['diag_names'][diag].append(name)
                 
-            ds = Dataset(name[0]+ch[-2:], attrs={'channel':name[0]+ch[-2:],'imp':element+str(charge)})
+            ds = Dataset(name[0]+ch[-2:]+'.nc', attrs={'channel':name[0]+ch[-2:],'imp':element+str(charge)})
             ds['R'] = xarray.DataArray(R[tind], dims=['time'], attrs={'units':'m'})
             ds['Z'] = xarray.DataArray(Z[tind], dims=['time'], attrs={'units':'m'})
             ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
@@ -4775,7 +4773,7 @@ class data_loader:
              
         #exit()
         
-        cer['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+        cer['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
         print('\t done in %.1fs'%(time()-TT))
         #print(cer)
         return cer
@@ -4799,7 +4797,7 @@ class data_loader:
                 zshift = options['TS position error']['Z shift [cm]'].get()/100. #[m] 
   
         #use cached data
-        self.RAW.setdefault('TS',{})
+        self.RAW.setdefault('TS',Tree())
         ts = self.RAW['TS'].setdefault(revision,{'systems':systems})
 
         ts['systems'] = list(systems)
@@ -4808,7 +4806,7 @@ class data_loader:
         
         #update mapping of the catched data
         ts = self.eq_mapping(ts, dz =zshift )            
-        ts.setdefault('diag_names',{})
+        ts.setdefault('diag_names',Tree())
 
         if len(systems) == 0:
             #assume that equilibrium could be changed
@@ -4852,7 +4850,7 @@ class data_loader:
             
             rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
          
-            ts[sys] = Dataset('TS'+sys,attrs={'system':sys})
+            ts[sys] = Dataset('TS'+sys+'.nc',attrs={'system':sys})
             ts[sys]['ne'] = xarray.DataArray(ne[isys].T,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
             ts[sys]['ne_err'] = xarray.DataArray(ne_err[isys].T,dims=['time','channel'], attrs={'units':'m^{-3}'})
             ts[sys]['Te'] = xarray.DataArray(Te[isys].T,dims=['time','channel'], attrs={'units':'eV','label':'T_e'})
@@ -4867,7 +4865,7 @@ class data_loader:
             
  
         print('\t done in %.1fs'%(time()-T))
-        ts['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':zshift, 'ed':self.eqm.diag}
+        ts['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':zshift, 'ed':self.eqm.diag})
 
         return ts 
         
@@ -4889,7 +4887,7 @@ class data_loader:
         prefix ='\\'+tree+'::TOP.REFLECT.'
         Z0 = 0.0254
     
-        refl = self.RAW['REFL'] = {}
+        refl = self.RAW['REFL'] = Tree()
             
         TDI,bands = [],[]
         self.MDSconn.openTree(tree, self.shot)
@@ -4928,7 +4926,7 @@ class data_loader:
 
         
         
-        refl['diag_names'] = {}
+        refl['diag_names'] = Tree()
 
         for band, (tvec,ne, R) in zip(bands, out):
             if np.size(tvec) == 0:  continue
@@ -4973,10 +4971,10 @@ class data_loader:
 
 
             channel = np.arange(ne.shape[1])
-            refl[band] = {}
+            refl[band] = Tree()
 
             refl['diag_names'][band] = ['REFL:'+band+'BAND']
-            refl[band] = Dataset('REFL_'+band,  attrs={'band':band})
+            refl[band] = Dataset('REFL_'+band+'.nc',  attrs={'band':band})
 
             refl[band]['ne'] = xarray.DataArray(ne,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
              #just guess! of 10% errors!!
@@ -4990,7 +4988,7 @@ class data_loader:
             refl[band]['channel'] = xarray.DataArray(channel,dims=['channel'], attrs={'units':'-'})
 
             
-        refl['EQM'] = {'id':id(self.eqm),'dr':np.mean(R_shift), 'dz':0,'ed':self.eqm.diag}
+        refl['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(R_shift), 'dz':0,'ed':self.eqm.diag})
 
         print('\t done in %.1fs'%(time()-T))
 
@@ -5010,11 +5008,11 @@ class data_loader:
         suffix = 'F' if fast else ''
 
         #use cached data
-        self.RAW.setdefault('ECE',{})
-        self.RAW['ECE'].setdefault(rate,{})
+        self.RAW.setdefault('ECE',Tree())
+        self.RAW['ECE'].setdefault(rate,Tree())
 
         
-        self.RAW['ECE'][rate].setdefault('ECE',Dataset('ECE', attrs={'system':rate } ))
+        self.RAW['ECE'][rate].setdefault('ECE',Dataset('ECE.nc', attrs={'system':rate } ))
 
         ece = self.RAW['ECE'][rate]['ECE']
         self.RAW['ECE'][rate]['diag_names'] = {'ECE':['ECE']}
@@ -5252,8 +5250,8 @@ class data_loader:
         print('\t done in %.1fs'%(time()-T))
 
 
-        return {'ECE':ece,'diag_names':{'ECE':['ECE']}, 'systems':['ECE']
-                                ,'EQM':{'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}}
+        return Tree({'ECE':ece,'diag_names':{'ECE':['ECE']}, 'systems':['ECE']
+                                ,'EQM':Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}}))
     
     
     def load_co2(self, tbeg,tend, calc_weights=True):
@@ -5261,7 +5259,7 @@ class data_loader:
         T = time()
 
          
-        CO2 = self.RAW.setdefault('CO2',{})
+        CO2 = self.RAW.setdefault('CO2',Tree())
 
         #update mapping of the catched data
         if 'systems' in CO2 and (not calc_weights or 'weight' in CO2[CO2['systems'][0]]):
@@ -5271,7 +5269,7 @@ class data_loader:
         
         
         CO2['systems'] = ['CO2']
-        CO2.setdefault('diag_names',{})
+        CO2.setdefault('diag_names',Tree())
         CO2['diag_names']['CO2'] = ['CO2 interferometer']
         CO2['CO2'] = []
 
@@ -5423,7 +5421,7 @@ class data_loader:
         ne_err[ne < 0]  = np.infty
  
 
-        CO2['CO2'] = Dataset('CO2interfer')
+        CO2['CO2'] = Dataset('CO2interfer.nc')
         CO2['CO2']['channel'] = xarray.DataArray( los_names ,dims=['channel'])
         CO2['CO2']['path'] = xarray.DataArray( t ,dims=['path'])
         CO2['CO2']['time'] = xarray.DataArray( co2_time ,dims=['time'], attrs={'units':'s'})
@@ -5452,7 +5450,7 @@ class data_loader:
         CO2['CO2']['rho_tg'] = xarray.DataArray(rho_tg,dims=['time', 'channel'])
 
 
-        CO2['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+        CO2['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
 
         print('\t done in %.1fs'%(time()-T))
 
@@ -5711,7 +5709,7 @@ class data_loader:
         node = option['elm_signal'].get()
         tree = 'SPECTROSCOPY'
         
-        self.RAW.setdefault('ELMS',{})
+        self.RAW.setdefault('ELMS',Tree())
         
         if node in self.RAW['ELMS']:
             return self.RAW['ELMS'][node]
@@ -5747,8 +5745,8 @@ class data_loader:
             except Exception as e:
                 print('elm detection failed', e)
                 
-        self.RAW['ELMS'][node] =  {'tvec': elm_time, 'data':elm_val, 
-                     'elm_beg':elm_beg,'elm_end':elm_end,'signal':node}
+        self.RAW['ELMS'][node] =  Tree({'tvec': elm_time, 'data':elm_val, 
+                     'elm_beg':elm_beg,'elm_end':elm_end,'signal':node})
         print('\t done in %.1fs'%(time()-T))
 
         return  self.RAW['ELMS'][node]

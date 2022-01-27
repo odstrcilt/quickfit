@@ -22,10 +22,16 @@ try:
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
     from omfit_classes.omfit_data import OMFITncDataset
     Dataset = OMFITncDataset
+    from omfit_classes.omfit_base import OMFITtree
+    def Tree(init={}): #emulate behavior of dictionary
+        tree = OMFITtree()
+        tree.update(init)
+        return tree    
 except:
     #ignore file argument
     def Dataset(file,*args, **kwargs):
         return xarray.Dataset(*args, **kwargs)
+    Tree = dict
    
 
 def print_line(string):
@@ -134,7 +140,7 @@ def default_settings(MDSconn, shot):
 
 class data_loader:
     
-    def __init__(self,MDSconn, shot, eqm, rho_coord, raw={}):
+    def __init__(self,MDSconn, shot, eqm, rho_coord, raw=Tree()):
         
         self.MDSconn = MDSconn
         self.shot = shot
@@ -193,7 +199,7 @@ class data_loader:
                 printe(e)
                 embed()
                 
-        diag['EQM'] = {'id':id(self.eqm),'dr':np.mean(dr), 'dz':np.mean(dz),'ed':self.eqm.diag}
+        diag['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(dr), 'dz':np.mean(dz),'ed':self.eqm.diag})
 
         return diag
             
@@ -387,7 +393,7 @@ class data_loader:
                 VB_Zeff = VB_Zeff[ind]
                 VB_tvec = VB_tvec[ind]
 
-                Zeff['VB'] = VB = Dataset('Zeff_VB', attrs={'system':'VB'})
+                Zeff['VB'] = VB = Dataset('Zeff_VB.nc', attrs={'system':'VB'})
                 VB['Zeff'] = xarray.DataArray(VB_Zeff,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
                 VB['Zeff_err'] = xarray.DataArray(VB_Zeff*.1,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
                 #location is just a guess
@@ -500,16 +506,16 @@ class data_loader:
         Te_Ti = RectBivariateSpline(TS_R, TS_T, TS_Te,kx=1,ky=1)(R,T).T.astype('single')/Ti
 
         
-        self.RAW['SPLINES'] = splines = {}
+        self.RAW['SPLINES'] = splines = Tree()
         
-        splines['Te'] = splines['ne'] = ds = Dataset('spline_TS')
+        splines['Te'] = splines['ne'] = ds = Dataset('spline_TS.nc')
         ds['ne'] = xarray.DataArray(TS_ne.T, dims=['time','R'])
         ds['Te'] = xarray.DataArray(TS_Te.T, dims=['time','R'])
         ds['Z']  = xarray.DataArray(TS_R*0, dims=['R'])
         ds['R']  = xarray.DataArray(TS_R, dims=['R'])
         ds['time'] = xarray.DataArray(TS_T, dims=['time'])
  
-        ds = Dataset('spline_CHERS') 
+        ds = Dataset('spline_CHERS.nc') 
         splines['Zeff'] = splines['Mach'] = splines['Ti'] = splines['nC6']  = splines['Te/Ti'] = splines['omega'] = ds
         ds['Ti'] = xarray.DataArray(Ti, dims=['time','R'])
         ds['Zeff'] = xarray.DataArray(Zeff, dims=['time','R'])
@@ -529,7 +535,7 @@ class data_loader:
         self.eq_mapping(splines)
         
         
-        splines['EQM'] = {'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}
+        splines['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
 
 
         
@@ -542,7 +548,7 @@ class data_loader:
     def load_asymmetry(self,chers_edition='CT1',dR=0):
         
         
-        self.RAW.setdefault('Asymmetry',{})
+        self.RAW.setdefault('Asymmetry',Tree())
         asym = self.RAW['Asymmetry']
 
         A = 2 #Main ion mass
@@ -553,7 +559,7 @@ class data_loader:
         #calculate asymmetry correction factors on CHERS timebase as function of R?
         splines = self.load_splines()
             
-        EQM = {'id':id(self.eqm),'ed':self.eqm.diag}
+        EQM = Tree({'id':id(self.eqm),'ed':self.eqm.diag})
          
         if 'EQM' not in asym or EQM != asym['EQM']:
             asym['EQM'] = EQM
@@ -570,7 +576,7 @@ class data_loader:
             
             dV = 2*np.pi*R*np.linalg.det(dRdZ).T
            
-            asym['FSA'] = FSA = Dataset('FSA')
+            asym['FSA'] = FSA = Dataset('FSA.nc')
             FSA['dV'] = xarray.DataArray(dV,dims=['time','theta','rho'], attrs={'units':'m^3'})
             FSA['R']  = xarray.DataArray(R,dims=['time','theta','rho'], attrs={'units':'m'})
             FSA['Z']  = xarray.DataArray(Z,dims=['time','theta','rho'], attrs={'units':'m'})
@@ -662,7 +668,7 @@ class data_loader:
             nefsa_ne[it] = np.interp(Rlfs_grid, Rlfs, nefsa_ne0)*ne0_ne[it]
             ncfsa_nc[it] = np.interp(Rlfs_grid, Rlfs, ncfsa_nc0)*nc0_nc[it]
   
-        asym['correction'] = corr = Dataset('asym_correction')
+        asym['correction'] = corr = Dataset('asym_correction.nc')
         corr['ne0_ne'] = xarray.DataArray(ne0_ne,dims=['time','Rgrid'], attrs={'units':'-'})
         corr['nc0_nc'] = xarray.DataArray(nc0_nc,dims=['time','Rgrid'], attrs={'units':'-'})
         corr['nefsa_ne'] = xarray.DataArray(nefsa_ne,dims=['time','Rgrid'], attrs={'units':'-'})
@@ -696,11 +702,11 @@ class data_loader:
         
         #Ti below 300eV is unreliable??
         
-        self.RAW.setdefault('CHERS',{})
-        cer = self.RAW['CHERS'].setdefault(edition,{})
+        self.RAW.setdefault('CHERS',Tree())
+        cer = self.RAW['CHERS'].setdefault(edition,Tree())
 
         #load from catch if possible
-        cer.setdefault('diag_names',{})
+        cer.setdefault('diag_names',Tree())
         cer['systems'] = systems
         
         #load only new systems
@@ -762,9 +768,10 @@ class data_loader:
         omega_err = Vtorerr/R
         
         #guess of nC errorbars from time scatter
-        Nc_err[:] = np.std(np.gradient(Nc)[0],0)[None]
+        Nc_ = np.ma.array(Nc, mask=~valid)
+        Nc_err[:] = np.ma.median(np.abs(np.diff(Nc_,axis=0)),axis=0).data
         Nc_err[~valid]  = -np.inf
-        
+
         
         if cf_correction != 'None':
             corr = self.load_asymmetry(chers_edition=edition,dR=rshift)
@@ -784,7 +791,7 @@ class data_loader:
 
         for sys in systems:
             cer['diag_names'][sys]=['CHERS']            
-            cer[sys] = Dataset('CHERS_'+sys,attrs={ 'system':sys, 'cf_correction': cf_correction})
+            cer[sys] = Dataset('CHERS_'+sys+'.nc',attrs={ 'system':sys, 'cf_correction': cf_correction})
             cer[sys]['Ti'] = xarray.DataArray(Ti*data['Ti']['scale'],dims=['time','channel'], attrs={'units':'eV','label':'T_i'})
             cer[sys]['Ti_err'] = xarray.DataArray(Tierr*data['Ti']['scale'],dims=['time','channel'] )
             cer[sys]['omega'] = xarray.DataArray(omega*data['omega']['scale'],dims=['time','channel'], attrs={'units':'rad/s','label':r'\omega_\phi'})
@@ -802,7 +809,7 @@ class data_loader:
             
 
         
-        cer['EQM'] = {'id':id(self.eqm),'dr':rshift, 'dz':0,'ed':self.eqm.diag}
+        cer['EQM'] = Tree({'id':id(self.eqm),'dr':rshift, 'dz':0,'ed':self.eqm.diag})
         print('\t done in %.1fs'%(time()-TT))
         
         return cer
@@ -818,7 +825,7 @@ class data_loader:
 
         revision = 'BEST'
         rshift = 0
-        cf_correction = 'LFS'
+        cf_correction = 'None'
         if options is not None:
             if 'TS revision' in options:
                 selected,revisions = options['TS revision']
@@ -830,8 +837,8 @@ class data_loader:
  
 
         #use cached data
-        self.RAW.setdefault('TS',{})
-        ts = self.RAW['TS'].setdefault(revision,{'systems':systems})
+        self.RAW.setdefault('TS',Tree())
+        ts = self.RAW['TS'].setdefault(revision,Tree({'systems':systems}))
 
         ts['systems'] = list(systems)
         systems = list(set(systems)-set(ts.keys()))
@@ -841,7 +848,7 @@ class data_loader:
         
         #update mapping of the catched data
         ts = self.eq_mapping(ts, dr =rshift)            
-        ts.setdefault('diag_names',{})
+        ts.setdefault('diag_names',Tree())
  
         if len(systems) == 0 and np.all([ts[sys].attrs['cf_correction'] == cf_correction for sys in ts['systems']]):
             #assume that equilibrium could be changed
@@ -900,7 +907,7 @@ class data_loader:
             ind = index[sys]
             ts['diag_names'][sys]=['TS:'+sys]
 
-            ts[sys] = Dataset( 'TS:'+sys ,attrs={'system':sys, 'cf_correction': cf_correction})
+            ts[sys] = Dataset( 'TS:'+sys+'.nc' ,attrs={'system':sys, 'cf_correction': cf_correction})
             ts[sys]['ne'] = xarray.DataArray(ne[ind].T,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
             ts[sys]['ne_err'] = xarray.DataArray(ne_err[ind].T,dims=['time','channel'], attrs={'units':'m^{-3}'})
             ts[sys]['Te'] = xarray.DataArray(Te[ind].T,dims=['time','channel'], attrs={'units':'eV','label':'T_e'})
@@ -914,7 +921,7 @@ class data_loader:
             
  
         print('\t done in %.1fs'%(time()-T))
-        ts['EQM'] = {'id':id(self.eqm),'dr':rshift, 'dz':0, 'ed':self.eqm.diag}
+        ts['EQM'] = Tree({'id':id(self.eqm),'dr':rshift, 'dz':0, 'ed':self.eqm.diag})
 
         return ts 
         
@@ -924,9 +931,10 @@ class data_loader:
     def load_elms(self,option):
         node = option['elm_signal'].get()
         elm_time, elm_val, elm_beg, elm_end = [],[],[],[]
-        self.RAW['ELMS'] = {}
-        self.RAW['ELMS'][node] =  {'tvec': elm_time, 'data':elm_val, 
-                     'elm_beg':elm_beg,'elm_end':elm_end,'signal':node}
+        self.RAW['ELMS'] = Tree()
+        self.RAW['ELMS'][node] = Tree({'tvec': elm_time, 'data':elm_val, 
+                        'elm_beg':elm_beg,'elm_end':elm_end,'signal':node})
+        
         return self.RAW['ELMS'][node]
  
     

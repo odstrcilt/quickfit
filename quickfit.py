@@ -317,18 +317,20 @@ class DataFit():
                 
                 
             if self.device == 'NSTX':
-      
-                self.MDSconn.openTree('EFIT', self.shot)
-                
-                TDI = r'_y = getnci("\\EFIT::TOP.*.RESULTS","minpath");'
-                TDI+= r'_s = getnci("\\EFIT::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
-                TDI+= r'PACK(_y,_s)'
- 
-                efit_names = self.MDSconn.get(TDI).data()
+                efit_names = []
+                for tree in ['EFIT','LRDFIT']:
+                    self.MDSconn.openTree(tree, self.shot)
+                    
+                    TDI = rf'_y = getnci("\\{tree}::TOP.*.RESULTS","minpath");'
+                    TDI+= rf'_s = getnci("\\{tree}::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
+                    TDI+= r'PACK(_y,_s)'
+    
+                    efit_names += list(self.MDSconn.get(TDI).data())
+                    self.MDSconn.closeTree(tree, self.shot)
+
                 if not isinstance(efit_names[0],str):
                     efit_names = [e.decode() for e in efit_names] 
  
-                self.MDSconn.closeTree('EFIT', self.shot)
                 efit_editions = [n.split('.')[1] for n in efit_names]
 
 
@@ -344,9 +346,9 @@ class DataFit():
                 if efit in efit_editions: continue
                 try:
                     self.MDSconn.openTree(efit, self.shot)
+                    self.MDSconn.closeTree(efit, self.shot)
                 except:
                     continue
-                self.MDSconn.closeTree(efit, self.shot)
                 efit_editions+= [efit]                    
 
             efit_editions = np.unique(efit_editions).tolist()
@@ -363,7 +365,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'ANALYSIS','EFIT20','EFIT02', 'EFIT01' , 'EFIT03',  'EFIT04', efit_editions[0]     
+                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT02', 'EFIT01' , 'EFIT03',  'EFIT04', efit_editions[0]     
                     for pref_ef in prefered_efit:
                         if pref_ef in efit_editions:
                             break
@@ -1077,6 +1079,7 @@ class DataFit():
         
         #create dictionary of fitted profiles and sent them to OMFIT
         data = {}
+        rho = np.nan
         for prof in self.kin_profs:
             if not 'm2g' in self.load_options[prof] or not self.load_options[prof]['m2g'].fitted:
                 continue
