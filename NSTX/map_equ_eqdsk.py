@@ -888,7 +888,7 @@ class equ_map:
                           coord_out='Psi', extrapolate=True)
         nt = np.size(self.t_eq)
 
-        Qpsi = array([self.eqdsk[t][var_name] for t in self.times]).T
+        Qpsi = np.array([self.eqdsk[t][var_name] for t in self.times]).T
 
 
         var_out = np.zeros_like(Psi,dtype='single')
