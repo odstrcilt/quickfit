@@ -13,7 +13,7 @@ params = {'legend.fontsize': 'large',
         'axes.titlesize': 'large',
         'xtick.labelsize' :'medium',
         'ytick.labelsize': 'medium',
-        'font.size':12,
+        'font.size':14,
         'mathtext.fontset': 'cm',
         'mathtext.rm': 'serif',
         'grid.color': 'k',
@@ -463,7 +463,8 @@ class DataFit():
             self.data_loader = self.data_loader_class(self.MDSconn, self.shot, self.eqm, self.options['rho_coord'], self.raw_data)
 
             
-            
+        self.fitPlot.m2g = None
+
         self.fitPlot.ax_main.cla()
         self.fitPlot.ax_main.figure.canvas.draw()
         
@@ -1005,6 +1006,12 @@ class DataFit():
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
             self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
+            
+            try:
+                self.mhdmodes = self.data_loader('mhd_modes')
+            except:
+                self.mhdmodes = None
+            
             #self.elm_signal = self.fit_options['elm_signal']
 
         except Exception as e:
@@ -1024,7 +1031,7 @@ class DataFit():
         if kin_prof[0] == 'n' and kin_prof != 'ne' and self.device != 'NSTX':
             kin_prof = 'nimp'
         
-        self.fitPlot.init_plot_data(kin_prof, data_d,   self.elms)
+        self.fitPlot.init_plot_data(kin_prof, data_d,   self.elms,  self.mhdmodes)
 
         if self.options['data_loaded']:
             self.load_options[self.kin_prof]['m2g'] = self.fitPlot.m2g

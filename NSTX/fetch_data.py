@@ -218,6 +218,9 @@ class data_loader:
         if quantity == 'sawteeth':
             return self.load_sawteeth()
         
+        if quantity == 'mhd_modes':
+            return self.load_mode_loc()
+        
             
         
         T = time()
@@ -725,10 +728,11 @@ class data_loader:
         #AW, AWB active and background aplitude, unknown units 
         data = {
             'Ti': {'label':'Ti','unit':'eV','sig':['ZTI','DTI'],'scale':1e3},
-            'omega': {'label':r'\omega_\varphi','unit':'rad/s','sig':['VT','DVT'],'scale':1e3},
+            #'omega': {'label':r'\omega_\varphi','unit':'rad/s','sig':['VT','DVT'],'scale':1e3},
+            'omega': {'label':r'\omega_\varphi','unit':'kHz','sig':['VT','DVT'],'scale':1/(2*np.pi)},
             'nimp': {'label':r'n_c','unit':'m^{-3}','sig':['NC','DNC'],'scale':1e6},
             }
-       
+     
         #list of MDS+ signals for each channel
         signals = data['Ti']['sig']+data['omega']['sig']+data['nimp']['sig']+['RADIUS', 'TIME', 'VALID']
 
@@ -792,12 +796,17 @@ class data_loader:
         for sys in systems:
             cer['diag_names'][sys]=['CHERS']            
             cer[sys] = Dataset('CHERS_'+sys+'.nc',attrs={ 'system':sys, 'cf_correction': cf_correction})
-            cer[sys]['Ti'] = xarray.DataArray(Ti*data['Ti']['scale'],dims=['time','channel'], attrs={'units':'eV','label':'T_i'})
+            cer[sys]['Ti'] = xarray.DataArray(Ti*data['Ti']['scale'],dims=['time','channel'],
+                                              attrs={'units':data['Ti']['unit'],'label':'T_i'})
             cer[sys]['Ti_err'] = xarray.DataArray(Tierr*data['Ti']['scale'],dims=['time','channel'] )
-            cer[sys]['omega'] = xarray.DataArray(omega*data['omega']['scale'],dims=['time','channel'], attrs={'units':'rad/s','label':r'\omega_\phi'})
-            cer[sys]['omega_err'] = xarray.DataArray(omega_err*data['omega']['scale'],dims=['time','channel'], attrs={'units':'rad/s'})
-            cer[sys]['nC6'] = xarray.DataArray(Nc*data['nimp']['scale'],dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_{C^{6+}}'})
-            cer[sys]['nC6_err'] = xarray.DataArray(Nc_err*data['nimp']['scale'],dims=['time','channel'], attrs={'units':'rad/s'})
+            
+            cer[sys]['omega'] = xarray.DataArray(omega*data['omega']['scale'],dims=['time','channel'],
+                                                 attrs={'units':data['omega']['unit'],'label':r'\omega_\phi'})
+            cer[sys]['omega_err'] = xarray.DataArray(omega_err*data['omega']['scale'],dims=['time','channel'])
+            
+            cer[sys]['nC6'] = xarray.DataArray(Nc*data['nimp']['scale'],dims=['time','channel'], 
+                                               attrs={'units': data['nimp']['unit'],'label':r'n_{C^{6+}}'})
+            cer[sys]['nC6_err'] = xarray.DataArray(Nc_err*data['nimp']['scale'],dims=['time','channel'])
             
             cer[sys]['diags']= xarray.DataArray( np.tile(('CHERS',), Ti.shape),dims=['time','channel'])            
 
@@ -937,6 +946,31 @@ class data_loader:
         
         return self.RAW['ELMS'][node]
  
+
+    def load_mode_loc(self,option=None):
+        
+        if 'MHDloc' in self.RAW:
+            return self.RAW['MHDloc']
+ 
+        self.RAW['MHDloc']  = Tree()
+ 
+        rho = np.linspace(0,1,100)
+        q = self.eqm.getQuantity(rho, 'QPSI', coord_in=self.rho_coord)
+        
+        modes = {'1/1':1, '2/1': 2, '3/1': 3, '4/1': 4,'5/1': 5, '3/2': 3/2,   '4/3': 4/3}
+        rho_modes = {}
+        
+        for name, qval in modes.items():
+            rho_modes[name] = []
+            for it,t in enumerate(self.eqm.t_eq):
+                imin = np.argmin(q[it])
+                rho_modes[name].append(np.interp(qval,  q[it, imin:], rho[imin:], left=np.nan))
+        
+        self.RAW['MHDloc']['tvec'] = self.eqm.t_eq
+        self.RAW['MHDloc']['modes'] =  rho_modes
+
+        return self.RAW['MHDloc']
+ 
     
     def load_sawteeth(self):
         return {'tvec':[]}
@@ -1029,7 +1063,9 @@ def main():
         'systems':{'CER system':[]},
         'load_options':{'CER system':{'Analysis':(S('CT1'), CHERS_revisions)}}}
      
-    loader.load_splines()
+    #loader.load_splines()
+    loader.load_mode_loc()
+    
     try:
         data = loader( 'ne', default_settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     finally:

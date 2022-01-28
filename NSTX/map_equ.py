@@ -83,7 +83,7 @@ class equ_map:
             self.Zmesh = self.sf.get(self.gEQDSK+'Z').data()[0]
             # Time grid of equilibrium shotfile
             self.t_eq  = np.atleast_1d(self.sf.get(self.gEQDSK+'GTIME').data()*self.time_scale)
-            self.valid = np.ones_like(self.t_eq,dtype='bool')
+            #self.valid = np.ones_like(self.t_eq,dtype='bool')
             try:
                 self.comment  = self.sf.get('\\'+diag+'::TOP.COMMENTS').data()
             except:
@@ -93,16 +93,29 @@ class equ_map:
                 atimes = self.sf.get(self.aEQDSK+'ATIME').data()*self.time_scale
                 chi2  = self.sf.get(self.aEQDSK+'CHISQ').data()
                 error = self.sf.get(self.aEQDSK+'ERROR').data()
+                
+                try:
+                    chi2  = self.sf.get(self.aEQDSK+'CHISQTOT').data()
+                except:
+                    pass
+                #print(chi2)
+                self.valid = self.t_eq > 0
  
                 valid = np.isfinite(chi2)
                 valid[valid] &= (chi2[valid]>0)&(chi2[valid] < chi2_max) &(error[valid] < 0.01)
-                self.valid &= np.in1d(self.t_eq,atimes[valid])&(self.t_eq>0)
+                
+                nearest_ind = interp1d(atimes[valid],np.where(valid)[0],
+                                kind='nearest', fill_value='extrapolate')(self.t_eq)
+                self.valid &= np.abs(self.t_eq-atimes[np.int_(nearest_ind)]) < 1e-3
+                #self.valid &= np.in1d(self.t_eq,atimes[valid])&(self.t_eq>0)
                 
                 ip = self.sf.get(self.gEQDSK+'CPASMA').data() 
-                self.valid[self.valid] &= np.abs(ip[self.valid]) > 0
+                self.valid[self.valid] &= np.abs(ip[self.valid]) > np.abs(ip[self.valid]).max()/100 
                 self.t_eq = self.t_eq[self.valid]
-                
+                #embed()
+
             except:
+                #embed()
                 print('aEQDSK loading issue')
                  
                 
@@ -441,7 +454,7 @@ class equ_map:
             if coord_in == 'r_V' :
                 r0_in  = np.sqrt(sep_in/ (2*np.pi**2*R0[i]))
             if coord_out == 'r_V' :
-                embed()
+                #embed()
                 r0_out = np.sqrt(sep_out/(2*np.pi**2*R0[i]))
             if coord_in == 'RMNMP' :
                 r0_in  = np.sqrt(sep_in)
@@ -815,8 +828,13 @@ class equ_map:
         Psi = self.rho2rho(rho, t_in=t_in, coord_in=coord_in,
                           coord_out='Psi', extrapolate=True)
         nt = np.size(self.t_eq)
-
-        Qpsi = self.sf.get(self.gEQDSK+''+var_name).data()[self.valid].T
+        
+        if not hasattr(self,var_name):
+            print('Fetching ', var_name)
+            self.sf.openTree(self.diag,self.shot)
+            setattr(self,var_name,self.sf.get(self.gEQDSK+''+var_name).data()[self.valid].T)
+        
+        prof = getattr(self,var_name)
 
 
         var_out = np.zeros_like(Psi,dtype='single')
@@ -826,10 +844,10 @@ class equ_map:
             jt = idx == i
             sort_wh = np.argsort(self.pf[:, i])
             if var_name == 'Qpsi':
-                ii = Qpsi[sort_wh, i].nonzero()
-                s = InterpolatedUnivariateSpline(self.pf[sort_wh[ii], i], Qpsi[sort_wh[ii], i])
+                ii = prof[sort_wh, i].nonzero()
+                s = InterpolatedUnivariateSpline(self.pf[sort_wh[ii], i], prof[sort_wh[ii], i])
             else:
-                s = InterpolatedUnivariateSpline(self.pf[sort_wh, i], Qpsi[sort_wh, i])
+                s = InterpolatedUnivariateSpline(self.pf[sort_wh, i], prof[sort_wh, i])
             var_out[jt] = s(Psi[jt].flatten()).reshape(Psi[jt].shape)
 
         return var_out
@@ -1115,11 +1133,11 @@ if __name__ == "__main__":
 
     from time import time
     
-    from map_equ import equ_map,get_gc 
+    #from map_equ import equ_map,get_gc 
     import matplotlib.pylab as plt
     
     
-    mds_server = "atlas.gat.com"
+    mds_server = "skylark.pppl.gov:8501"
 
     import MDSplus as mds
     c = mds.Connection(mds_server )
@@ -1129,7 +1147,7 @@ if __name__ == "__main__":
     
     
     
-    eqm.Open(175699,diag='EFIT04')
+    eqm.Open(121165,diag='LRDFIT09', exp='NSTX')
     
     
     eqm._read_profiles()

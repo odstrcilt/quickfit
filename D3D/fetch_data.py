@@ -5251,7 +5251,7 @@ class data_loader:
 
 
         return Tree({'ECE':ece,'diag_names':{'ECE':['ECE']}, 'systems':['ECE']
-                                ,'EQM':Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag}}))
+                                ,'EQM':Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})})
     
     
     def load_co2(self, tbeg,tend, calc_weights=True):

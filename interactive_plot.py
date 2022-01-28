@@ -101,7 +101,7 @@ class FitPlot():
     plt_time = 0
     plt_radius = 0
     fsize3d=16
-    fsize=12
+    fsize=matplotlib.rcParams['font.size']
 
     #ts_revisions = []
     edge_discontinuties = []
@@ -162,7 +162,7 @@ class FitPlot():
             self.ax_main.grid(self.grid)
             self.fig.canvas.draw_idle()
      
-    def init_plot_data(self,prof,data_d, elms):
+    def init_plot_data(self,prof,data_d, elms, mhd_modes):
 
         #merge all diagnostics together
         unit,labels = '',[]
@@ -215,8 +215,8 @@ class FitPlot():
         diag_names = data_d['diag_names'] 
         label = ','.join(np.unique(labels))
 
-        #self.sawteeth_data = sawteeth_data 
         self.elms = elms
+        self.mhd_modes = mhd_modes
 
         self.options['data_loaded'] = True
         self.options['fitted'] = False
@@ -314,6 +314,11 @@ class FitPlot():
         
         self.core_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in eval(self.fit_options['sawteeth_times'].get())] 
         self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
+        
+        if self.mhd_modes is not None:
+            self.mhd_locations = {mode:self.ax_main.axvline(np.nan, ls='-',lw=.5,c='k',visible=False) for mode in self.mhd_modes['modes']}
+            self.mhd_labels = {mode:self.ax_main.text(  np.nan,0,  mode, visible=False) for mode in self.mhd_modes['modes']}
+
 
       
         self.spline_mean, = self.ax_main.plot([],[],'--',c='.5',linewidth=1,visible=False)
@@ -839,6 +844,7 @@ class FitPlot():
         #dt = float(self.fit_options['dt'].get())/1e3
         dr = float(self.fit_options['dr'].get())
         plot_type = self.plot_type.get()
+        kinprof = self.parent.kin_prof
         
 
         if plot_type in [0]:
@@ -925,23 +931,52 @@ class FitPlot():
             d.set_visible(r < .3 and plot_type == 0)           
         for d in self.edge_discontinuties:
             d.set_visible(r > .7 and plot_type == 0)
+            
+        #MHD modes
+        if self.mhd_modes is not None:
+            for name, rho_loc in self.mhd_modes['modes'].items():
+                loc = np.nan
+                if plot_type in [1,2] and kinprof in ['omega','Ti']:
+                    it = np.argmin(abs(self.mhd_modes['tvec']-t))
+                    loc = rho_loc[it]
+                    
+                if np.isfinite(loc):
+                    self.mhd_locations[name].set_data([loc,loc], [0, 1])
+                    self.mhd_labels[name].set_x(loc)
+                    self.mhd_locations[name].set_visible(True)
+                    self.mhd_labels[name].set_visible(True)
+                else:
+                    self.mhd_locations[name].set_visible(False)
+                    self.mhd_labels[name].set_visible(False)
+
+
+            
+            #self.mhd_locations = [self.ax_main.axvline(np.nan, ls='-',lw=.5,c='k',visible=False) for mode in self.mhd_modes]
+            #self.mhd_labels = [self.ax_main.text(0, np.nan,  mode) for mode in self.mhd_modes]
+            
+            #for txt in 
+            
+            #set_x
+            #axvline1.set_data([event.xdata, event.xdata], [0, 1])
+            #axvline2.set_data([event.xdata, event.xdata], [0, 1])
+
 
 
 
         #show also zipfit profiles
         #BUG how to avoid access of parent class?
         show_splines = self.parent.show_splines.get() == 1
-        prof = self.parent.kin_prof
-        if show_splines and prof in self.parent.splines:
-            splines = self.parent.splines[prof]
+        
+        if show_splines and kinprof in self.parent.splines:
+            splines = self.parent.splines[kinprof]
             
             y = splines['time'].values
             x = splines['rho'].values
-            z = splines[prof].values 
+            z = splines[kinprof].values 
             ze = z*0
 
-            if prof+'_err' in splines:
-                ze = splines[prof+'_err'].values
+            if kinprof + '_err' in splines:
+                ze = splines[kinprof+'_err'].values
            
             y0 = t
                 
