@@ -234,11 +234,11 @@ class equ_map:
         self._read_scalars()
 
 
-        PSIN = np.array([self.eqdsk[t]['AuxQuantities']['PSI_NORM'] for t in self.times]).T
+        self.PSIN = np.array([self.eqdsk[t]['AuxQuantities']['PSI_NORM'] for t in self.times]).T
 
         
 # Profiles
-        self.pf  = (PSIN*(self.psix-self.psi0)+self.psi0)
+        self.pf  = (self.PSIN*(self.psix-self.psi0)+self.psi0)
         self.pf =  np.array([self.eqdsk[t]['AuxQuantities']['PSI'] for t in self.times]).T
         self.ffp = np.array([self.eqdsk[t]['FFPRIM'] for t in self.times]).T
         self.ppp = np.array([self.eqdsk[t]['PPRIME'] for t in self.times]).T
@@ -884,27 +884,26 @@ class equ_map:
             t_in = self.t_eq
 
         tarr = np.atleast_1d(t_in)
-        Psi = self.rho2rho(rho, t_in=t_in, coord_in=coord_in,
-                          coord_out='Psi', extrapolate=True)
+        PsiN = self.rho2rho(rho, t_in=t_in, coord_in=coord_in,
+                          coord_out='Psi_N', extrapolate=True)
         nt = np.size(self.t_eq)
 
         Qpsi = np.array([self.eqdsk[t][var_name] for t in self.times]).T
-        print('Qpsiminmax', Qpsi.min(), Qpsi.max(), Psi.min(),Psi.max(), self.pf.min(), self.pf.max() )
+        print('Qpsiminmax', Qpsi.min(), Qpsi.max(), PsiN.min(),PsiN.max() )
 
-        var_out = np.zeros_like(Psi,dtype='single')
+        var_out = np.zeros((len(tarr),len(PsiN)),dtype='single')
         unique_idx, idx =  self._get_nearest_index(tarr)
 
         for i in unique_idx:
             jt = idx == i
-            sort_wh = np.argsort(self.pf[:, i])
             if var_name in ['Qpsi','QPSI']:
-                ii = Qpsi[sort_wh, i].nonzero()
-                s = InterpolatedUnivariateSpline(self.pf[sort_wh[ii], i], Qpsi[sort_wh[ii], i])
+                ii = Qpsi[:, i].nonzero()
+                s = InterpolatedUnivariateSpline(self.PSIN[ii], Qpsi[ii, i])
             else:
-                s = InterpolatedUnivariateSpline(self.pf[sort_wh, i], Qpsi[sort_wh, i])
-            var_out[jt] = s(Psi[jt].flatten()).reshape(Psi[jt].shape)
+                s = InterpolatedUnivariateSpline(self.PSIN, Qpsi[:, i])
+            var_out[jt] = s(PsiN[jt].flatten()).reshape(PsiN[jt].shape)
             
-        print('var_out', var_out.min(), var_out.max(),Psi.min(),  Psi.max())
+        print('var_out', var_out.min(), var_out.max(),PsiN.min(),  PsiN.max())
 
         return var_out
 
