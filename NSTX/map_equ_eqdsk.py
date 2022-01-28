@@ -889,7 +889,7 @@ class equ_map:
         nt = np.size(self.t_eq)
 
         Qpsi = np.array([self.eqdsk[t][var_name] for t in self.times]).T
-
+        print('Qpsiminmax', Qpsi.min(), Qpsi.max())
 
         var_out = np.zeros_like(Psi,dtype='single')
         unique_idx, idx =  self._get_nearest_index(tarr)
@@ -903,6 +903,8 @@ class equ_map:
             else:
                 s = InterpolatedUnivariateSpline(self.pf[sort_wh, i], Qpsi[sort_wh, i])
             var_out[jt] = s(Psi[jt].flatten()).reshape(Psi[jt].shape)
+            
+        print('var_out', var_out.min(), var_out.max(),Psi.min(),  Psi.max())
 
         return var_out
 
