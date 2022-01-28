@@ -955,7 +955,7 @@ class data_loader:
         self.RAW['MHDloc']  = Tree()
  
         rho = np.linspace(0,1,100)
-        q = self.eqm.getQuantity(rho, 'QPSI', coord_in=self.rho_coord)
+        q = np.abs(self.eqm.getQuantity(rho, 'QPSI', coord_in=self.rho_coord))
         
         modes = {'1/1':1, '2/1': 2, '3/1': 3, '4/1': 4,'5/1': 5, '3/2': 3/2,   '4/3': 4/3}
         rho_modes = {}
