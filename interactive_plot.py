@@ -316,7 +316,6 @@ class FitPlot():
         self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
         
         if self.mhd_modes is not None:
-            print('self.mhd_modes',self.mhd_modes)
             self.mhd_locations = {mode:self.ax_main.axvline(np.nan, ls='-',lw=.5,c='k',visible=False) for mode in self.mhd_modes['modes']}
             self.mhd_labels = {mode:self.ax_main.text(  np.nan,0,  mode, visible=False) for mode in self.mhd_modes['modes']}
 
