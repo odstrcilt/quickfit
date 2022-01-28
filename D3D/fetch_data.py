@@ -21,8 +21,10 @@ from scipy.stats import trim_mean
 from scipy.integrate import cumtrapz
 import matplotlib.pylab as plt
 import warnings
-
+import sys
+  
 try: 
+    assert 'omfit.py' in sys.argv[0]
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
     from omfit_classes.omfit_data import OMFITncDataset
     Dataset = OMFITncDataset
@@ -33,7 +35,7 @@ try:
         return tree    
 except:
     #ignore file argument
-    def Dataset(file,*args, **kwargs):
+    def Dataset(name,*args, **kwargs):
         return xarray.Dataset(*args, **kwargs)
     Tree = dict
    

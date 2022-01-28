@@ -19,6 +19,7 @@ import matplotlib.pylab as plt
 import warnings
 
 try: 
+    assert 'omfit.py' in sys.argv[0]
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
     from omfit_classes.omfit_data import OMFITncDataset
     Dataset = OMFITncDataset
