@@ -1010,7 +1010,6 @@ class DataFit():
             try:
                 self.mhdmodes = self.data_loader('mhd_modes')
             except Exception as e:
-                print('q surf not located', e)
                 self.mhdmodes = None
             
             #self.elm_signal = self.fit_options['elm_signal']

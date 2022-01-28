@@ -949,7 +949,7 @@ class data_loader:
 
     def load_mode_loc(self,option=None):
         
-        if 'MHDloc' in self.RAW and self.RAW['MHDloc']['EQM'][id] == id(self.eqm):
+        if 'MHDloc' in self.RAW and self.RAW['MHDloc']['EQM']['id'] == id(self.eqm):
             return self.RAW['MHDloc']
  
         self.RAW['MHDloc']  = Tree()

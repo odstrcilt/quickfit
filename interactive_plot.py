@@ -935,7 +935,6 @@ class FitPlot():
             
         #MHD modes
         if self.mhd_modes is not None:
-            print(self.mhd_modes)
             for name, rho_loc in self.mhd_modes['modes'].items():
                 loc = np.nan
                 if plot_type in [1,2] and kinprof in ['omega','Ti']:
