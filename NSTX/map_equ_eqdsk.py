@@ -891,9 +891,9 @@ class equ_map:
         Qpsi = np.squeeze( np.array([self.eqdsk[t][var_name] for t in self.times]).T)
         #print('Qpsiminmax', Qpsi.min(), Qpsi.max(), PsiN.min(),PsiN.max() )
 
-        var_out = np.zeros((len(tarr),len(PsiN)),dtype='single')
+        var_out = np.zeros_like(PsiN,dtype='single')
         unique_idx, idx =  self._get_nearest_index(tarr)
-        #print(self.PSIN.shape,  Qpsi.shape)
+        print(self.PSIN.shape,  Qpsi.shape)
 
         for i in unique_idx:
             jt = idx == i
