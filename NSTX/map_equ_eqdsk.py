@@ -889,7 +889,7 @@ class equ_map:
         nt = np.size(self.t_eq)
 
         Qpsi = np.array([self.eqdsk[t][var_name] for t in self.times]).T
-        print('Qpsiminmax', Qpsi.min(), Qpsi.max())
+        print('Qpsiminmax', Qpsi.min(), Qpsi.max(), Psi.min(),Psi.max(), self.pf.min(), self.pf.max() )
 
         var_out = np.zeros_like(Psi,dtype='single')
         unique_idx, idx =  self._get_nearest_index(tarr)
