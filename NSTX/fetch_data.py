@@ -729,8 +729,8 @@ class data_loader:
         #AW, AWB active and background aplitude, unknown units 
         data = {
             'Ti': {'label':'Ti','unit':'eV','sig':['ZTI','DTI'],'scale':1e3},
-            #'omega': {'label':r'\omega_\varphi','unit':'rad/s','sig':['VT','DVT'],'scale':1e3},
-            'omega': {'label':r'\omega_\varphi','unit':'kHz','sig':['VT','DVT'],'scale':1/(2*np.pi)},
+            'omega': {'label':r'\omega_\varphi','unit':'rad/s','sig':['VT','DVT'],'scale':1e3},
+            #'omega': {'label':r'\omega_\varphi','unit':'kHz','sig':['VT','DVT'],'scale':1/(2*np.pi)},
             'nimp': {'label':r'n_c','unit':'m^{-3}','sig':['NC','DNC'],'scale':1e6},
             }
      
