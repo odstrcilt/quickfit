@@ -5423,7 +5423,7 @@ class data_loader:
         ne_err[ne < 0]  = np.infty
  
 
-        CO2['CO2'] = Dataset('CO2interfer.nc')
+        CO2['CO2'] = Dataset('interfer.nc')
         CO2['CO2']['channel'] = xarray.DataArray( los_names ,dims=['channel'])
         CO2['CO2']['path'] = xarray.DataArray( t ,dims=['path'])
         CO2['CO2']['time'] = xarray.DataArray( co2_time ,dims=['time'], attrs={'units':'s'})
@@ -5431,8 +5431,8 @@ class data_loader:
         CO2['CO2']['ne'] = xarray.DataArray(ne, dims=['time', 'channel'], attrs={'units':'m^{-3}','label':'n_e'})
         CO2['CO2']['ne_err'] = xarray.DataArray(ne_err,dims=['time', 'channel'], attrs={'units':'m^{-3}'})
         CO2['CO2']['diags']= xarray.DataArray( np.tile(('CO2 interferometer',), (nt, n_ch)),dims=['time', 'channel'])
-        CO2['CO2']['R'] = xarray.DataArray(R[None],dims=['','channel','path'],attrs={'units':'m'})
-        CO2['CO2']['Z'] = xarray.DataArray(Z[None],dims=['','channel','path'],attrs={'units':'m'})
+        CO2['CO2']['R'] = xarray.DataArray(R[None],dims=['none','channel','path'],attrs={'units':'m'})
+        CO2['CO2']['Z'] = xarray.DataArray(Z[None],dims=['none','channel','path'],attrs={'units':'m'})
         if not 'rho' in CO2['CO2']:
             CO2['CO2']['rho'] = xarray.DataArray(np.zeros((nt, n_ch, n_path), dtype='single'),dims=['time', 'channel','path'])
         CO2['CO2']['L'] = xarray.DataArray(L,dims=['channel','path'],attrs={'units':'m'})
