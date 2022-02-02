@@ -3133,6 +3133,7 @@ class data_loader:
             
             
             #rho coordinate of the horizontal line, used later for separatrix aligment 
+            print('CER sep location', 'horiz_cut' not in nimp , 'EQM' not in nimp , nimp['EQM']['id'] != id(self.eqm) , nimp['EQM']['ed'] != self.eqm.diag )
             if 'horiz_cut' not in nimp or 'EQM' not in nimp or nimp['EQM']['id'] != id(self.eqm) or nimp['EQM']['ed'] != self.eqm.diag:
                 R = np.linspace(1.4,2.5,100)
                 rho_horiz = self.eqm.rz2rho(R, np.zeros_like(R), coord_out='rho_tor')
