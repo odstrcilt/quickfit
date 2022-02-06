@@ -319,14 +319,17 @@ class DataFit():
             if self.device == 'NSTX':
                 efit_names = []
                 for tree in ['EFIT','LRDFIT']:
-                    self.MDSconn.openTree(tree, self.shot)
-                    
-                    TDI = rf'_y = getnci("\\{tree}::TOP.*.RESULTS","minpath");'
-                    TDI+= rf'_s = getnci("\\{tree}::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
-                    TDI+= r'PACK(_y,_s)'
-    
-                    efit_names += list(self.MDSconn.get(TDI).data())
-                    self.MDSconn.closeTree(tree, self.shot)
+                    try:
+                        self.MDSconn.openTree(tree, self.shot)
+                        
+                        TDI = rf'_y = getnci("\\{tree}::TOP.*.RESULTS","minpath");'
+                        TDI+= rf'_s = getnci("\\{tree}::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
+                        TDI+= r'PACK(_y,_s)'
+        
+                        efit_names += list(self.MDSconn.get(TDI).data())
+                        self.MDSconn.closeTree(tree, self.shot)
+                    except:
+                        continue
 
                 if not isinstance(efit_names[0],str):
                     efit_names = [e.decode() for e in efit_names] 
