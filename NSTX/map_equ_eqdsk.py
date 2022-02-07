@@ -239,7 +239,7 @@ class equ_map:
         
 # Profiles
         self.pf  = (self.PSIN*(self.psix-self.psi0)+self.psi0)
-        self.pf =  np.array([self.eqdsk[t]['AuxQuantities']['PSI'] for t in self.times]).T
+        #self.pf =  np.array([self.eqdsk[t]['AuxQuantities']['PSI'] for t in self.times]).T
         self.ffp = np.array([self.eqdsk[t]['FFPRIM'] for t in self.times]).T
         self.ppp = np.array([self.eqdsk[t]['PPRIME'] for t in self.times]).T
         self.q   = np.array([self.eqdsk[t]['QPSI'] for t in self.times]).T
