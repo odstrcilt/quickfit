@@ -82,13 +82,13 @@ def default_settings(MDSconn, shot):
             revision_len = MDSconn.get('getnci("CHERS.ANALYSIS.*:DATEANALYZED", "length")').data()
             #use only if any data are availible
             CHERS_revisions = CHERS_revisions[revision_len > 0]
-            if not isinstance(CHERS_revisions[0],str): 
+            if len(CHERS_revisions) and not isinstance(CHERS_revisions[0],str): 
                 CHERS_revisions = [r.decode() for r in CHERS_revisions]
             CHERS_revisions = [r.strip() for r in CHERS_revisions]
 
             MDSconn.closeTree('ACTIVESPEC', shot)
         except Exception as e:
-            printe('Error '+str(e))
+            printe('Error CHERS '+str(e))
             embed()
             
  
@@ -132,8 +132,8 @@ def default_settings(MDSconn, shot):
         'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}        
  
     default_settings['Zeff']= {\
-        'systems':{'CER system':[]},
-        'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),cf_correction))}}        
+        'systems':{'CER system':(['CHERS',True], ), 'VB Zeff':(['filterscope',True], )},
+        'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),cf_correction))}  }        
  
  
  
@@ -332,84 +332,101 @@ class data_loader:
             
  
         if quantity == "Zeff" :
-            TS = self.load_ts(tbeg,tend,['LFS','HFS'],options['load_options']['CER system'] )
-            CER = self.load_cer(tbeg,tend, systems ,options['load_options']['CER system'] )
+            
+            Zeff = self.RAW['Zeff'] = Tree()
+            Zeff.setdefault('diag_names',Tree())
+            Zeff['systems'] = []
+            
+            if options['systems']['CER system'][0][1].get():
 
-            R_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
-            for sys in TS['systems']:
-                if sys not in TS: continue 
-                t = TS[sys]['time'].values
-                ne = TS[sys]['ne'].values
-                e = TS[sys]['ne_err'].values
-                r = TS[sys]['R'].values
-                r,t = np.meshgrid(r,t)
-                ind = np.isfinite(e)|(ne>0)|(e>0)
-                tvec_ne.append(t[ind])
-                data_ne.append(ne[ind])
-                err_ne.append(e[ind])
-                R_ne.append(r[ind]) 
+                TS = self.load_ts(tbeg,tend,['LFS','HFS'],options['load_options']['CER system'] )
+                try:
+                    CER = self.load_cer(tbeg,tend, systems ,options['load_options']['CER system'] )
+                except:
+                    printe('Loading of CHERS data failed')
+                else:
+                    R_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
+                    for sys in TS['systems']:
+                        if sys not in TS: continue 
+                        t = TS[sys]['time'].values
+                        ne = TS[sys]['ne'].values
+                        e = TS[sys]['ne_err'].values
+                        r = TS[sys]['R'].values
+                        r,t = np.meshgrid(r,t)
+                        ind = np.isfinite(e)|(ne>0)|(e>0)
+                        tvec_ne.append(t[ind])
+                        data_ne.append(ne[ind])
+                        err_ne.append(e[ind])
+                        R_ne.append(r[ind]) 
+        
+                    R_ne  = np.hstack(R_ne)
+                    tvec_ne = np.hstack(tvec_ne)
+                    data_ne = np.hstack(data_ne)
+                    err_ne  = np.hstack(err_ne)
+                    interp = LinearNDInterpolator(np.vstack((tvec_ne,R_ne)).T, np.copy(data_ne),fill_value=-100)
+
+                    Zeff['systems']+= CER['systems']
+
+                    #Zeff = deepcopy(CER)
+                    for sys in CER['systems']:
+                        if sys not in CER: continue
+                        
+
+                        r = CER[sys]['R'].values
+                        t = CER[sys]['time'].values
+                        r,t = np.meshgrid(r,t)
+                
+                        interp.values[:] = np.copy(data_ne)[:,None]                
+                        ne = np.single(interp(t,r))
+                        
+                        interp.values[:] = np.copy(err_ne)[:,None]   
+                        ne_err = np.single(interp(t,r))
+                        
+                        nC = CER[sys]['nC6'].values
+                        nC_err = CER[sys]['nC6_err'].values
+                        
+                        fC = nC/(ne+1)
+                        
+                        Zimp, Zmain = 6,1
+                        valid = (nC_err > 0)&np.isfinite(nC_err)
+                        zeff = Zimp*(Zimp - Zmain)*fC + Zmain
+                        zeff_err = np.ones_like(zeff)
+                        zeff_err[valid]  = (zeff[valid]-Zmain)*np.hypot(ne_err/(ne+1),nC_err/(nC+1))[valid]
+                        zeff_err[~valid] = -np.infty
+                        
+                        Zeff['diag_names'][sys] = ['CHERS']            
+                        Zeff[sys] = CER[sys].drop(['Ti','Ti_err','omega','omega_err','nC6','nC6_err'])
+                        Zeff[sys]['Zeff'] = xarray.DataArray(zeff,dims=['time','channel'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
+                        Zeff[sys]['Zeff_err'] = xarray.DataArray(zeff_err,dims=['time','channel'])
+                    
+            if options['systems']['VB Zeff'][0][1].get():
+                try:
+                    tree = 'PASSIVESPEC' 
+                    self.MDSconn.openTree(tree, self.shot)
+                    VB_Zeff = self.MDSconn.get('_x=\\'+tree+'::TOP.VISIBLEBREM:Z_EFFECTIVE').data()
+                    VB_tvec = self.MDSconn.get('dim_of(_x,0)').data()
  
-            R_ne  = np.hstack(R_ne)
-            tvec_ne = np.hstack(tvec_ne)
-            data_ne = np.hstack(data_ne)
-            err_ne  = np.hstack(err_ne)
-            interp = LinearNDInterpolator(np.vstack((tvec_ne,R_ne)).T, np.copy(data_ne),fill_value=-100)
+                    
+                    self.MDSconn.closeTree(tree, self.shot)
+                    ind = (VB_Zeff < 6)&(VB_Zeff > 1)
+                    VB_Zeff = VB_Zeff[ind]
+                    VB_tvec = VB_tvec[ind]
 
- 
-            Zeff = deepcopy(CER)
-            for sys in CER['systems']:
-                if sys not in CER: continue
-                
-                r = CER[sys]['R'].values
-                t = CER[sys]['time'].values
-                r,t = np.meshgrid(r,t)
-          
-                interp.values[:] = np.copy(data_ne)[:,None]                
-                ne = np.single(interp(t,r))
-                
-                interp.values[:] = np.copy(err_ne)[:,None]   
-                ne_err = np.single(interp(t,r))
-                
-                nC = CER[sys]['nC6'].values
-                nC_err = CER[sys]['nC6_err'].values
-                
-                fC = nC/(ne+1)
-                
-                Zimp, Zmain = 6,1
-                valid = (nC_err > 0)&np.isfinite(nC_err)
-                zeff = Zimp*(Zimp - Zmain)*fC + Zmain
-                zeff_err = np.ones_like(zeff)
-                zeff_err[valid]  = (zeff[valid]-Zmain)*np.hypot(ne_err/(ne+1),nC_err/(nC+1))[valid]
-                zeff_err[~valid] = -np.infty
+                    Zeff['VB Zeff'] = VB = Dataset('Zeff_VB.nc', attrs={'system':'VB Zeffs'})
+                    VB['Zeff'] = xarray.DataArray(VB_Zeff,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
+                    VB['Zeff_err'] = xarray.DataArray(VB_Zeff*.1,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
+                    #location is just a guess
+                    VB['rho']  = xarray.DataArray(np.zeros_like(VB_tvec)+.1,dims=['time'] )
+                    VB['diags']= xarray.DataArray(np.tile(('VB Zeff',), VB_tvec.size),dims=['time'])           
+                    VB['time'] = xarray.DataArray(VB_tvec,dims=['time'], attrs={'units':'s'})
 
-                Zeff[sys] = CER[sys].drop(['Ti','Ti_err','omega','omega_err','nC6','nC6_err'])
-                Zeff[sys]['Zeff'] = xarray.DataArray(zeff,dims=['time','channel'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
-                Zeff[sys]['Zeff_err'] = xarray.DataArray(zeff_err,dims=['time','channel'])
-                
-                
-            try:
-                tree = 'PASSIVESPEC' 
-                self.MDSconn.openTree(tree, self.shot)
-                VB_Zeff = self.MDSconn.get('_x=\\'+tree+'::TOP.VISIBLEBREM:Z_EFFECTIVE').data()
-                VB_tvec = self.MDSconn.get('dim_of(_x,0)').data()
-                self.MDSconn.closeTree(tree, self.shot)
-                ind = (VB_Zeff < 6)&(VB_Zeff > 1)
-                VB_Zeff = VB_Zeff[ind]
-                VB_tvec = VB_tvec[ind]
+                    #Zeff['systems'].append('VB')
+                    Zeff['diag_names']['VB Zeff']=['VB Zeff']  
+                    Zeff['systems']+= ['VB Zeff']
 
-                Zeff['VB'] = VB = Dataset('Zeff_VB.nc', attrs={'system':'VB'})
-                VB['Zeff'] = xarray.DataArray(VB_Zeff,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
-                VB['Zeff_err'] = xarray.DataArray(VB_Zeff*.1,dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
-                #location is just a guess
-                VB['rho']  = xarray.DataArray(np.zeros_like(VB_tvec)+.1,dims=['time'] )
-                VB['diags']= xarray.DataArray(np.tile(('VB',), VB_tvec.size),dims=['time'])           
-                VB['time'] = xarray.DataArray(VB_tvec,dims=['time'], attrs={'units':'s'})
-
-                Zeff['systems'].append('VB')
-                Zeff['diag_names']['VB']=['VB']            
-            except Exception as e:
-                print('VB Zeff error ',e)
-                pass
+                except Exception as e:
+                    print('VB Zeff error ',e)
+                    pass
             
             data.append(Zeff)
             
