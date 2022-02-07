@@ -390,9 +390,11 @@ class equ_map:
             rho_in = np.r_[0, rho_in[sortind]]
             ratio = np.r_[ratio[0], ratio]
             
-
-            s = UnivariateSpline(rho_in, ratio, w=w, k=4, s=5e-3,ext=3)  #BUG s = 5e-3 can be sometimes too much, sometimes not enought :( 
-            
+            try:
+                s = UnivariateSpline(rho_in, ratio, w=w, k=4, s=5e-3,ext=3)  #BUG s = 5e-3 can be sometimes too much, sometimes not enought :( 
+            except:
+                print('rho2rho failed at %fs'%(self.t_eq[i]))
+                raise
 
 
             jt = idx == i
