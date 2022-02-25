@@ -1203,7 +1203,6 @@ class DataFit():
                 except:
                     pass
                 
-            
             output[prof] = {'tvec':t_out, 'rho':x_out, 'rho_lbl': self.options['rho_coord'],
                             'data':np.single(d_out), 
                             'err': np.single(d_err),
@@ -1261,9 +1260,9 @@ class DataFit():
 
         output['sawteeth'] =  eval(self.fit_options['sawteeth_times'].get())
         if hasattr(self,'elms'):
-            output.update(self.elms) 
+            output['elms'] = self.elms
         
-        
+ 
         np.savez_compressed(path+'kin_data_%d.npz'%self.shot, **output)
         self.saved_profiles = True
         print('saved to: ', path+'kin_data_%d.npz'%self.shot)
