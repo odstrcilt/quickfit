@@ -224,7 +224,6 @@ class map2grid():
         weight[1::2] *= frac_it
         weight[  :2] *= 1.-frac_ir
         weight[2:  ] *= frac_ir
-        print('weights', weight[ ::2].mean(), weight[1::2].mean())
         
          
         #skip fit of temporal regions without any data
