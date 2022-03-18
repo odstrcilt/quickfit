@@ -94,19 +94,25 @@ class map2grid():
         self.t_max = self.T.max()
         
         #shift of time grid to align with most of the temepoints to reduce spartiy of V matrix, 
-        it = (self.T-self.t_min)/dt
+        it = (self.T-self.t_min)/dt+1e-4#add small constant due to rounding errors
         it-= np.int32(it)
-        t_shift = np.median(it)-1e-4 #add small constant due to rounding errors
-        self.t_min += -dt+t_shift*dt
-        self.t_max = self.t_min+np.ceil((self.t_max-self.t_min)/dt+2)*dt
+        t_shift = np.median(it) 
+        self.t_min += -dt+t_shift*dt #start one dt before first point 
+        self.t_new0 = np.arange(self.t_min,self.t_max+dt, dt)
         
+        #self.t_max = self.t_min+np.ceil((self.t_max-self.t_min)/dt+1)*dt
+        self.t_max = self.t_new0[-1]
+        self.nt_new0 = len(self.t_new0)
         
         self.dt = dt
         self.nr_new = nr_new
-        self.nt_new0 = int(round((self.t_max-self.t_min)/dt,2))
-        self.nt_new = self.nt_new0 #actual number of profiles, when the regiosn with missing data are removed
-        
+        #self.nt_new0 = int(round((self.t_max-self.t_min)/dt,2))
+        #self.nt_new = self.nt_new0 #actual number of profiles, when the regiosn with missing data are removed
+    
+        #t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0)
 
+
+        #embed()
        
         self.g = np.zeros((self.nt_new0,nr_new))*np.nan
         self.g0 = np.zeros((self.nt_new0,nr_new)) 
@@ -195,7 +201,7 @@ class map2grid():
 
         #new grid for output
         r_new  = np.linspace(self.r_min,self.r_max,self.nr_new)
-        t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0)
+        #t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0)
         
         floor_it = np.uint32(it) 
         floor_ir = np.uint32(ir)
@@ -218,6 +224,7 @@ class map2grid():
         weight[1::2] *= frac_it
         weight[  :2] *= 1.-frac_ir
         weight[2:  ] *= frac_ir
+        print('weights', weight[ ::2].mean(), weight[1::2].mean())
         
          
         #skip fit of temporal regions without any data
@@ -244,11 +251,12 @@ class map2grid():
             #skipping a fit in regions without the data
             used_times = np.cumsum(~self.missing_data)-1
             index_t    = used_times[index_t]
-            t_new = t_new0[~self.missing_data]
+            t_new = self.t_new0[~self.missing_data]
         else:
+            t_new = self.t_new0
             self.nt_new = self.nt_new0
             dt = self.dt*np.ones(self.nt_new-1 )
-            used_times = np.arange(len(t_new0))
+            used_times = np.arange(len(self.t_new0))
                 
         self.r_new,self.t_new = np.meshgrid(r_new,t_new)
 
@@ -335,8 +343,8 @@ class map2grid():
             
             break_ind = []
             if not time_breaks is None and len(time_breaks) != 0:
-                break_ind = np.unique(t_new0.searchsorted(time_breaks))
-                break_ind = break_ind[(break_ind < len(t_new0)-2)&(break_ind > 3)] #to close to boundary 
+                break_ind = np.unique(self.t_new0.searchsorted(time_breaks))
+                break_ind = break_ind[(break_ind < len(self.t_new0)-2)&(break_ind > 3)] #to close to boundary 
                 if any(break_ind):
                     break_ind = break_ind[np.ediff1d(break_ind,to_begin=10)>1] #to close discontinuties
       
@@ -898,7 +906,6 @@ class map2grid():
         #find lower and upper uncertainty level, much faster then using mquantiles..
         rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
         rvec_ = (rvec[1:]+rvec[:-1])/2
-
         K       = -np.diff(self.g )/(self.g[:,1:]+self.g[:,:-1]      )/(rvec_*np.diff(rvec*a0))*R0*2
         K_noise = -np.diff(g_noise)/(g_noise[...,1:]+g_noise[...,:-1])/(rvec_*np.diff(rvec*a0))*R0*2 #slow
         
