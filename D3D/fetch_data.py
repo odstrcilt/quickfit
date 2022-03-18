@@ -2147,10 +2147,7 @@ class data_loader:
                 #add random jitter to avoid this issue, important for SPRED 
                 tvec_[beam_ind] += 1e-5*np.random.randn(len(tvec_[beam_ind]))
                 utvec, uind = np.unique(tvec_[beam_ind], return_index=True)
-                #if len(utvec) != len(tvec_[beam_ind]):
-                    #print(ch,beamid[idx[ID]],  len(utvec),  len(tvec_[beam_ind]))
-                    
-                    
+       
                     
                 beam_ind = np.arange(len(tvec_))[beam_ind][uind]
 
@@ -2160,7 +2157,7 @@ class data_loader:
                 beam_intervals[bname].append((tvec[ich][beam_ind],stime[ich][beam_ind]))  
                 G = beam_geom[ich, observed_beams]
                 
-                ds = Dataset('CER_'+str(ID)+'.nc', attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
+                ds = Dataset('CER_'+ch+'_'+bname+'.nc', attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
                                         'beam_geom':G,'Z':charge})
 
                 #fill by zeros for now, 
@@ -3235,6 +3232,7 @@ class data_loader:
             #build a new dictionary only with the requested and time sliced channels            
             nimp_out = {'systems':systems,'diag_names':Tree()}
             for sys in systems:
+                #SPRED data will be always from intensity
                 nimp_out[sys] = []
                 #list only diag_names which are actually loaded
                 nimp_out['diag_names'][sys] = []
@@ -3259,8 +3257,7 @@ class data_loader:
                         if ch.attrs['name'] not in nimp_out['diag_names'][sys]:
                             nimp_out['diag_names'][sys].append(ch.attrs['name'])
                         nimp_out[sys].append(ch)
-                        
-            #embed()
+  
 
             return nimp_out
 
@@ -3284,7 +3281,6 @@ class data_loader:
         if nz_from_intens:
             
             #try to load C6 for Zeff estimate needed for CX crossections
-            #options.setdefault('Impurity', 'C6') 
             try:
                 tmp_imp = options.get('Impurity','C6') 
 
@@ -3325,9 +3321,21 @@ class data_loader:
                 options['Correction']['Relative calibration'].set(rcalib)
                 options['Impurity'] = tmp_imp
         else:
-            #load just the impurity density
+            #load just the impurity density from MDS+
             try:
                 nimp = self.load_nimp_impcon(nimp,load_systems_nz, analysis_type,imp)
+                #SPRED must be calculated from intensity 
+                if 'SPRED_'+imp in load_systems_nz:
+                    try:
+                        nimp = self.calc_nimp_intens(tbeg,tend,nimp,['SPRED_'+imp],imp, nimp, options)
+                        #it needs to be saved under the same name as data from CER
+                        for ch in nimp['SPRED_'+imp]:
+                            ch[nimp_name] = ch['nimp_int'] 
+                            ch[nimp_name+'_err'] = ch['nimp_int_err'] 
+ 
+                    except Exception as e:
+                        printe('SPRED density calculation failed'+str(e))
+                    
             except Exception as e:
 
                 printe('Error in loading of impurity density from IMPCON: '+str(e))
@@ -3339,7 +3347,8 @@ class data_loader:
 
                 #calculate impurity density
                 nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
-
+                
+ 
           
         ##update uncorrected data
         diag_names = sum([nimp['diag_names'][diag] for diag in nimp['systems'] if diag in nimp['diag_names']],[])
@@ -4159,15 +4168,16 @@ class data_loader:
               
                             
             cer_type = options['CER system']['Analysis'][0]
+            cer_intens = options['CER system']['Correction']['nz from CER intensity']
             options = {'Analysis': (cer_type, (S('best'),'fit','auto','quick')),'Impurity':'C6',
-                       'Correction': {'Relative calibration':I(1),'nz from CER intensity': I(1)}}
+                       'Correction': {'Relative calibration':I(1),'nz from CER intensity': cer_intens}}
             
             
             zeff['SPRED'] = []
  
             #first load carbon from CER and SPRED and cross-calibrate
             main_imp = self.load_nimp(tbeg,tend, ['SPRED','tangential'],options)
-
+ 
             zeff['diag_names']['SPRED'] = []
             if len(main_imp['SPRED_C6']) > 0:
                 zeff['diag_names']['SPRED'].append('SPRED')
@@ -4184,15 +4194,22 @@ class data_loader:
             densities.update({'n_'+i+'_cx': [] for i in SPRED_CX_ions})
             densities.update({'n_'+i+'_cx_err': [] for i in SPRED_CX_ions})
 
-       
+
             for ib,nC in enumerate(main_imp['SPRED_C6']):
+                pass
                     
                 channel = nC.attrs['channel']
                 #correction estimated from cross-calibration by CER
                 corr = 1
-                if 'nimp_int_corr' in nC:
-                    corr = nC['nimp_int_corr'].values/(nC['nimp_int'].values+1e-5)
-    
+                
+                if cer_intens.get():
+                    if 'nimp_int_corr' in nC:
+                        corr = nC['nimp_int_corr'].values/(nC['nimp_int'].values+1e-5)
+                else:
+                    if 'nimp_impcon_corr' in nC:
+                        corr = nC['nimp_impcon_corr'].values/(nC['nimp_impcon'].values+1e-5)
+                        
+                
                 correction.append(corr)
                 
                 R = nC['R'].values
@@ -4202,8 +4219,7 @@ class data_loader:
                 t_ind = (tvec >= _tbeg)&(tvec <= _tend)
                 
                 #zipfit = self.load_zipfit()
-                #zipfit['ne']['time']
-                #embed()
+               
                 #Linterp = RectBivariateSpline(zipfit['ne']['time'], zipfit['ne']['rho'], zipfit['ne']['ne_err'],kx=1,ky=1)
 
 
@@ -4212,7 +4228,7 @@ class data_loader:
                 #ne_err = Linterp.ev(tvec, rho)/1e19
                 #Linterp = RectBivariateSpline(zipfit['ne']['time'], zipfit['ne']['rho'], zipfit['ne']['ne'],kx=1,ky=1)
 
-                #ne  = Linterp.ev(tvec, rho)/1e19
+                ne  = Linterp.ev(tvec, rho)/1e19
 
                 Linterp.values[:] = np.copy(n_e)[:,None]
                 ne = Linterp(np.vstack((tvec, rho)).T)/1e19
@@ -4227,7 +4243,6 @@ class data_loader:
                 concentrations['C6'].append(imp_conc[t_ind])
                 options = {'Analysis': (S('SPRED'), (cer_type,'fit','auto','quick')),
                         'Correction': {'Relative calibration':I(0),'nz from CER intensity': I(1)}}
-                
                 
                 densities['time_cx'].append(tvec[t_ind])
                 densities['rho_cx'].append(rho[t_ind])
@@ -4298,7 +4313,8 @@ class data_loader:
                 ds['Zeff_err'] = xarray.DataArray( np.single(Zeff_err), dims=['time']) 
                 ds['time'] = xarray.DataArray(tvec ,dims=['time'], attrs={'units':'s'})
                 zeff['SPRED'].append(ds)
-
+            
+            #embed()
             sind = np.argsort(np.hstack(densities['time_cx']))
             time_cx = np.hstack(densities['time_cx'])[sind] 
             
@@ -4434,7 +4450,7 @@ class data_loader:
         try:
             sol_corr = options['Corrections']['Wall reflections'].get()
         except:
-            sol_corr = True
+            sol_corr = False
             
 
             
@@ -5673,8 +5689,10 @@ class data_loader:
             weight[CO2['CO2']['rho'].values >= 1.05] = 0 #make is consistent with C02 correction
             CO2['CO2']['weight']  = xarray.DataArray(weight, dims=['time', 'channel','path'])
             CO2['CO2']['L_cross'] = xarray.DataArray(L_cross,dims=['time','channel'],attrs={'units':'m'})
+            #rho_tg = np.average(CO2['CO2']['rho'].values,2, (CO2['CO2']['rho'].values < 0.9)*weight)
+            #embed()
 
-        CO2['CO2']['rho_tg'] = xarray.DataArray(rho_tg,dims=['time', 'channel'])
+        CO2['CO2']['rho_tg'] = xarray.DataArray(np.single(rho_tg),dims=['time', 'channel'])
 
 
         CO2['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
@@ -6198,7 +6216,7 @@ def main():
              184834,184837,184839,184840,184841,184843,184844,184845,184846,]
     
     for shot in shots:
-        shot = 184846
+        #shot = 184846
         #shot = 184773
         #shot = 176278 #BUG error carbon density 
         #shot = 184831
@@ -6288,7 +6306,7 @@ def main():
                             'CER VB':{'Analysis':(S('auto'), (S('best'),'fit','auto','quick'))},
                             'CER system':OrderedDict((
                                     ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
-                                    ('Correction',    {'Relative calibration':I(0)}),
+                                    ('Correction',    {'Relative calibration':I(1), 'nz from CER intensity':I(0)}), #BUG
                                     ('TS position error',{'Z shift [cm]':D(0.0)})))
                             }\
                 })
