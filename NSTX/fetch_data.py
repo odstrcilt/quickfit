@@ -69,28 +69,36 @@ def default_settings(MDSconn, shot):
     ts_revisions = []
     CHERS_revisions = []
     if MDSconn is not None:
-        try: 
-            #load all avalible TS revision
-            MDSconn.openTree('ACTIVESPEC', shot)
-            ts_revisions = MDSconn.get('getnci("MPTS.OUTPUT_DATA.*", "node")').data()
-            if not isinstance(ts_revisions[0],str): 
-                ts_revisions = [r.decode() for r in ts_revisions]
-                
-            ts_revisions = [r.strip() for r in ts_revisions]
+        #load all avalible TS revision
+        MDSconn.openTree('ACTIVESPEC', shot)
+        
+        TDI = rf'_y = getnci("MPTS.OUTPUT_DATA.*", "node");'
+        TDI+= rf'_s = getnci("MPTS.OUTPUT_DATA.*:COMMENT", "length") > 0;'
+        TDI+= r'PACK(_y,_s)'
+        try:
+            ts_revisions = MDSconn.get(TDI).data()
+        except:
+            ts_revisions = []
+     
+        if len(ts_revisions) and not isinstance(ts_revisions[0],str): 
+            ts_revisions = [r.decode() for r in ts_revisions]
+        ts_revisions = [r.strip() for r in ts_revisions]
+        
+        
+        TDI = rf'_y = getnci("CHERS.ANALYSIS.*", "node");'
+        TDI+= rf'_s = getnci("CHERS.ANALYSIS.*:DATEANALYZED", "length") > 0;'
+        TDI+= r'PACK(_y,_s)'
+        try:
+            CHERS_revisions = MDSconn.get(TDI).data()
+        except:
+            CHERS_revisions = []
+    
+        if len(CHERS_revisions) and not isinstance(CHERS_revisions[0],str): 
+            CHERS_revisions = [r.decode() for r in CHERS_revisions]
+        CHERS_revisions = [r.strip() for r in CHERS_revisions]
 
-            CHERS_revisions = MDSconn.get('getnci("CHERS.ANALYSIS.*", "node")').data()
-            revision_len = MDSconn.get('getnci("CHERS.ANALYSIS.*:DATEANALYZED", "length")').data()
-            #use only if any data are availible
-            CHERS_revisions = CHERS_revisions[revision_len > 0]
-            if len(CHERS_revisions) and not isinstance(CHERS_revisions[0],str): 
-                CHERS_revisions = [r.decode() for r in CHERS_revisions]
-            CHERS_revisions = [r.strip() for r in CHERS_revisions]
-
-            MDSconn.closeTree('ACTIVESPEC', shot)
-        except Exception as e:
-            printe('Error CHERS '+str(e))
-            embed()
-            
+        MDSconn.closeTree('ACTIVESPEC', shot)
+      
  
     
     #build a large dictionary with all settings
@@ -102,15 +110,16 @@ def default_settings(MDSconn, shot):
     horiz_error =  {'R shift [cm]':0.0}
     cf_correction = ('Poloidal asymmetry correction',('None',['None','LFS','FSA']))
 
-    default_settings['Ti']={'systems':{'CER system':[]},\
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}},
-        }
+    if len(CHERS_revisions):
+        default_settings['Ti']={'systems':{'CER system':[]},\
+            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}},
+            }
 
-    default_settings['omega']= {'systems':{'CER system':[]},
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}}}
-   
-    default_settings['nC6'] = {'systems':{'CER system':[] },
-        'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),('Position error',horiz_error), cf_correction))}}
+        default_settings['omega']= {'systems':{'CER system':[]},
+            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}}}
+    
+        default_settings['nC6'] = {'systems':{'CER system':[] },
+            'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),('Position error',horiz_error), cf_correction))}}
     
     TS_options = OrderedDict((("TS revision",('BEST', ts_revisions)),('Position error',horiz_error) ))
     
@@ -121,20 +130,21 @@ def default_settings(MDSconn, shot):
     
     default_settings['ne']= {'systems':{'TS system':(['LFS',True],['HFS',True])},
     'load_options':{'TS system':TS_options}}
-      
-
-    default_settings['Mach']= {\
-        'systems':{'CER system':[]},
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}
+            
+    default_settings['Zeff']= {'systems':{'VB Zeff':(['filterscope',True], )}, 'load_options':{}} 
     
-    default_settings['Te/Ti']= {\
-        'systems':{'CER system':[]},
-        'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}        
- 
-    default_settings['Zeff']= {\
-        'systems':{'CER system':(['CHERS',True], ), 'VB Zeff':(['filterscope',True], )},
-        'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),cf_correction))}  }        
- 
+    if len(CHERS_revisions):
+        default_settings['Mach']= {\
+            'systems':{'CER system':[]},
+            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}
+        
+        default_settings['Te/Ti']= {\
+            'systems':{'CER system':[]},
+            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}        
+        default_settings['Zeff']['systems']['CER system'] = (['CHERS',True], )
+        default_settings['Zeff']['load_options'] = {'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),cf_correction))}
+        
+
  
  
     return default_settings
@@ -260,6 +270,7 @@ class data_loader:
             ti = np.copy(cer['CHERS']['Ti'].values)
             ti_err = cer['CHERS']['Ti_err'].values
             r = cer['CHERS']['R'].values
+            t = cer['CHERS']['time'].values
             Mach['CHERS'] = cer['CHERS'].drop(['omega','omega_err','Ti','Ti_err'])
 
             vtor = omg*r
@@ -268,6 +279,10 @@ class data_loader:
             vtor[vtor==0] = 1 #avoid zero division
             mach = np.sqrt(2*m_u/e*vtor**2/(2*ti))
             mach_err = mach*np.hypot(vtor_err/vtor,ti_err/ti/2.)*np.sign(ti_err)
+            
+            #mach number profile is not a flux fucntion, use just LFS value
+            R0 = np.interp(t ,self.eqm.t_eq, self.eqm.ssq['Rmag'])
+            mach_err[r < R0[:,None]] *= -1
     
             #deuterium mach number 
             Mach['CHERS']['Mach'] = xarray.DataArray(mach, dims=['time','channel'], attrs={'units':'-','label':'M_D'})
@@ -877,7 +892,7 @@ class data_loader:
         ts = self.eq_mapping(ts, dr =rshift)            
         ts.setdefault('diag_names',Tree())
  
-        if len(systems) == 0 and np.all([ts[sys].attrs['cf_correction'] == cf_correction for sys in ts['systems']]):
+        if len(systems) == 0 and np.all([ts[sys].attrs.get('cf_correction','') == cf_correction for sys in ts['systems']]):
             #assume that equilibrium could be changed
             return ts
         else:
