@@ -763,7 +763,7 @@ def default_settings(MDSconn, shot):
     default_settings['Ti']= {\
         'systems':{'CER system':(['tangential',True], ['vertical',False])},\
         'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
-                                      'Corrections':{'Zeeman Splitting':True, 'Wall reflections':False}} }}
+                                      'Corrections':{'Zeeman Splitting':False, 'Wall reflections':False}} }}
         
         
  
@@ -4228,7 +4228,7 @@ class data_loader:
                 #ne_err = Linterp.ev(tvec, rho)/1e19
                 #Linterp = RectBivariateSpline(zipfit['ne']['time'], zipfit['ne']['rho'], zipfit['ne']['ne'],kx=1,ky=1)
 
-                ne  = Linterp.ev(tvec, rho)/1e19
+                ##ne  = Linterp.ev(tvec, rho)/1e19
 
                 Linterp.values[:] = np.copy(n_e)[:,None]
                 ne = Linterp(np.vstack((tvec, rho)).T)/1e19
@@ -5079,7 +5079,8 @@ class data_loader:
             ne_mean = np.average(ne[isys], weights = 1/ne_err[isys]+1e-30,axis=1)
             
             ne_mean_filter = medfilt(np.r_[ne_mean, ne_mean[::-1]], 3)[:len(ne_mean)]
-            corrupted = (abs((ne_mean - ne_mean_filter)/ ne_mean_filter) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
+            #embed()
+            corrupted = (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
             
             #remove them, but it can be returned by user
             ne_err[isys][corrupted] *= -1

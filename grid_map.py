@@ -97,8 +97,10 @@ class map2grid():
         it = (self.T-self.t_min)/dt+1e-4#add small constant due to rounding errors
         it-= np.int32(it)
         t_shift = np.median(it) 
-        self.t_min += -dt+t_shift*dt #start one dt before first point 
-        self.t_new0 = np.arange(self.t_min,self.t_max+dt, dt)
+        self.t_min += t_shift*dt #little shift 
+        if t_shift > 0: #self.t_min must be always less then the min(T)
+            self.t_min -= dt 
+        self.t_new0 = np.arange(self.t_min,self.t_max+dt*1.5, dt)
         
         #self.t_max = self.t_min+np.ceil((self.t_max-self.t_min)/dt+1)*dt
         self.t_max = self.t_new0[-1]
@@ -225,14 +227,17 @@ class map2grid():
         weight[  :2] *= 1.-frac_ir
         weight[2:  ] *= frac_ir
         
-         
+        #embed()
+
         #skip fit of temporal regions without any data
         if elm_phase is None:
             #if elm syncing is not used
             #time regions which are not covered by any measurements
-            self.missing_data[index_t[0]] = False
-            self.missing_data[index_t[1]] = False
-
+            try:
+                self.missing_data[index_t[0]] = False
+                self.missing_data[index_t[1]] = False
+            except:
+                print('error:  self.missing_data[index_t[1]] = False ')
             #weakly constrained timepoints
             weak_data,_ = np.histogram(index_t,self.nt_new0,weights=weight,range=(0,self.nt_new0))
             
@@ -246,7 +251,7 @@ class map2grid():
             dt = np.ediff1d(np.cumsum(dt)[~self.missing_data])
             dt = (dt/(1+weak_data))*self.dt 
             self.nt_new = np.sum(~self.missing_data)
-            
+            #embed()
             #skipping a fit in regions without the data
             used_times = np.cumsum(~self.missing_data)-1
             index_t    = used_times[index_t]

@@ -368,7 +368,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT02', 'EFIT01' , 'EFIT03',  'EFIT04', efit_editions[0]     
+                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02',    'EFIT03',  'EFIT04', efit_editions[0]     
                     for pref_ef in prefered_efit:
                         if pref_ef in efit_editions:
                             break
