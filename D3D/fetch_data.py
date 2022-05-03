@@ -4461,8 +4461,8 @@ class data_loader:
         cer.setdefault('diag_names',Tree())
         cer['systems'] = systems
         
-        #if sol_corr is different from previously loaded, reload data
-        if getattr(self,'cer_sol_corr', -1) == sol_corr:
+        #if sol_corr or zeem_split is different from previously loaded, reload data
+        if getattr(self,'cer_sol_corr', -1) != sol_corr or getattr(self,'zeem_split', -1) == zeem_split:
             load_systems = list(set(systems)-set(cer.keys()))
         else:
             load_systems = systems
@@ -4470,14 +4470,7 @@ class data_loader:
             
         #update equilibrium for already loaded systems
         cer = self.eq_mapping(cer)
-
-
  
-        for sys in systems:
-            if sys not in cer:
-                continue
-            for ch in cer[sys]:
-                ch['Ti'] = ch['Ti_corr'] if (zeem_split and 'Ti_corr' in ch) else ch['Ti_orig']
         if len(load_systems) == 0:
             return cer
    
@@ -4663,9 +4656,7 @@ class data_loader:
             int_,rot,Ti = np.clip(A[ic], int_*0.01, A[ic]*1.5), np.copy(Rc[ir]), np.clip(T[ic],1,Ti*1.5) 
             
             print('\nWall reflection coeff: %.3f  rotation coeff: %.2f'%(c[ic], r[ir]))
-
-        
-         
+ 
         ###############  Zeman correction #######################
         if signals[0] != 'TEMPC' and zeem_split:
             #Zeeman splitting correction
@@ -4703,11 +4694,12 @@ class data_loader:
                     options['Corrections']['Zeeman Splitting'].set(0)
                 except:
                     pass
-        else:
-            #minor bug, it wil not be possible to reload uncorrected data
-            Ti_corr = np.copy(Ti) 
-            if options is not None and 'Corrections' in options and 'Zeeman Splitting' in options['Corrections']:
-                options['Corrections']['Zeeman Splitting'].set(False)
+            Ti_corr = Ti
+        #else:
+            #minor bug, it will not be possible to reload uncorrected data
+            #Ti_corr = np.copy(Ti) 
+            #if options is not None and 'Corrections' in options and 'Zeeman Splitting' in options['Corrections']:
+                #options['Corrections']['Zeeman Splitting'].set(False)
         
         
         
@@ -4776,10 +4768,8 @@ class data_loader:
                 Ti[tind][~np.isfinite(Ti[tind])] = 0
                 
                 if not all(corrupted):
-                    ds['Ti_orig'] = xarray.DataArray(Ti[tind],dims=['time'], attrs={'units':'eV','label':'T_i'})
-                    ds['Ti_corr'] = xarray.DataArray(Ti_corr[tind],dims=['time'], attrs={'units':'eV','label':'T_i'})
+                    ds['Ti'] = xarray.DataArray(Ti[tind],dims=['time'], attrs={'units':'eV','label':'T_i', 'zeeman_split':zeem_split})
                     ds['Ti_err'] = xarray.DataArray(Ti_err[tind]*unreliable,dims=['time'], attrs={'units':'eV'})
-                    ds['Ti'] = ds['Ti_corr'] if zeem_split else ds['Ti_orig']
             
 
             if len(int_[tind]) > 0:
@@ -4803,6 +4793,7 @@ class data_loader:
         
         
         self.cer_sol_corr = sol_corr
+        self.zeem_split = zeem_split
 
 
 
@@ -5184,31 +5175,34 @@ class data_loader:
 
             if TS_align:
 
+                rho_out = 0.7  #use only data outside rho_out
+
                 TS_time  = TS['core']['time'].values
                 TS_rho   = TS['core']['rho'].values
                 TS_ne    = TS['core']['ne'].values 
                 TS_neerr = TS['core']['ne_err'].values
+                valid_ts_t = np.where(np.any(np.isfinite(TS_neerr) &(TS_rho > rho_out),1))[0]
+
                 
-                rho_out = 0.7  #use only data outside rho_out
     
                 
                 for it,t in enumerate(tvec):
-                    its = np.argmin(np.abs(TS_time-t))
+                    #nearest valid TS point
+                    its = valid_ts_t[np.argmin(np.abs(TS_time[valid_ts_t]-t))]
                     valid_ts = np.isfinite(TS_neerr[its]) &(TS_rho[its] > rho_out)
                     valid_rfl = (rho[it] > rho_out)&(ne[it] > 0)
     
                     R_ts = np.interp(TS_rho[its, valid_ts],horiz_rho[its],R_midplane) #midplane R coordinate for TS
                     R_rfl = R[it, valid_rfl]
                     ne_TS = TS_ne[its,valid_ts]/1e19
+                    nee_TS = TS_neerr[its,valid_ts]/1e19 
                     ne_RFL = ne[it,valid_rfl]/1e19
                     shift = np.linspace(-0.1,0.1,50)
                     conv = np.zeros_like(shift)
                     for ish, s in enumerate(shift):
                         ne_RFL_shift = np.interp(R_ts, R_rfl+s, ne_RFL)
-                        conv[ish] = np.sum((ne_RFL_shift-ne_TS)**2)
-                    
+                        conv[ish] = np.sum((ne_RFL_shift-ne_TS)**2/nee_TS**2)
                     _,R_shift[it] = min_fine(shift, conv)
-  
                 rho = self.eqm.rz2rho(R+R_shift[:,None],z,tvec,self.rho_coord)
 
                 
@@ -6213,131 +6207,132 @@ def main():
 #210 179389 1.09 1.16
 #330 178820 1.38 1.38
 
-    shots = [184847,184773,184777,184778,184822,184825,184826,184829,184831,184833,
-             184834,184837,184839,184840,184841,184843,184844,184845,184846,]
+    #shots = [184847,184773,184777,184778,184822,184825,184826,184829,184831,184833,
+             #184834,184837,184839,184840,184841,184843,184844,184845,184846,]
     
-    for shot in shots:
-        #shot = 184846
-        #shot = 184773
-        #shot = 176278 #BUG error carbon density 
-        #shot = 184831
+    #for shot in shots:
+    shot = 182725
+    #shot = 184846
+    #shot = 184773
+    #shot = 176278 #BUG error carbon density 
+    #shot = 184831
 
-        #175694  - better match between onaxis ver and tang denisty after rescaling
-        #TODO nacitat 210 data zvlast
-        #edge and core v330L system (178800)
-        #TODO v legende se ukazuji i systemy co nemaji zadana data
-        #kalibrovat core and edge poloidal zvlast
-        #TODO H plasmas???
+    #175694  - better match between onaxis ver and tang denisty after rescaling
+    #TODO nacitat 210 data zvlast
+    #edge and core v330L system (178800)
+    #TODO v legende se ukazuji i systemy co nemaji zadana data
+    #kalibrovat core and edge poloidal zvlast
+    #TODO H plasmas???
 
-        print(shot)
-        print_line( '  * Fetching EFIT02 data ...')
-        eqm = equ_map(MDSconn)
-        eqm.Open(shot, 'EFIT02', exp='D3D')
+    print(shot)
+    print_line( '  * Fetching EFIT02 data ...')
+    eqm = equ_map(MDSconn)
+    eqm.Open(shot, 'EFIT02', exp='D3D')
 
-        #load EFIT data from MDS+ 
-        T = time()
-        eqm._read_pfm()
-        eqm.read_ssq()
-        eqm._read_scalars()
-        eqm._read_profiles()
-        print('\t done in %.1fs'%(time()-T))
-        #import IPython 
-        #IPython.embed()
-                
-        #print 'test'
-        #exit()
-
-        loader = data_loader(MDSconn, shot, eqm, rho_coord, raw = {})
-
-        
-        settings = OrderedDict()
-        I = lambda x: tk.IntVar(value=x)
-        S = lambda x: tk.StringVar(value=x)
-        D = lambda x: tk.DoubleVar(value=x)
-
-        
-        ts_revisions = []
-
-        settings.setdefault('Ti', {\
-            'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},\
-            'load_options':{'CER system':{'Analysis':(S('best'), ('best','fit','auto','quick')) ,
-                                        'Corrections':{'Zeeman Splitting':I(0), 'Wall reflections':I(1)}} }})
+    #load EFIT data from MDS+ 
+    T = time()
+    eqm._read_pfm()
+    eqm.read_ssq()
+    eqm._read_scalars()
+    eqm._read_profiles()
+    print('\t done in %.1fs'%(time()-T))
+    #import IPython 
+    #IPython.embed()
             
-        settings.setdefault('omega', {\
-            'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},
-            'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})
-        settings.setdefault('Mach', {\
-            'systems':{'CER system':[]},
-            'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})
-        settings.setdefault('Te/Ti', {\
-            'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)] )},
-            'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
-            
-        settings.setdefault('nimp', {\
-            'systems':{'CER system':(['tangential',I(0)], ['vertical',I(0)],['SPRED',I(1)] )},
-            'load_options':{'CER system':OrderedDict((
-                                    ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
-                                    ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
-                                                'remove first data after blip':I(0)}  )))   }})
+    #print 'test'
+    #exit()
 
-        settings.setdefault('Te', {\
+    loader = data_loader(MDSconn, shot, eqm, rho_coord, raw = {})
+
+    
+    settings = OrderedDict()
+    I = lambda x: tk.IntVar(value=x)
+    S = lambda x: tk.StringVar(value=x)
+    D = lambda x: tk.DoubleVar(value=x)
+
+    
+    ts_revisions = []
+
+    settings.setdefault('Ti', {\
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},\
+        'load_options':{'CER system':{'Analysis':(S('best'), ('best','fit','auto','quick')) ,
+                                    'Corrections':{'Zeeman Splitting':I(1), 'Wall reflections':I(1)}} }})
+        
+    settings.setdefault('omega', {\
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},
+        'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})
+    settings.setdefault('Mach', {\
+        'systems':{'CER system':[]},
+        'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})
+    settings.setdefault('Te/Ti', {\
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)] )},
+        'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
+        
+    settings.setdefault('nimp', {\
+        'systems':{'CER system':(['tangential',I(0)], ['vertical',I(0)],['SPRED',I(1)] )},
+        'load_options':{'CER system':OrderedDict((
+                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
+                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
+                                            'remove first data after blip':I(0)}  )))   }})
+
+    settings.setdefault('Te', {\
+    'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
+                            ('ECE system',(['slow',I(1)],['fast',I(0)])))),
+    'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
+                    'ECE system':OrderedDict((
+                                ("Bt correction",{'Bt *=': D(1.0)}),
+                                ('TS correction',{'rescale':I(0)})))   }})
+        
+    settings.setdefault('ne', {\
         'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
-                                ('ECE system',(['slow',I(1)],['fast',I(0)])))),
+                                ( 'Reflectometer',(['all bands',I(0)],  )),
+                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
-                        'ECE system':OrderedDict((
-                                    ("Bt correction",{'Bt *=': D(1.0)}),
-                                    ('TS correction',{'rescale':I(0)})))   }})
-            
-        settings.setdefault('ne', {\
-            'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
-                                    ( 'Reflectometer',(['all bands',I(0)],  )),
-                                    ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
-            'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
-                            'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
-                            }})
-            
-        settings.setdefault('Zeff', {\
-            'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
-                                    ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
-                                    ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
-                                    ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
-                                    )), \
-            'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
-                            'TS':{'Position error':{'Z shift [cm]':D(0.0)}},
-                            'CER VB':{'Analysis':(S('auto'), (S('best'),'fit','auto','quick'))},
-                            'CER system':OrderedDict((
-                                    ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
-                                    ('Correction',    {'Relative calibration':I(1), 'nz from CER intensity':I(0)}), #BUG
-                                    ('TS position error',{'Z shift [cm]':D(0.0)})))
-                            }\
-                })
-            
-
-        settings['nC6'] = settings['nimp']
-        settings['nAr16'] = settings['nimp']
-        settings['nXX'] = settings['nimp']
-        settings['nHe2'] = settings['nimp']
-        settings['nN7'] = settings['nimp']
-        settings['nCa18'] = settings['nimp']
-        settings['nLi3'] = settings['nimp']
-
-        settings['elm_signal'] = S('fs01up')
-        settings['elm_signal'] = S('fs04')
-
-        #print settings['Zeff'] 
+                        'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
+                        }})
         
-        #exit()
+    settings.setdefault('Zeff', {\
+        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
+                                ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
+                                ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
+                                ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
+                                )), \
+        'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
+                        'TS':{'Position error':{'Z shift [cm]':D(0.0)}},
+                        'CER VB':{'Analysis':(S('auto'), (S('best'),'fit','auto','quick'))},
+                        'CER system':OrderedDict((
+                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
+                                ('Correction',    {'Relative calibration':I(1), 'nz from CER intensity':I(0)}), #BUG
+                                ('TS position error',{'Z shift [cm]':D(0.0)})))
+                        }\
+            })
+        
 
-        #TODO 160645 CO2 correction is broken
-        #160646,160657  crosscalibrace nimp nefunguje
-        #T = time()
+    settings['nC6'] = settings['nimp']
+    settings['nAr16'] = settings['nimp']
+    settings['nXX'] = settings['nimp']
+    settings['nHe2'] = settings['nimp']
+    settings['nN7'] = settings['nimp']
+    settings['nCa18'] = settings['nimp']
+    settings['nLi3'] = settings['nimp']
 
-        #load_zeff(self,tbeg,tend, options=None)
-        #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
-        loader.load_elms(settings)
-        #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    settings['elm_signal'] = S('fs01up')
+    settings['elm_signal'] = S('fs04')
 
-        data = loader( 'Zeff', settings,tbeg=1.8, tend=5)
+    #print settings['Zeff'] 
+    
+    #exit()
+
+    #TODO 160645 CO2 correction is broken
+    #160646,160657  crosscalibrace nimp nefunguje
+    #T = time()
+
+    #load_zeff(self,tbeg,tend, options=None)
+    #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    loader.load_elms(settings)
+    #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+
+    data = loader( 'Ti', settings,tbeg=1.8, tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
