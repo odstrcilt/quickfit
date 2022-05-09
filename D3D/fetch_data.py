@@ -1323,10 +1323,10 @@ class data_loader:
                 for i, p in enumerate(pinj_scal):
                     pow_data[i] *=  p/pow_data[i][pow_data[i] > pow_data[i].max()/5].mean()
                 
-        #embed()
  
         tvec = pow_data.pop()/1e3
-        
+        #embed()
+
 
         gas = np.array(['D2']*len(_load_beams))
         
@@ -1856,6 +1856,7 @@ class data_loader:
 
         tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST,phi,line_id = [],[],[],[],[],[],[],[],[],[]
         beam_geom = np.zeros((0,8))
+  
         
 
         #fast fetch of MDS+ data
@@ -2100,6 +2101,7 @@ class data_loader:
                 beamid[(beam_frac[bind[0]] < 0.3)] = beams[bind[1]]
             
             #try:
+            print(line_id[ich])
             tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
             #except:
                 #embed()
