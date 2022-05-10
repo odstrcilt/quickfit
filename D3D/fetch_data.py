@@ -2100,11 +2100,9 @@ class data_loader:
                 beamid[(beam_frac[bind[1]] < 0.3)] = beams[bind[0]]
                 beamid[(beam_frac[bind[0]] < 0.3)] = beams[bind[1]]
             
-            #try:
-            print(line_id[ich])
+       
             tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
-            #except:
-                #embed()
+        
 
             element, charge, transition = tmp.group(1), tmp.group(2), tmp.group(3) 
             charge = roman2int(charge)     
@@ -4464,7 +4462,7 @@ class data_loader:
         cer['systems'] = systems
         
         #if sol_corr or zeem_split is different from previously loaded, reload data
-        if getattr(self,'cer_sol_corr', -1) != sol_corr or getattr(self,'zeem_split', -1) == zeem_split:
+        if getattr(self,'cer_sol_corr', -1) == sol_corr and getattr(self,'zeem_split', -1) == zeem_split:
             load_systems = list(set(systems)-set(cer.keys()))
         else:
             load_systems = systems
@@ -4502,8 +4500,8 @@ class data_loader:
         try:
             self.MDSconn.openTree(tree, self.shot)
             #check if corrected rotation data are availible
+            path = 'CER.%s.%s.CHANNEL*'%(analysis_type,'tangential')
             try:
-                path = 'CER.%s.%s.CHANNEL*'%(analysis_type,'tangential')
                 lenghts = self.MDSconn.get('getnci("'+path+':ROTC","LENGTH")').data()
                 if any(lenghts > 0):
                     signals[signals.index('ROT')] += 'C'
@@ -4511,11 +4509,12 @@ class data_loader:
                 pass
             #check if corrected temperature data are availible
             try:
-                if zeem_split and len(self.MDSconn.get('getnci("...:TEMPC", "depth")')) > 0:
+                lenghts = self.MDSconn.get('getnci("'+path+':TEMPC","LENGTH")').data()
+                if zeem_split and sum(lenghts) > 0:
                     signals[signals.index('TEMP')] += 'C'
             except MDSplus.MdsException:
                 pass
-                  
+        
             #prepare list of loaded signals
             for system in load_systems:
                 signals_ = deepcopy(signals)
@@ -6213,7 +6212,7 @@ def main():
              #184834,184837,184839,184840,184841,184843,184844,184845,184846,]
     
     #for shot in shots:
-    shot = 182725
+    shot = 163303
     #shot = 184846
     #shot = 184773
     #shot = 176278 #BUG error carbon density 
