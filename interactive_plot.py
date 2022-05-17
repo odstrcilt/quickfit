@@ -312,8 +312,8 @@ class FitPlot():
         self.lcfs_line = self.ax_main.axvline(1, ls='--',c='k',visible=False)
         self.zero_line = self.ax_main.axhline(0, ls='--',c='k',visible=False)
         
-        self.core_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in eval(self.fit_options['sawteeth_times'].get())] 
-        self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
+        self.core_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.5,c='k',visible=False) for t in eval(self.fit_options['sawteeth_times'].get())] 
+        self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.5,c='k',visible=False) for t in self.elms['elm_beg']] 
         
         if self.mhd_modes is not None:
             self.mhd_locations = {mode:self.ax_main.axvline(np.nan, ls='-',lw=.5,c='k',visible=False) for mode in self.mhd_modes['modes']}
@@ -606,6 +606,12 @@ class FitPlot():
     
     def calculate(self):
         
+        
+        if self.shot is None:
+            print('Set shot number first!')
+            tkinter.messagebox.showerror('Missing shot number','Shot number is not defined')
+
+        
         if self.m2g is None:
             #print("No data to fit, let's try to load them first...")
             self.parent.init_data()
@@ -647,7 +653,10 @@ class FitPlot():
         #get functions for profile transformation
         transform = transformations[self.fit_options['transformation'].get()]
         
-        even_fun = self.options['rho_coord'] != 'Psi'
+        even_fun = self.options['rho_coord'] not in ['Psi','Psi_N']
+        
+        if self.m2g is None:
+            return
         
         if not self.options['fit_prepared']:
             #print 'not yet prepared! in calculate'

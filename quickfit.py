@@ -1144,7 +1144,7 @@ class DataFit():
                         try:
                             settings[kin_prof]['load_options'][system][name] = options[0].get(), options[1]
                         except:
-                            printe(('Error in saving',system,name,var,  options  ))
+                            printe(('Error in saving',kin_prof, system,name,var,  options  ))
                             
         settings['EFIT'] = self.eqm.diag
         settings['elmsphase'] = self.elmsphase

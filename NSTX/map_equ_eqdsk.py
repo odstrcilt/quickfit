@@ -105,7 +105,8 @@ class equ_map:
 
 
             # Time grid of equilibrium shotfile
-            self.times = np.sort(list(self.eqdsk.keys()))
+            self.times = [t for t in self.eqdsk if self.eqdsk[t]['NBBBS'] > 0]
+            
             self.t_eq  = np.array(self.times)/1000.
             # R, z of PFM cartesian grid, assume the same for all timepoints!!
             self.Rmesh = self.eqdsk[self.times[0]]['AuxQuantities']['R']
