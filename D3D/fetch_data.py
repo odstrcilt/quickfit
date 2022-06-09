@@ -172,7 +172,7 @@ def read_adf12_aug(data_dir, line, beam_spec='D', therm=False, n_neut=1):
         # extrapolate by the nearest values, E is in eV/amu!!
 
         grid = fbeam_Zeff, fbeam_Ti, fbeam_ne, fbeam_E
-        lZeff = np.clip(np.log(Zeff), 0, np.log(6))  # Zeff is just up to 4!!, it will extrapolated
+        #lZeff = np.clip(np.log(Zeff), 0, np.log(6))  # Zeff is just up to 4!!, it will extrapolated
         lZeff = np.clip(np.log(Zeff), 0, np.log(4))  # Zeff is just up to 4!!, it will extrapolated
 
         lTi = np.clip(np.log(Ti), *grid[1][[0, -1]])
@@ -189,7 +189,9 @@ def read_adf12_aug(data_dir, line, beam_spec='D', therm=False, n_neut=1):
         # extrapolate by the nearest values
 
         grid = fbeam_Zeff, fbeam_Ti, fbeam_ne
-        lZeff = np.clip(np.log(Zeff), 1, 6)  # Zeff is just up to 4!!, it will extrapolate
+        #lZeff = np.clip(np.log(Zeff), 1, np.log(6))  # Zeff is just up to 4!!, it will extrapolate
+        lZeff = np.clip(np.log(Zeff), 1, np.log(4))  # Zeff is just up to 4!!, it will extrapolate
+
         lTi = np.clip(np.log(Ti), *grid[1][[0, -1]])
         lne = np.clip(np.log(ne), *grid[2][[0, -1]])
         return np.exp(interpn(grid, fbeam_qeff, (lZeff, lTi, lne), 
@@ -756,20 +758,22 @@ def default_settings(MDSconn, shot):
         except:
             imps = ['C6']
     
-    #print(imps)
+ 
     #build a large dictionary with all settings
     default_settings = OrderedDict()
+    
+    cer_ed = ('best','fit','auto','quick','real')
 
     default_settings['Ti']= {\
         'systems':{'CER system':(['tangential',True], ['vertical',False])},\
-        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
-                                      'Corrections':{'Zeeman Splitting':False, 'Wall reflections':False}} }}
+        'load_options':{'CER system':{'Analysis':('best', cer_ed ),
+                                      'Corrections':{'Zeeman Splitting':True, 'Wall reflections':False}} }}
         
         
  
     default_settings['omega']= {\
         'systems':{'CER system':(['tangential',True], )},
-        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
+        'load_options':{'CER system':{'Analysis':('best', cer_ed),
                                       'Corrections':{  'Wall reflections':False} },
                         }}
 
@@ -793,7 +797,7 @@ def default_settings(MDSconn, shot):
     nimp = {\
         'systems':{'CER system':(['tangential',True], ['vertical',False], ['SPRED',False])},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', ('best', ('best','fit','auto','quick'))),
+                                ('Analysis', ('best', ('best','fit','auto','quick',))),
                                 ('Correction',{'Relative calibration':True, 'nz from CER intensity': False,
                                                'remove first data after blip':False,
                                                'Wall reflections': False}  )))   }}
@@ -810,9 +814,9 @@ def default_settings(MDSconn, shot):
                             ( 'CER VB',    (['tangential',True],['vertical',False])),
                             )), \
     'load_options':{'VB array':{'Corrections':{'radiative mantle':True,'rescale by CO2':True,'remove NBI CX':False}},\
-                    'CER VB':{'Analysis':('best', ('best','fit','auto','quick'))},
+                    'CER VB':{'Analysis':('best', ('best','fit','auto','quick',))},
                     'CER system':OrderedDict((
-                            ('Analysis', ('best', ('best','fit','auto','quick'))),
+                            ('Analysis', ('best', ('best','fit','auto','quick',))),
                             ('Correction',    {'Relative calibration':True,  'nz from CER intensity':True}),
                             ('TS position error',{'Z shift [cm]':0.0})))
                     }\
@@ -820,16 +824,17 @@ def default_settings(MDSconn, shot):
     
     default_settings['Mach']= {\
         'systems':{'CER system':[]},
-        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick'))}}}
+        'load_options':{'CER system':{'Analysis':('best', cer_ed)}}}
     default_settings['Te/Ti']= {\
         'systems':{'CER system':(['tangential',True], ['vertical',False] )},
-        'load_options':{'CER system':{'Analysis':('best', ('best','fit','auto','quick')),
+        'load_options':{'CER system':{'Analysis':('best', cer_ed),
                                       'Corrections':{'Zeeman Splitting':True, 'Wall reflections':False}}}}         
         
         
     if len(imps) > 1:
         default_settings['Zeff']['load_options']['CER system']['Impurity'] = ('C6',imps)
- 
+        #print(default_settings['Zeff']['load_options']['CER system']['Impurity'])
+        
     return default_settings
 
 class data_loader:
@@ -4360,7 +4365,7 @@ class data_loader:
             
             corr = np.hstack(correction).mean()
             print('Impurity concentrations from SPRED are rescaled by %.3f to match CER carbon density'%corr.mean())
-            print('\t Mean concentration between %.3f-%.3fs'%(_tbeg,_tend))
+            print('\t Mean concentration on axis between %.3f-%.3fs'%(_tbeg,_tend))
             imp_names = [k for k, c in concentrations.items() if len(c)]
        
             imp_conce = [max(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
@@ -4445,7 +4450,7 @@ class data_loader:
         try:
             zeem_split = options['Corrections']['Zeeman Splitting'].get()
         except:
-            zeem_split = False
+            zeem_split = getattr(self,'zeem_split', False)
         
         try:
             sol_corr = options['Corrections']['Wall reflections'].get()
@@ -4470,7 +4475,6 @@ class data_loader:
             
         #update equilibrium for already loaded systems
         cer = self.eq_mapping(cer)
- 
         if len(load_systems) == 0:
             return cer
    
@@ -4484,9 +4488,6 @@ class data_loader:
         #NOTE visible bramstrahlung is not used
        
         #list of MDS+ signals for each channel
-        signals = cer_data['Ti']['sig']+cer_data['omega']['sig']+cer_data['int']['sig'] +\
-                            ['R','Z','VIEW_PHI','STIME','TIME']
-
         all_nodes = []        
         TDI = []
         TDI_lens_geom = []
@@ -4494,72 +4495,114 @@ class data_loader:
         diags_ = []
         data_nbit = []
         missing_rot = []
-
-
-        #get list of all avalible CER signals
-        try:
-            self.MDSconn.openTree(tree, self.shot)
-            #check if corrected rotation data are availible
-            path = 'CER.%s.%s.CHANNEL*'%(analysis_type,'tangential')
-            try:
-                lenghts = self.MDSconn.get('getnci("'+path+':ROTC","LENGTH")').data()
-                if any(lenghts > 0):
-                    signals[signals.index('ROT')] += 'C'
-            except MDSplus.MdsException:
-                pass
-            #check if corrected temperature data are availible
-            try:
-                lenghts = self.MDSconn.get('getnci("'+path+':TEMPC","LENGTH")').data()
-                if zeem_split and sum(lenghts) > 0:
-                    signals[signals.index('TEMP')] += 'C'
-            except MDSplus.MdsException:
-                pass
-        
-            #prepare list of loaded signals
-            for system in load_systems:
-                signals_ = deepcopy(signals)
-                cer[system] = []
-                cer['diag_names'][system] = []
-                path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
-                nodes = self.MDSconn.get('getnci("'+path+'","fullpath")')
-
-                #lengths_int = self.MDSconn.get('getnci("'+path+':'+signals_[4]+'","LENGTH")').data()                
-                lengths_Rot = self.MDSconn.get('getnci("'+path+':'+signals_[2]+'","LENGTH")').data()
-                #lengths_Ti  = self.MDSconn.get('getnci("'+path+':'+signals_[0]+'","LENGTH")').data()
-                lengths = self.MDSconn.get('getnci("'+path+':STIME","LENGTH")').data()
-
-                for node,length,length_r   in zip(nodes,lengths,lengths_Rot ):
+    
+        if analysis_type == 'cerreal':
+            signals = 'time','amp', 'ti','rot'
+            system = 'tangential'
+            geom_names = ['LENS_R','LENS_Z','LENS_PHI']
+            #availible only for channels 5 - 24 
+            cer[system] = []
+            cer['diag_names'][system] = []
+            for ch in range(5,25):
+                node_calib = "\\IONS::TOP.CER.CALIBRATION."+system+".CHANNEL%.2d"%ch
+                for par in geom_names:
+                    TDI_lens_geom.append(node_calib+':'+par)
  
-                    if length == 0: continue
-                    try:
-                        node = node.decode()
-                    except:
-                        pass
+                TDI_lineid.append(node_calib+':'+'LINEID')
+                if ch in np.r_[1:8, 17:23]: #30 beam
+                    beams = '0,1'
+                elif ch in np.r_[8:17, 23:25 ]: #330 beam
+                    beams = '2,3'
+                else:
+                    raise Exception('Not supported')
                 
-                    diags_.append(system)
+                #take just an average position, ignoring which beams was on
+                for par in ['PLASMA_R', 'PLASMA_Z']:
+                    TDI_lens_geom.append(f'MEAN(({node_calib}:{par})[[{beams}]])')
  
-                    node = node.strip()
-                    all_nodes.append(node)
-                    data_nbit.extend([length]*len(signals_))
+                TDI.append('dim_of(PTDATA("crs%st%d",%d))'%(signals[1],ch,self.shot))
+                TDI.extend(['PTDATA("crs%st%d%s",%d)'%(q,ch,'a' if q=='rot' else '', self.shot) for q in signals[1:]])
+                all_nodes.append(system+'.T%.2d'%ch)
+                diags_.append(system)
+
+                 
+            geom_names += ['PLASMA_R', 'PLASMA_Z']
+
+        else:
+            signals = cer_data['Ti']['sig']+cer_data['omega']['sig']+\
+                    cer_data['int']['sig'] + ['R','Z','VIEW_PHI','STIME','TIME']
+                
+            #get list of all avalible CER signals
+            try:
+                assert analysis_type != 'cerreal'
+                
+                
+                
+                self.MDSconn.openTree(tree, self.shot)
+                #check if corrected rotation data are availible
+                path = 'CER.%s.%s.CHANNEL*'%(analysis_type,'tangential')
+                try:
+                    lenghts = self.MDSconn.get('getnci("'+path+':ROTC","LENGTH")').data()
+                    if any(lenghts > 0):
+                        signals[signals.index('ROT')] += 'C'
+                except MDSplus.MdsException:
+                    pass
+                #check if corrected temperature data are availible
+                try:
+                    lenghts = self.MDSconn.get('getnci("'+path+':TEMPC","LENGTH")').data()
+                    if zeem_split and sum(lenghts) > 0:
+                        signals[signals.index('TEMP')] += 'C'
+                except MDSplus.MdsException:
+                    pass
+            
+                #prepare list of loaded signals
+                for system in load_systems:
+                    signals_ = deepcopy(signals)
+                    cer[system] = []
+                    cer['diag_names'][system] = []
+                    path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
                     
-                    node_calib = node.replace(analysis_type.upper(),'CALIBRATION')
-                    for par in ['R','Z','PHI']:
-                        TDI_lens_geom.append(node_calib.strip()+':'+'LENS_'+par)
-                    TDI_lineid.append(node_calib.strip()+':'+'LINEID')
+                
+                    nodes = self.MDSconn.get('getnci("'+path+'","fullpath")')
 
-                    for sig in signals_:
-                        #sometimes is rotation not availible even if Ti is
-                        if length_r == 0 and sig in ['ROT','ROTC','ROT_ERR']:
-                            missing_rot.append(node)
-                            sig = 'STIME' #replace be something else
- 
-                        TDI.append(node+':'+sig)
+                    #lengths_int = self.MDSconn.get('getnci("'+path+':'+signals_[4]+'","LENGTH")').data()                
+                    lengths_Rot = self.MDSconn.get('getnci("'+path+':'+signals_[2]+'","LENGTH")').data()
+                    #lengths_Ti  = self.MDSconn.get('getnci("'+path+':'+signals_[0]+'","LENGTH")').data()
+                    lengths = self.MDSconn.get('getnci("'+path+':STIME","LENGTH")').data()
+        
 
-        except Exception as e:
-            raise
-            printe( 'MDS error: '+ str(e))
-        finally:
-            self.MDSconn.closeTree(tree, self.shot)
+                    for node,length,length_r in zip(nodes,lengths,lengths_Rot):
+    
+                        if length == 0: continue
+                        try:
+                            node = node.decode()
+                        except:
+                            pass
+                    
+                        diags_.append(system)
+    
+                        node = node.strip()
+                        all_nodes.append(node)
+                        data_nbit.extend([length]*len(signals_))
+                        
+                        node_calib = node.replace(analysis_type.upper(),'CALIBRATION')
+                        geom_names = ['LENS_R','LENS_Z','LENS_PHI']
+                        for par in geom_names:
+                            TDI_lens_geom.append(node_calib.strip()+':'+par)
+                        TDI_lineid.append(node_calib.strip()+':'+'LINEID')
+
+                        for sig in signals_:
+                            #sometimes is rotation not availible even if Ti is
+                            if length_r == 0 and sig in ['ROT','ROTC','ROT_ERR']:
+                                missing_rot.append(node)
+                                sig = 'STIME' #replace be something else
+    
+                            TDI.append(node+':'+sig)
+
+            except Exception as e:
+                printe( 'MDS error: '+ str(e))
+            finally:
+                self.MDSconn.closeTree(tree, self.shot)
         
         ##No data in MDS+
         if len(all_nodes) == 0:
@@ -4570,35 +4613,91 @@ class data_loader:
             tkinter.messagebox.showerror('No CER data to load',
                 'Check if the CER data exists or change analysis method')
             return None
-         
+        
+        #get a list of joined strings with TDI for fast fetching 
         TDI_list = np.reshape(TDI,(-1,len(signals))).T
+        if analysis_type == 'cerreal':
+            TDI_list = TDI_list.T
+      
         TDI_list = ['['+','.join(tdi)+']' for tdi in TDI_list]
         TDI_list+= ['['+','.join(TDI_lineid)+']']
         TDI_list+= ['['+','.join(TDI_lens_geom)+']']
-
+ 
         
-         
+        
+        #fetch data
         mds_data = mds_load(self.MDSconn, TDI_list , tree, self.shot) 
-        geom_lens = mds_data.pop()
-        r_lens, z_lens,phi_lens = geom_lens.reshape(-1,3).T 
+        
+        #embed()
+        #get geometry info first
+        geom_data = mds_data.pop()
+        geom_data = geom_data.reshape(-1,len(geom_names)).T 
+        geom_data = {name:val for name,val in zip(geom_names, geom_data)}
         lineid = mds_data.pop()
+  
 
         if len(mds_data[-1]) == 0:
             print('Data fetching has failed!!')
             raise Exception('Data fetching has failed!!')
-
-        if len(set([d.size for d in mds_data])) > 1:
-            raise Exception('CER data for mismatch length of timebases, try to turn off Zeeman correction')
-
-     
-        #split data in list if profiles of list of signals
-        mds_data = np.single(mds_data).flatten()
-        data_nbit = np.reshape(data_nbit,(-1,len(signals))).T.flatten()
-        Ti,Ti_err,rot,rot_err,int_,int_err, R,Z,PHI,stime,tvec = mds_data.reshape(len(signals), -1)
         
-        #index for signal splitting
-        split_ind = split_mds_data(np.arange(len(tvec)), data_nbit.reshape(len(signals), -1)[0], 4)
-        split_ind = [slice(s[0], s[-1]+1) for s in split_ind]
+        if analysis_type != 'cerreal':
+            if len(set([d.size for d in mds_data])) > 1 :
+                raise Exception('CER data for mismatch length of timebases, try to turn off Zeeman correction')
+
+            #split data in list if profiles of list of signals
+            mds_data = np.single(mds_data).flatten()
+            data_nbit = np.reshape(data_nbit,(-1,len(signals))).T.flatten()
+            Ti,Ti_err,rot,rot_err,int_,int_err, R,Z,PHI,stime,tvec = mds_data.reshape(len(signals), -1)
+            
+            #index for signal splitting
+            split_ind = split_mds_data(np.arange(len(tvec)), data_nbit.reshape(len(signals), -1)[0], 4)
+            split_ind = [slice(s[0], s[-1]+1) for s in split_ind]
+            
+        else: #CERREAL
+            data, R, Z, split_ind, valid_ch  = [],[],[],[],[] 
+            n = 0
+            
+            for ich, ch_data in enumerate(mds_data):
+                
+                if len(ch_data) == 0 or all(ch_data[1] == 0):
+                    continue
+        
+                #where the data becommed availible in realtime and they are nonzero
+                ind = (np.ediff1d(ch_data[1],to_begin=0)!=0)&(ch_data[1] > 0)
+                
+                data.append(ch_data[:,ind])
+                nt = sum(ind)
+     
+                R.append(np.zeros(nt)+geom_data['PLASMA_R'][ich])
+                Z.append(np.zeros(nt)+geom_data['PLASMA_Z'][ich])
+                
+                split_ind.append(slice(n, n+nt))
+                n+= nt
+                valid_ch.append(ich)
+            
+            if n == 0:
+                #tkinter.messagebox.showerror('No CER REAL data', 'Try different edition')
+                raise Exception('No CERREAL data!!')
+            
+            tvec, int_, Ti, rot = np.hstack(data)
+            R = np.hstack(R)
+            Z = np.hstack(Z)
+            
+            #guess the missing quantities
+            stime = 5*np.ones_like(tvec) #guess 5ms integration time
+            PHI = np.zeros_like(tvec)
+            
+            #guess 5% error
+            int_err = 0.05*int_
+            Ti_err = np.hypot(0.05*Ti, 100)
+            rot_err = np.hypot(0.05*rot, 0.01*rot.mean())
+            
+            geom_data = {k:v[valid_ch] for k,v in geom_data.items()}
+                        
+            all_nodes = np.array(all_nodes)[valid_ch]
+            
+
+
         
         #get a time in the center of the signal integration 
         tvec = (tvec+stime/2)/1e3
@@ -4670,14 +4769,15 @@ class data_loader:
             modB = np.linalg.norm(Bvec,axis=0)
             B_hat = -Bvec / modB #make it consistent with OMFITprofiles
             
+            #embed()
             #calculate unit vector in LOS direction
-            dPhi = np.deg2rad(np.hstack([PHI[ind]-p for p,ind in zip(phi_lens,split_ind)]))
-            Rlen = np.hstack([R[ind]*0+r for r,ind in zip(r_lens,split_ind)])
+            dPhi = np.deg2rad(np.hstack([PHI[ind]-p for p,ind in zip(geom_data['LENS_PHI'],split_ind)]))
+            Rlen = np.hstack([R[ind]*0+r for r,ind in zip(geom_data['LENS_R'],split_ind)])
             
             #(X_spot-X_lens, Yspot-Ylens, Z_spot-Zlens)
             dR = R-np.cos(dPhi)*Rlen
             dT = 0-np.sin(dPhi)*Rlen
-            dZ = np.hstack([Z[ind]-z for z,ind in zip(z_lens,split_ind)])
+            dZ = np.hstack([Z[ind]-z for z,ind in zip(geom_data['LENS_Z'],split_ind)])
             
             los_vec = np.array((dR, dZ, dT))
             los_vec /= np.linalg.norm(los_vec,axis=0)
@@ -4715,7 +4815,8 @@ class data_loader:
         
         for ich,(ch,tind) in enumerate(zip(all_nodes,split_ind)):
             diag = ch.split('.')[-2].lower()
-            name = diags_[ich][0].upper()+'_%d'%phi_lens[ich]
+            
+            name = diags_[ich][0].upper()+'_%d'%geom_data['LENS_PHI'][ich]
             
             #add impurity name, if there are more impurities in the profile
             unreliable = np.ones(tind.stop-tind.start)
@@ -5123,7 +5224,6 @@ class data_loader:
         prefix ='\\'+tree+'::TOP.REFLECT.'
         Z0 = 0.0254
     
-        refl = self.RAW['REFL'] = Tree()
             
         TDI,bands = [],[]
         self.MDSconn.openTree(tree, self.shot)
@@ -5142,6 +5242,9 @@ class data_loader:
             #TDI.append(prefix+band+'BAND.PROFILES:R_ERR')#dont exist
             #TDI.append(prefix+band+'PROCESSED:FREQUENCY')# empty
         self.MDSconn.closeTree(tree, self.shot)
+        
+        
+        refl = self.RAW['REFL'] = Tree()
         refl['systems'] = bands
 
 
@@ -5160,8 +5263,7 @@ class data_loader:
             horiz_rho = self.eqm.rz2rho(R_midplane, Z0+0*R_midplane,
                                         TS['core']['time'].values,coord_out=self.rho_coord)
 
-        
-        
+      
         refl['diag_names'] = Tree()
 
         for band, (tvec,ne, R) in zip(bands, out):
@@ -5364,13 +5466,13 @@ class data_loader:
             Te_tvec = zipfit['Te']['time'].values
             Te_tvec[[0,-1]] = -10,100
     
-            Te_ = interp1d(Te_tvec, zipfit['Te']['data'].values,axis=0,copy=False, assume_sorted=True)(t_eq)
+            Te_ = interp1d(Te_tvec, zipfit['Te']['Te'].values,axis=0,copy=False, assume_sorted=True)(t_eq)
             Te = np.zeros_like(horiz_rho)
 
             for it,t in enumerate(t_eq):
                 Te[it] = np.interp(horiz_rho[it], zipfit['Te']['rho'].values, np.abs(Te_[it]))
 
-            v=np.sqrt(2*Te*e/m_e)
+            v=np.sqrt(2*Te*(e/m_e))
             gamma = 1/np.sqrt(1-(v/c)**2)
         except:
             printe('relativistic mass downshift could not be done')
@@ -5391,25 +5493,39 @@ class data_loader:
         #everything in GHz 
         try:
     
-            ne_ = zipfit['ne']['data'].values.copy()
-            ne_err =  zipfit['ne']['data'].values*0.05 #zipfit errorbars are often wrong, while the fit is OK 
+            ne_ = zipfit['ne']['ne'].values.copy()
+            ne_err =  zipfit['ne']['ne'].values*0.05 #zipfit errorbars are often wrong, while the fit is OK 
             ne_ += ne_err # upper boundary, to be sure that affected measurements will be removed
             ne_tvec = zipfit['ne']['time'].values
+            ne_rho  = zipfit['ne']['rho'].values
             ne = np.zeros((len(ne_tvec), len(r_in)))
             for it,t in enumerate(ne_tvec ):
                 iteq = np.argmin(abs(t_eq-t))
-                ne[it] = np.interp(horiz_rho[iteq], zipfit['ne']['rho'].values,  ne_[it])
+                ne[it] = np.interp(horiz_rho[iteq], ne_rho ,  ne_[it])
             
             f_CE = interp1d(t_eq, wce/(2*np.pi*1e9),fill_value="extrapolate",
                             axis=0,copy=False, assume_sorted=True)(ne_tvec)  #f_ce at R
             f_PE = np.sqrt(np.maximum(ne,0)*e**2/m_e/epsilon_0)/(2*np.pi*1e9)#f_pe at R
             f_RHC=(0.5*f_CE)+np.sqrt((0.5*f_CE)**2 + f_PE**2)
             f_cut = np.maximum.accumulate(f_RHC[:,::-1], axis=1)[:,::-1]  #propagate maximum from LFS to HFS 
+            
+            #embed()
             f_cut_loc = np.zeros((len(ne_tvec), nchs))
             for it,t in enumerate(ne_tvec):
                 iteq = np.argmin(abs(t_eq-t))
                 f_cut_loc[it] = np.interp(R[iteq],  r_in, f_cut[it])
-
+                
+                
+            #ind = (ne_tvec > 2 )&(ne_tvec < 5)
+            #plt.axhline(110,label='f ECH')
+            #plt.plot(r_in, f_RHC[ind].mean(0), label='f RHC cutoff')
+            #plt.plot(r_in, f_CE[ind].mean(0), label='f CE')
+            #plt.plot(r_in, f_CE[ind].mean(0)*2, label='2x f CE')
+            #plt.plot(r_in, f_PE[ind].mean(0), label='f PE')
+            #plt.xlabel('R [m]')
+            #plt.ylabel('f [GHz]')
+            #plt.legend()
+            #plt.show()
                 
         except:
             printe( 'ZIPFIT ne data are missing, density cutoff was not estimated')
@@ -5655,7 +5771,7 @@ class data_loader:
                
    
         #remove offset
-        ne  -= ne[(co2_time > -2)&(co2_time < 0)].mean(0) 
+        ne  -= ne[(co2_time > -2)&(co2_time < -.5)].mean(0) 
         #correpted measurements
         ne_err[ne < 0]  = np.infty
  
@@ -6166,16 +6282,18 @@ def main():
     #shot = 185157  #BUg uplne blbe relativni kalibrace
     #shot = 184777
     shot = 184840
+    #shot = 
+
     default_settings(MDSconn, shot  )
-    shot = 182725
-    shot =   180907
-    shot = 122596
-    shot =  90256
-    shot =  186473
-    shot = 185215  #nc is often turned off, why??
-    shot =  185307
-    shot = 182725
-    shot = 184847
+    #shot = 182725
+    #shot =   180907
+    #shot = 122596
+    #shot =  90256
+    #shot =  186473
+    #shot = 185215  #nc is often turned off, why??
+    #shot =  185307
+    #shot = 182725
+    #shot = 184847
     #shot = 163303
     #shot = 183151 #blbe loadeni Ti!
     #shot = 163543  #blbbe intenzity nC!
@@ -6212,7 +6330,6 @@ def main():
              #184834,184837,184839,184840,184841,184843,184844,184845,184846,]
     
     #for shot in shots:
-    shot = 163303
     #shot = 184846
     #shot = 184773
     #shot = 176278 #BUG error carbon density 
@@ -6256,7 +6373,7 @@ def main():
 
     settings.setdefault('Ti', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},\
-        'load_options':{'CER system':{'Analysis':(S('best'), ('best','fit','auto','quick')) ,
+        'load_options':{'CER system':{'Analysis':(S('real'), ('best','fit','auto','quick','real')) ,
                                     'Corrections':{'Zeeman Splitting':I(1), 'Wall reflections':I(1)}} }})
         
     settings.setdefault('omega', {\
@@ -6286,7 +6403,7 @@ def main():
         
     settings.setdefault('ne', {\
         'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
-                                ( 'Reflectometer',(['all bands',I(0)],  )),
+                                ( 'Reflectometer',(['all bands',I(1)],  )),
                                 ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
                         'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        

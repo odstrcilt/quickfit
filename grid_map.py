@@ -256,12 +256,14 @@ class map2grid():
             used_times = np.cumsum(~self.missing_data)-1
             index_t    = used_times[index_t]
             t_new = self.t_new0[~self.missing_data]
+            self.elm_phase = False
         else:
             t_new = self.t_new0
             self.nt_new = self.nt_new0
             dt = self.dt*np.ones(self.nt_new-1 )
             used_times = np.arange(len(self.t_new0))
-                
+            self.elm_phase = True
+
         self.r_new,self.t_new = np.meshgrid(r_new,t_new)
 
         weight  = weight.ravel()
@@ -536,14 +538,15 @@ class map2grid():
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
 
         if chol_inst:
-            #t=time.time()
-            #TODO use METIS oly for line interated data and elm sync??
-            self.Factor = analyze(AA, ordering_method='metis') #colamd and amd has troubles with large lower sparsity matrices
-            #self.Factor = analyze(AA, ordering_method='colamd') #colamd and amd has troubles with large lower sparsity matrices
-
+            #TODO use METIS only for line interated data and elm sync??
+            if self.elm_phase:
+                method='metis' #colamd and amd has troubles with large lower sparsity matrices
+            else:
+                method='colamd'
+            self.Factor = analyze(AA, ordering_method=method) #colamd and amd has troubles with large lower sparsity matrices
+            #print(method)
             #self.Factor.cholesky_inplace(AA)#BUG
-            #print('analyze',time.time()-t)
-
+ 
         self.corrected=True
 
         if self.robust_fit:
@@ -857,13 +860,13 @@ class map2grid():
         if self.nt_new == 1: eta = 0
 
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
-
+        #t = time.time()
         try:
             self.Factor.cholesky_inplace(AA)
         except:
             self.Factor = sp.linalg.factorized(AA)
 
-
+        #print('facr0', time.time()-t)
         Y = self.Y[self.valid]/self.norm
 
         Yerr = self.deriv_trans(Y)*self.Yerr.data[self.valid]/self.norm
@@ -877,8 +880,10 @@ class map2grid():
         #estimate uncertainty of the fit
         noise_scale = np.maximum(abs(self.V*g-self.f), 1)
           
+        t = time.time()
 
         g_noise = self.Factor((self.V.T)*(noise*noise_scale[:,None]))#SLOW but paraellised 
+        #print('g_noise', time.time()-t)
 
         #correct approach how to generate samples from the posterior, but it is noisy, but in radial and temporal domain!!
         #noise = np.random.randn(self.V.shape[1], n_noise_vec)

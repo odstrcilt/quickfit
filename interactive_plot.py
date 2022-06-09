@@ -113,6 +113,7 @@ class FitPlot():
     grid=False
     logy=False
     m2g = None
+    shot=None
     
     def __init__(self, parent, fit_frame):
         self.parent = parent

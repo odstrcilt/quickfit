@@ -95,7 +95,7 @@ def default_settings(MDSconn, shot):
     
         if len(CHERS_revisions) and not isinstance(CHERS_revisions[0],str): 
             CHERS_revisions = [r.decode() for r in CHERS_revisions]
-        CHERS_revisions = [r.strip() for r in CHERS_revisions]
+        CHERS_revisions =  sorted([r.strip() for r in CHERS_revisions])
 
         MDSconn.closeTree('ACTIVESPEC', shot)
       
@@ -111,15 +111,18 @@ def default_settings(MDSconn, shot):
     cf_correction = ('Poloidal asymmetry correction',('None',['None','LFS','FSA']))
 
     if len(CHERS_revisions):
+        #CT2 is better (for example 139037, CT2 created 2 years after CT1)
+        default_chers = CHERS_revisions[-1] 
+        
         default_settings['Ti']={'systems':{'CER system':[]},\
-            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}},
+            'load_options':{'CER system':{'Analysis':(default_chers, CHERS_revisions),'Position error':horiz_error}},
             }
 
         default_settings['omega']= {'systems':{'CER system':[]},
-            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions),'Position error':horiz_error}}}
+            'load_options':{'CER system':{'Analysis':(default_chers, CHERS_revisions),'Position error':horiz_error}}}
     
         default_settings['nC6'] = {'systems':{'CER system':[] },
-            'load_options':{'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),('Position error',horiz_error), cf_correction))}}
+            'load_options':{'CER system':OrderedDict((('Analysis',(default_chers, CHERS_revisions)),('Position error',horiz_error), cf_correction))}}
     
     TS_options = OrderedDict((("TS revision",('BEST', ts_revisions)),('Position error',horiz_error) ))
     
@@ -136,13 +139,13 @@ def default_settings(MDSconn, shot):
     if len(CHERS_revisions):
         default_settings['Mach']= {\
             'systems':{'CER system':[]},
-            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}
+            'load_options':{'CER system':{'Analysis':(default_chers, CHERS_revisions)}}}
         
         default_settings['Te/Ti']= {\
             'systems':{'CER system':[]},
-            'load_options':{'CER system':{'Analysis':('CT1', CHERS_revisions)}}}        
+            'load_options':{'CER system':{'Analysis':(default_chers, CHERS_revisions)}}}        
         default_settings['Zeff']['systems']['CER system'] = (['CHERS',True], )
-        default_settings['Zeff']['load_options'] = {'CER system':OrderedDict((('Analysis',('CT1', CHERS_revisions)),cf_correction))}
+        default_settings['Zeff']['load_options'] = {'CER system':OrderedDict((('Analysis',(default_chers, CHERS_revisions)),cf_correction))}
         
 
  
@@ -487,8 +490,7 @@ class data_loader:
 
 
 
-
-
+ 
     def load_splines(self):
         
         
@@ -576,6 +578,7 @@ class data_loader:
 
         
         return splines
+    
     
     
     
@@ -999,9 +1002,10 @@ class data_loader:
             for it,t in enumerate(self.eqm.t_eq):
                 imin = np.argmin(q[it])
                 rho_modes[name].append(np.interp(qval,  q[it, imin:], rho[imin:], left=np.nan))
+            rho_modes[name] = np.single(rho_modes[name])
         
         self.RAW['MHDloc']['tvec'] = self.eqm.t_eq
-        self.RAW['MHDloc']['modes'] =  rho_modes
+        self.RAW['MHDloc']['modes'] = rho_modes
         self.RAW['MHDloc']['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0, 'ed':self.eqm.diag})
 
         return self.RAW['MHDloc']
