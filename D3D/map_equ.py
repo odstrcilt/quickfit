@@ -323,7 +323,7 @@ class equ_map:
         #self.vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()[self.valid].T**2
 
         #The toroidal flux PHI can be found by recognizing that the safety factor is the ratio of the differential toroidal and poloidal fluxes
-        self.tf = integrate.cumtrapz(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0)
+        self.tf = integrate.cumtrapz(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0) #normalised toroidal flux is self.gEQDSK+'RHOVN'
     
     def _get_nearest_index(self, tarr):
 
