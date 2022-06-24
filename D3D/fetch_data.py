@@ -1624,6 +1624,10 @@ class data_loader:
                     #skip some crapy beam blips 
                     if np.all(nbi_frac < 0.5):
                         continue
+                    if np.any(nbi_frac < 0): #something wierd, but rare
+                         continue
+                     
+                    #nbi_frac
                     
                     valid_ind.append(i)
                     #dt_shift.append(j*1e-4) #shift the timebase a bit if data are from second substraction location
@@ -1656,10 +1660,12 @@ class data_loader:
 
         #br_err = np.maximum(0.10 * br, min_err)
         #br_err[spred_data[nbi_mixed]==0] = np.infty
-
+        #try:
         R = np.dot(view_R, nbi_frac.T)/nbi_frac.sum(1)
         Z = np.dot(view_Z, nbi_frac.T)/nbi_frac.sum(1)
         phi = np.dot(view_phi, nbi_frac.T)/nbi_frac.sum(1)
+        #except:
+            #embed()
         TTSUB = np.array(TTSUB_, dtype='single')
         TTSUB_ST = np.array(TTSUB_ST_, dtype='single')
 
@@ -4135,6 +4141,9 @@ class data_loader:
                 TS = self.co2_correction(TS, tbeg, tend)
             except Exception as e:
                 printe('CO2 correction failed:'+str(e))
+                
+    
+            
         TT = time()
         print_line( '  * Calculating VB  ...   ' )
 
@@ -5420,7 +5429,10 @@ class data_loader:
  
         for band in load_bands:
             #check if data exists
-            ne_size = self.MDSconn.get('getnci("REFLECT.'+band+'BAND.PROFILES:DENSITY'+'","LENGTH")').data()
+            try:
+                ne_size = self.MDSconn.get('getnci("REFLECT.'+band+'BAND.PROFILES:DENSITY'+'","LENGTH")').data()
+            except:
+                continue
             if ne_size  == 0:
                 continue
             
@@ -5963,7 +5975,7 @@ class data_loader:
                 #L_cross is length over the plasma - just a normalisation for nice plotting 
                 L_cross[:,ilos] = np.interp(co2_time, self.eqm.t_eq[L_cross_>0] ,L_cross_[L_cross_>0])
                 L_cross[:,ilos] = np.maximum(L_cross[:,ilos], .1) #just to avoid zero division
-                L_cross[:,ilos]*= .9 # correction just for better plotting of the data 
+                L_cross[:,ilos]*= 0.9 # correction just for better plotting of the data 
                 #convert from m^-2 -> m^-3
                 weight[:,ilos,:] = dL/L_cross[:,ilos][:,None]
                 ne[:,ilos] /= L_cross[:,ilos]
@@ -5984,8 +5996,16 @@ class data_loader:
         CO2['CO2']['ne'] = xarray.DataArray(ne, dims=['time', 'channel'], attrs={'units':'m^{-3}','label':'n_e'})
         CO2['CO2']['ne_err'] = xarray.DataArray(ne_err,dims=['time', 'channel'], attrs={'units':'m^{-3}'})
         CO2['CO2']['diags']= xarray.DataArray( np.tile(('CO2 interferometer',), (nt, n_ch)),dims=['time', 'channel'])
-        CO2['CO2']['R'] = xarray.DataArray(R[None],dims=['none','channel','path'],attrs={'units':'m'})
-        CO2['CO2']['Z'] = xarray.DataArray(Z[None],dims=['none','channel','path'],attrs={'units':'m'})
+        
+              #Format: (name, stat_error_threshold, LOS_pt1, LOS_pt2)
+        channels = [('V1',2.4, [1.48,Z_top], [1.48,Z_bottom]),
+                    ('V2',2.4, [1.94,Z_top], [1.94,Z_bottom]),
+                    ('V3',3.1, [2.10,Z_top], [2.10,Z_bottom]),
+                    ('R0',3.1, [R_lfs,0   ], [R_hfs,0      ])]
+        
+        
+        CO2['CO2']['R'] = xarray.DataArray(R[None],dims=['none','channel','path'],attrs={'units':'m',} )
+        CO2['CO2']['Z'] = xarray.DataArray(Z[None],dims=['none','channel','path'],attrs={'units':'m'} )
         if not 'rho' in CO2['CO2']:
             CO2['CO2']['rho'] = xarray.DataArray(np.zeros((nt, n_ch, n_path), dtype='single'),dims=['time', 'channel','path'])
         CO2['CO2']['L'] = xarray.DataArray(L,dims=['channel','path'],attrs={'units':'m'})

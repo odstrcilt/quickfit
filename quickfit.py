@@ -102,6 +102,7 @@ class DataFit():
         print('Accesing data from %s tokamak'%device)
         
         self.main_frame=main_frame
+ 
         #MDS connection or server name used to access data
         self.MDSserver = MDSserver
         #save function from OMFITgui
@@ -1162,7 +1163,7 @@ class DataFit():
             self.saved_profiles = True
 
 
-    def save_fits(self,exit_gui=False,save_ufiles=False):
+    def save_fits(self,save_ufiles=False):
         #save everything as UFILES
         if not self.options['fitted']:
             return
@@ -1269,11 +1270,14 @@ class DataFit():
 
           
     def Quit(self):
-        #print('Quit', self.options['fitted'], self.saved_profiles)
-        
+         
         if  self.options['fitted'] and not self.saved_profiles:
-            if tkinter.messagebox.askyesno("Fit is ready", "Save fit? "):
-                self.save_fits(exit_gui=True)
+            if self.OMFITsave is not None:
+                if tkinter.messagebox.askyesno("Fit is ready", "Fits were not saved. Do you want to save them to OMFIT?"):
+                    self.save_fits_omfit()
+            else:    
+                if tkinter.messagebox.askyesno("Fit is ready", "Fits were not saved to file, do you want to save them?"):
+                    self.save_fits( )
         try:
             self.main_frame.destroy()
         except:
