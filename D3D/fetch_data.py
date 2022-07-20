@@ -719,6 +719,8 @@ def default_settings(MDSconn, shot):
    
         try:
             TDI_lineid = []
+            TDI_lam = []
+            channel = []
             MDSconn.openTree('IONS', shot)
             for system in ['tangential','vertical']:
                 path = 'CER.CALIBRATION.%s.CHANNEL*'%(system)
@@ -729,11 +731,19 @@ def default_settings(MDSconn, shot):
                     if l > 0:
                         if not isinstance(node,str):
                             node = node.decode()
+                        channel.append(system[0]+node.split('.')[-1][7:])
                         TDI_lineid += [node+':LINEID']
- 
+                        TDI_lam += [node+':WAVELENGTH']
+
             #fast fetch of MDS+ data
             _line_id = MDSconn.get('['+','.join(TDI_lineid)+']').data()
-                
+            lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
+            
+            #print('wavelengths: ',np.unique(lam))
+            
+            #for ch, l in zip(channel, lam):
+                #print(ch, l)
+
             MDSconn.closeTree('IONS', shot)
             
             line_id = []
@@ -743,9 +753,10 @@ def default_settings(MDSconn, shot):
                     l = l.split(b'\x00')[0] #sometimes are names quite wierd
                     l = l.decode()
                 l = l.strip()
-                line_id.append(l)
+                if l not in line_id:
+                    line_id.append(l)
  
-            for l in np.unique(line_id):
+            for l in line_id:
                 try:
                     tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', l)
                     imp, Z = tmp.group(1), tmp.group(2)
@@ -755,7 +766,9 @@ def default_settings(MDSconn, shot):
                     imps.append('XX')
                 #embed()
 
-        except:
+        except Exception as e:
+            #print(e)
+            #embed()
             imps = ['C6']
     
  
@@ -955,8 +968,12 @@ class data_loader:
         if quantity in ['Te', 'ne']  and len(systems) > 0:
             ts = self.load_ts(tbeg, tend, systems, options['load_options']['TS system'])
             if quantity == 'ne' and 'CO2 interferometer' in options['systems'] and options['systems']['CO2 interferometer'][1][1].get():
-                ts = self.co2_correction(ts, tbeg, tend)
-            data.append(ts)
+                try:
+                    ts = self.co2_correction(ts, tbeg, tend)
+                except:
+                    printe('CO2 correction failed')
+                    
+            data.append(ts) 
         if quantity in ['ne'] and options['systems']['Reflectometer'][0][1].get():
             data.append(self.load_refl(tbeg,tend, options['load_options']['Reflectometer'],TS=ts))
  
@@ -3932,7 +3949,7 @@ class data_loader:
 
                 zeff[VB_array]['razor'] = xarray.DataArray(razor,dims=['channel'] )
                 
-                zeff[VB_array]['channel'] = xarray.DataArray(['VB%.2d'%ich for ich in range(1,nchans+1)])
+                zeff[VB_array]['channel'] = xarray.DataArray(['VB%.2d'%ich for ich in range(1,nchans+1)],dims=['channel'])
                 zeff[VB_array]['time'] = xarray.DataArray(tvec.astype('single'),dims=['time'], attrs={'units':'s'})
 
                 zeff['diag_names'][VB_array] = [VB_array]
@@ -5632,12 +5649,15 @@ class data_loader:
                             
             #create dataset with raw data 
             channel = np.arange(nchs)
+            
+            #embed()
 
             ece['Te_raw'] = xarray.DataArray(data_, coords=[tvec, channel], dims=['time','channel'], attrs={'units':'eV'})
             ece['freq'] = xarray.DataArray(freq[:nchs], dims=['channel'], attrs={'units':'Hz'} )
             ece['valid'] = xarray.DataArray( np.r_[valid, np.zeros(nchs-len(valid), dtype=bool)], dims=['channel'], attrs={'units':'-'})
             ece['z0'] = xarray.DataArray(z, attrs={'units':'m'} )
             ece['channel'] = xarray.DataArray(channel, dims=['channel'], attrs={'units':'-'} )
+
 
 
                          

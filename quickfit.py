@@ -398,6 +398,9 @@ class DataFit():
             #use a default setting for a new discharge
             self.load_default_options()
             self.init_fit_opt_frame()
+            if hasattr(self,'splines'):
+                del self.splines
+            self.show_splines.set(0)
 
             self.efit_edition_changed()
             self.init_set_prof_load()
@@ -637,7 +640,7 @@ class DataFit():
                                   'elm_signal':'fs04',
                                   'outside_rho':'1.0',
                                   'pedestal_rho':'.95',
-                                  'dr':'0.02',
+                                  'dr':'0.1',
                                   'dt':'',
                                   'sawteeth_times':'[]'
                                   }
