@@ -1256,7 +1256,8 @@ class data_loader:
     
     def get_cer_types(self,analysis_type,impurity=False):
          
-        path = '.IMPDENS.CER%s:TIME' if impurity else '.CER.CER%s:DATE_LOADED'
+        #path = '.IMPDENS.CER%s:TIME' if impurity else '.CER.CER%s:DATE_LOADED'
+        path =  '.CER.CER%s:DATE_LOADED'
         tree = 'IONS'
         analysis_types= 'fit','auto','quick','neur',None
  
@@ -1285,7 +1286,6 @@ class data_loader:
             
             if analysis_type is None:
                 return 'cerreal'
-            #print('analysis_type', analysis_type)
             
             self.cer_analysis_best[impurity] = analysis_type
  
@@ -3927,7 +3927,7 @@ class data_loader:
                 imin = tvec.searchsorted(tbeg)
                 VB = np.single(VB[imin:])
                 tvec = tvec[imin:]
-                VB_err = abs(VB)*.1+baseline_err/2 #guess
+                VB_err = abs(VB)*.1+baseline_err/2 #guess 10%error
                 VB_err[VB == 0] = np.infty
                 VB_err[~valid[imin:]] *= -1 #posibly invalid, can be enabled in the GUI
 

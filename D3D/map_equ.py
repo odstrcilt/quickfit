@@ -752,7 +752,8 @@ class equ_map:
                     nlist = nlist[:len(nlist)/2]
                 except: #slower option  
                     nlist = gen.create_contour(fl)
-
+                    if isinstance(nlist, tuple): #issue since matplotlib 3.5
+                        nlist = nslist[0]
                 j_ctrs = len(nlist)
                 if j_ctrs == 0:
                     if fl == self.psi0[i]:
@@ -770,7 +771,7 @@ class equ_map:
                     for l in nlist[:j_ctrs]:
                         if len(l) > len(line):
                             line = l
-       
+      
                 R_surf, z_surf = list(zip(*line))
                 R_surf = np.array(R_surf, dtype = np.float32)
                 z_surf = np.array(z_surf, dtype = np.float32)

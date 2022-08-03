@@ -139,8 +139,16 @@ class DataFit():
 
         self.equ_map = equ_map
 
+        from tkinter import   font
+
+        # Creating a Font object of "TkDefaultFont"
+        self.defaultFont = font.nametofont("TkDefaultFont")
+        print( self.defaultFont)
+        # Overriding default-font with custom settings
+        # i.e changing font-family, size and weight
+        self.defaultFont.configure(family="Segoe UI" )
         
-        #embed()
+        
         self.data_loader_class = fetch_data.data_loader
         #list of kinetic profiles avalible to be loaded
         #self.kin_profs =  fetch_data.kin_profs
@@ -788,7 +796,7 @@ class DataFit():
         
         #if it was already initialized
         if self.options['data_loaded']:
-            for var in ('m2g','ind_diag','diags','channel','tres','xlab','ylab','plot_rho','plot_tvec'):
+            for var in ('m2g','ind_diag','diags','channel','tres','xlab','ylab','ylab_diff','plot_rho','plot_tvec'):
                 setattr(self.fitPlot,var,self.load_options[self.kin_prof][var])
             self.set_trange(*self.load_options[self.kin_prof]['trange'])
         else:
