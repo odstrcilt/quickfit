@@ -753,7 +753,7 @@ class equ_map:
                 except: #slower option  
                     nlist = gen.create_contour(fl)
                     if isinstance(nlist, tuple): #issue since matplotlib 3.5
-                        nlist = nslist[0]
+                        nlist = nlist[0]
                 j_ctrs = len(nlist)
                 if j_ctrs == 0:
                     if fl == self.psi0[i]:
