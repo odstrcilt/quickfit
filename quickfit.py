@@ -1162,10 +1162,22 @@ class DataFit():
         settings['elmsphase'] = self.elmsphase
         settings['elmstime'] = self.elmstime
         
-        
-        data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
-                                          coord_out='Psi_N',extrapolate=True)
-        data['PsiN_time'] = self.eqm.t_eq
+        #save other radial coordinate - either rho_tor ot Psi_N
+        if self.options['rho_coord'] != 'Psi_N':
+            data['PsiN'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
+                                            coord_out='Psi_N',extrapolate=True)
+            data['PsiN_time'] = self.eqm.t_eq
+        else:
+            data['PsiN'] = rho
+            
+        if self.options['rho_coord'] != 'rho_tor'
+            data['rho'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
+                                            coord_out='rho_tor',extrapolate=True)
+            data['rho_time'] = self.eqm.t_eq
+
+        else:
+            data['rho'] = rho
+            
 
 
         

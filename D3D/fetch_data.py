@@ -1347,13 +1347,13 @@ class data_loader:
                 
  
         tvec = pow_data.pop()/1e3
-        #embed()
 
 
         gas = np.array(['D2']*len(_load_beams))
         
         #slowest step!!
         TDI = [p+'gas' for p in paths]
+
         gas = self.MDSconn.get('['+','.join(TDI)+']').data()
         if not isinstance(gas[0],str): 
             gas = [r.decode() for r in gas]
@@ -1945,7 +1945,6 @@ class data_loader:
             
             #fetch actual data with impurity radiation
             if not load_real:
-    
                 TDI = '['+TDI_lineid[:-1]+']','['+TDI_beam_geo[:-1]+']', '['+TDI_phi[:-1]+']'
                 
                 line_id,beam_geom,phi = mds_load(self.MDSconn,TDI, tree, self.shot)
@@ -1968,9 +1967,7 @@ class data_loader:
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 selected_imp = np.array([l.startswith(imp_name) and r_charge in l for l in line_id])
-                
-                #embed()
-                
+                                
                 selected_imp &= np.any(beam_geom > 0,1) #rarely some channel has all zeros!
                 if not any(selected_imp):
                     if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
@@ -1985,26 +1982,26 @@ class data_loader:
                 loaded_chan = np.array(loaded_chan)[selected_imp]
                 loaded_chan = loaded_chan.tolist()
 
-                #embed()
 
                 TDI_data = ','.join(np.transpose(TDI_data)[:,selected_imp].flatten())
                 TDI_tvec = ','.join(np.asarray(TDI_tvec)[selected_imp])
 
                 bytelens = np.transpose(bytelens)[:,selected_imp].flatten()
                 TDI = ['['+TDI_tvec+']','['+TDI_data+']']
+            
                 tvec,data = mds_load(self.MDSconn,TDI, tree, self.shot)
                 tvec = tvec.astype('single') #sometimes it can be double
                 
                 #split in signals
                 if data.ndim == 1:
                     data = np.array(split_mds_data(np.hstack((tvec,data)), bytelens, 4),dtype=object)
-            
+             
                 splitted_data = np.split( data , len(signals)+1)
                 #embed()
                 #splitted_data = [s for s in splitted_data]
                 
                 tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST = splitted_data
-             
+
             else: #real time CER
                 channels = range(5,25)
                 TDI = ['[dim_of(PTDATA("crsampt{0}",{1})), PTDATA("crsampt{0}",{1})]'.format(ch, self.shot) for ch in channels]
@@ -2045,22 +2042,16 @@ class data_loader:
                     
                     beam_fact = np.zeros(len(beam_order))       
                     if ch in np.r_[1:8, 17:23]: #30 beam
-                        #beam_fact = [1,1,0,0]
                         beams = [0,1]
                     elif ch in np.r_[8:17, 23:25 ]: #330 beam
-                        #beam_fact = [0,0,1,1]
                         beams = [2,3]
                     else:
                         raise Exception('Not supported channel ', ch)
-                    
-                    #beam_fact = np.zeros(4)
-                    #beam_fact
+             
                     beam_fact[beams] = 1
                     beam_geom.append(beam_fact)
                     
-                
-                #print(stime)
-                    
+                                    
                 nch = len(tvec)
                 phi = np.zeros(nch)    
                 line_id = ['C VI 8-7']*nch
@@ -2126,7 +2117,7 @@ class data_loader:
                     return nimp
             raise Exception('Error: no data! try a different edition?')
         
-        
+
         #convert to to seconds
         tvec  =  [t/1e3 for t in tvec]
         stime =  [t/1e3 for t in stime]
@@ -2142,7 +2133,7 @@ class data_loader:
         
         #map on rho coordinate
         rho_all = self.eqm.rz2rho(R_all[:,None],Z_all[:,None],T_all+stime_all/2,self.rho_coord)[:,0]
-         
+
         ########################  Get NBI info ################################
         #which beams needs to be loaded
 
@@ -6613,7 +6604,7 @@ def main():
 
     settings.setdefault('Ti', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},\
-        'load_options':{'CER system':{'Analysis':(S('real'), ('best','fit','auto','quick','real')) ,
+        'load_options':{'CER system':{'Analysis':(S('best'), ('best','fit','auto','quick','real')) ,
                                     'Corrections':{'Zeeman Splitting':I(1), 'Wall reflections':I(1)}} }})
         
     settings.setdefault('omega', {\
@@ -6629,7 +6620,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('real'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -6690,7 +6681,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'Ti', settings,tbeg=1.8, tend=5)
+    data = loader( 'nC6', settings,tbeg=1.8, tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
