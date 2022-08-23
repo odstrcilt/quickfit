@@ -1170,7 +1170,7 @@ class DataFit():
         else:
             data['PsiN'] = rho
             
-        if self.options['rho_coord'] != 'rho_tor'
+        if self.options['rho_coord'] != 'rho_tor':
             data['rho'] = self.eqm.rho2rho(rho, coord_in=self.options['rho_coord'], 
                                             coord_out='rho_tor',extrapolate=True)
             data['rho_time'] = self.eqm.t_eq
