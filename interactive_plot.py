@@ -636,7 +636,7 @@ class FitPlot():
         self.fit_frame.config(cursor="watch")
         self.fit_frame.update()
         
-        self.saved_profiles = False
+        self.parent.saved_profiles = False
 
  
         sawteeth =  eval(self.fit_options['sawteeth_times'].get()) if self.fit_options['sawteeth'].get() else []
@@ -701,7 +701,7 @@ class FitPlot():
         
         lam = self.sl_lam.val 
         eta = self.sl_eta.val
-        self.m2g.Calculate(lam,eta )
+        self.m2g.Calculate(lam,eta, n_noise_vec=self.options.get('n_noise_vec', 50) )
         
 
 

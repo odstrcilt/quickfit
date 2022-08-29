@@ -745,7 +745,7 @@ class map2grid():
         
  
         
-    def Calculate(self,lam,eta):
+    def Calculate(self,lam,eta, n_noise_vec = 50):
 
         if not self.corrected:
             self.PreCalculate()
@@ -842,7 +842,7 @@ class map2grid():
 
         np.random.seed(0)
         #noise vector for estimation of uncertainty
-        n_noise_vec = 50
+        
         #perfecty uncorrelated noise, most optimistic assumption
         noise = np.random.randn(self.n_points, n_noise_vec)
         #correlated noise, most pesimistic assumption

@@ -1179,8 +1179,7 @@ class DataFit():
             data['rho'] = rho
             
 
-
-        
+ 
         if len(data):
             self.OMFITsave.runNoGUI(shot=self.shot, fitted_profiles=data, setting=settings) 
             self.saved_profiles = True
