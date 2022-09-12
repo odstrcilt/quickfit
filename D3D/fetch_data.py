@@ -35,11 +35,14 @@ try:
         tree = OMFITtree()
         tree.update(init)
         return tree    
+    List = OMFITlist
+    
 except:
     #ignore file argument
     def Dataset(name,*args, **kwargs):
         return xarray.Dataset(*args, **kwargs)
     Tree = dict
+    List = list
    
 #warnings.simplefilter(action='ignore', category=FutureWarning)
 #Note about output errorbars:
@@ -1869,8 +1872,8 @@ class data_loader:
         
         #prepare list of loaded channels
         for system in load_systems:
-            nimp[system] = []
-            nimp['diag_names'][system] = []
+            nimp[system] = List()
+            nimp['diag_names'][system] = List()
             
             if load_real:
                 continue
@@ -2089,8 +2092,8 @@ class data_loader:
                 spred = None
 
 
-            nimp['diag_names']['SPRED_'+imp] = []
-            nimp['SPRED_'+imp] = []
+            nimp['diag_names']['SPRED_'+imp] = List()
+            nimp['SPRED_'+imp] = List()
             if spred is not None and np.any(np.isfinite(spred[3])):
 
                 #append to already fetched CER data
@@ -4672,8 +4675,8 @@ class data_loader:
                 options['Corrections']['Zeeman Splitting'].set(False)
             #geom_names = ['LENS_R','LENS_Z','LENS_PHI']
             #availible only for channels 5 - 24 
-            cer[system] = []
-            cer['diag_names'][system] = []
+            cer[system] = List()
+            cer['diag_names'][system] = List()
             for ch in range(5,25):
                 #node_calib = "\\IONS::TOP.CER.CALIBRATION."+system+".CHANNEL%.2d"%ch
                 #for par in geom_names:
@@ -5317,7 +5320,7 @@ class data_loader:
   
         #use cached data
         self.RAW.setdefault('TS',Tree())
-        ts = self.RAW['TS'].setdefault(revision,{'systems':systems})
+        ts = self.RAW['TS'].setdefault(revision,Tree())
 
         ts['systems'] = list(systems)
         systems = list(set(systems)-set(ts.keys()))
