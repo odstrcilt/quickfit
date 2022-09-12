@@ -30,7 +30,7 @@ try:
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
     from omfit_classes.omfit_data import OMFITncDataset
     Dataset = OMFITncDataset
-    from omfit_classes.omfit_base import OMFITtree
+    from omfit_classes.omfit_base import OMFITtree, OMFITlist
     def Tree(init={}): #emulate behavior of dictionary
         tree = OMFITtree()
         tree.update(init)
