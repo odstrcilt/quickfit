@@ -1944,9 +1944,23 @@ class data_loader:
                     for i in range(len(line_id)):
                         if line_id[i].startswith('unknown'):
                             line_id[i] = 'Ca XVIII 15-14'
+                
+                #harcoded special cases where a single chord measured multiple lines
+                if self.shot in [190652,190653,190654]:
+                    if analysis_type == 'cerfit': #carbon
+                        line_id = ['C VI 8-7']*len(loaded_chan)
+                    if analysis_type == 'cerauto': #neon
+                        for i in range(16): #rest is Ne9+
+                            line_id[i] = 'Ne X 11-10'
+                        #line_id = ['Ne X 11-10']*16+['Ne IX 11-10']*8
+                        
+                                        
+
                     
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
+                
+                #embed()
                 selected_imp = np.array([l.startswith(imp_name) and r_charge in l for l in line_id])
                                 
                 selected_imp &= np.any(beam_geom > 0,1) #rarely some channel has all zeros!
@@ -1972,13 +1986,17 @@ class data_loader:
             
                 tvec,data = mds_load(self.MDSconn,TDI, tree, self.shot)
                 tvec = tvec.astype('single') #sometimes it can be double
-                
+                #embed()
                 #split in signals
                 if data.ndim == 1:
                     data = np.array(split_mds_data(np.hstack((tvec,data)), bytelens, 4),dtype=object)
-             
-                splitted_data = np.split( data , len(signals)+1)
-                tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST = splitted_data
+                    splitted_data = np.split(data, len(signals)+1)
+                    tvec = splitted_data.pop(0)
+                else:
+                    splitted_data = data.reshape( len(signals), len(loaded_chan), len(tvec.T))
+                
+                stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST = splitted_data
+
 
             else: #real time CER
                 channels = range(5,25)
@@ -4944,11 +4962,16 @@ class data_loader:
                 line = lineid[ich]
             else: #old discharge swere missing this information
                 line = 'C VI 8-7'
+            
+            if line == 'unknown':
+                printe('unknown line at '+ch.split('.')[-1])
+                continue
 
             
             tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)',line)
+         
             element, charge = tmp.group(1), roman2int(tmp.group(2))
-            
+          
             
             if multiple_imps:
                 name += ' '+ element+str(charge) 
@@ -6427,6 +6450,7 @@ def main():
     #shot = 185157  #BUg uplne blbe relativni kalibrace
     #shot = 184777
     shot = 184840
+    shot = 190652
     #shot = 
 
     default_settings(MDSconn, shot  )
@@ -6578,6 +6602,7 @@ def main():
     settings['nN7'] = settings['nimp']
     settings['nCa18'] = settings['nimp']
     settings['nLi3'] = settings['nimp']
+    settings['nNe10'] = settings['nimp']
 
     settings['elm_signal'] = S('fs01up')
     settings['elm_signal'] = S('fs04')
@@ -6595,7 +6620,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nC6', settings,tbeg=1.8, tend=5)
+    data = loader( 'nNe10', settings,tbeg=1.8, tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
