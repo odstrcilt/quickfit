@@ -1856,16 +1856,13 @@ class data_loader:
         loaded_chan = []
         TDI_data = []
         TDI_tvec = []
-        #TDI_details = {'lineid':[], 'beam_geo':[], 'phi':[], 'R':[],'Z':[]}
         
         TDI_lineid = ''
         TDI_beam_geo = ''
         TDI_phi = ''
-        #TDI_R = []
-        #TDI_Z = []
+  
 
         bytelens = []
-        
         
         
         self.MDSconn.openTree(tree, self.shot)
@@ -1877,15 +1874,11 @@ class data_loader:
             
             if load_real:
                 continue
-                #nodes = ['CHANNEL%.2d'%ch for ch in range(5,25)]
-                #lengths = np.ones(len(nodes))
 
-            #else:
             path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
             nodes = self.MDSconn.get('getnci("'+path+'","fullpath")').data()
             lengths = self.MDSconn.get('getnci("'+path+':R","LENGTH")').data()
-            #TDI_details['R'] = []
-            #TDI_details['Z'] = []
+
 
                 
             for node,length in zip(nodes, lengths):
@@ -1909,21 +1902,6 @@ class data_loader:
                 TDI_lineid +=  calib_node+':LINEID'+','
                 TDI_beam_geo += calib_node+':BEAMGEOMETRY'+','
                 TDI_phi += calib_node+':LENS_PHI'+','
-
-                #if load_real:
-                    
-                    
-                    #ch = int(node[-2:])
-                    #if ch in np.r_[1:8, 17:23]: #30 beam
-                        #beams = '0,1'
-                    #elif ch in np.r_[8:17, 23:25 ]: #330 beam
-                        #beams = '2,3'
-                    #else:
-                        #raise Exception('Not supported')
-                    
-                    #take just an average position, ignoring which beams was on
-                    #TDI_details['R'] += [f'MEAN(({calib_node}:PLASMA_R)[[{beams}]])']
-                    #TDI_details['Z'] += [f'MEAN(({calib_node}:PLASMA_Z)[[{beams}]])']
 
 
         tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST,phi,line_id = [],[],[],[],[],[],[],[],[],[]
@@ -2000,16 +1978,12 @@ class data_loader:
                     data = np.array(split_mds_data(np.hstack((tvec,data)), bytelens, 4),dtype=object)
              
                 splitted_data = np.split( data , len(signals)+1)
-                #embed()
-                #splitted_data = [s for s in splitted_data]
-                
                 tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST = splitted_data
 
             else: #real time CER
                 channels = range(5,25)
                 TDI = ['[dim_of(PTDATA("crsampt{0}",{1})), PTDATA("crsampt{0}",{1})]'.format(ch, self.shot) for ch in channels]
                 mds_data = mds_load(self.MDSconn,TDI, tree, self.shot)
-                #valid = []
                 beam_geom = []
                 
                 #hardcode values, not availible after discharge
@@ -2020,7 +1994,6 @@ class data_loader:
                 for ich, ch_data in enumerate(mds_data):
                     if len(ch_data) == 0 or all(ch_data[1] == 0):
                         continue
-                    #valid.append(ich)
                     ch = channels[ich]
                     
                     T,I = ch_data.reshape(2,-1)
@@ -2031,9 +2004,7 @@ class data_loader:
                     #estimate integration time
                     dt = np.diff(t)
                     dt = np.median(dt[dt < dt.min()*2])
-                    #print(dt)
                     stime.append(t*0+dt)
-                    #embed()
                     INT.append(I[ind])
                     INT_ERR.append(np.maximum(INT[-1],0)*0.05)
                     TTSUB.append(t*0)
@@ -2060,13 +2031,8 @@ class data_loader:
                 line_id = ['C VI 8-7']*nch
 
                 #line_id = [line_id[i] for i in valid]
-                print('BUG!!!!!!!!')
-                #beam_geom = np.ones((nch, 8))
                 beam_geom = np.array(beam_geom)
-                #loaded_chan = [loaded_chan[i] for i in valid]
-                #print(len(loaded_chan), len(lineid))
-        
-
+     
 
             #correction of the geometry factors for vertical system
             
@@ -2107,13 +2073,11 @@ class data_loader:
                 TTSUB=list(TTSUB)+[spred[7]]
                 TTSUB_ST=list(TTSUB_ST)+[spred[8]]
                 line_id=list(line_id)+[spred[9]]
-                #embed()
                 beam_geom=np.append(beam_geom,spred[10][:,:len(beam_order)],0)
                 loaded_chan=list(loaded_chan)+['SPRED_'+imp]
             else:
                 printe('Loading of SPRED '+imp+' was unsucessful')
         
-        #embed()
         if len(loaded_chan) == 0 and (len(load_systems) > 0 or load_spred):
             if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
                     #some data were loaded before, nothing in the actually loaded system
@@ -2160,15 +2124,7 @@ class data_loader:
         if load_real:
             for i,b in enumerate(load_beams):
                 PINJ[i] = NBI[b]['power'] 
-        
-        #embed()
-        
-        #plt.plot(beam_time,PINJ.T)
-        #for t in np.unique(T_all):
-            #plt.axvline(t)
-        #plt.show()
-        
-        
+
         
         #NOTE it will fail if two timepoinst has the same T_all+stime_all/2, but different stime_all!!
         nbi_cum_pow = cumtrapz(np.double(PINJ),beam_time,initial=0)
@@ -2252,7 +2208,6 @@ class data_loader:
             #how each beam contributes to this channel
             beam_frac = np.ones((len(beams),nt),dtype='single')
             if len(beams) == 0:
-                #embed()
                 printe(ch+' missing beam power data')
                 continue
             elif len(beams) == 1: #only one beam observed
@@ -2300,7 +2255,6 @@ class data_loader:
                 
                 beams_on = beam_pow[:,beam_ind].sum(0) > 1e5
                 if not np.all(beams_on):
-                    #embed()
                     printe('channel %s has %d slices with zero power'%(ch, (~beams_on).sum()))
                     beam_ind[beam_ind] &= beams_on
                     
@@ -2323,10 +2277,8 @@ class data_loader:
                 bname = beamid[idx[ID]]
                 beam_intervals.setdefault(bname,[])
                 beam_intervals[bname].append((tvec[ich][beam_ind],stime[ich][beam_ind]))  
-                G = beam_geom[ich, observed_beams]
                 
-                ds = Dataset('CER_'+ch+'_'+bname+'.nc', attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],
-                                        'beam_geom':G,'Z':charge})
+                ds = Dataset('CER_'+ch+'_'+bname+'.nc', attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],'Z':charge})
 
                 #fill by zeros for now, 
                 ds['nimp'] = xarray.DataArray(0*utvec, dims=['time'], 
@@ -2347,6 +2299,9 @@ class data_loader:
                 #NBI was just turned on
                 ds['beam_swiched_on'] = xarray.DataArray(beam_on[beam_ind],dims=['time'] )
                 ds['beam_frac'] = xarray.DataArray(beam_frac[:,beam_ind],dims=['beams','time'], attrs={'units':'W'})
+                
+                ds['beam_geom'] = xarray.DataArray(beam_geom[ich, observed_beams],dims=['beams'])
+                
                 ds['beams'] = xarray.DataArray(beams,dims=['beams'])
                 #it is much faster to add "time" the last in the xarray.dataset than as the first one!!
                 ds['time'] = xarray.DataArray(utvec,dims=['time'], attrs={'units':'s'})
@@ -2416,10 +2371,10 @@ class data_loader:
                         beam_data[k].setdefault(b,[])
                         if b in beams:
                             ib = beams.index(b)
+                            data = ch[k].values[ib]
                             if k == 'beam_geom':
-                                data = np.tile(ch.attrs['beam_geom'][ib],nt)
-                            else:
-                                data = ch[k].values[ib]
+                                data = np.tile(data,nt)  
+                                
                             beam_data[k][b].append(data)
                         else:
                             beam_data[k][b].append(np.zeros(nt))
@@ -3329,13 +3284,16 @@ class data_loader:
 
         suffix = ''
         imp = 'C6'
+        
+        #print("'Impurity' in options and options['Impurity'] is not None", 'Impurity' in options , options['Impurity'] is not None)
    
         if 'Impurity' in options and options['Impurity'] is not None:
             if isinstance(options['Impurity'], tuple):
                 imp = options['Impurity'][0].get()
             else:
                 imp = options['Impurity']
-            suffix += '_'+imp
+        
+        suffix += '_'+imp
         
         if 'SPRED' in systems:
             systems.remove('SPRED')
@@ -3403,7 +3361,7 @@ class data_loader:
             nimp_out = {'systems':systems,'diag_names':Tree()}
             for sys in systems:
                 #SPRED data will be always from intensity
-                nimp_out[sys] = []
+                nimp_out[sys] = List()
                 #list only diag_names which are actually loaded
                 nimp_out['diag_names'][sys] = []
                 for ch in nimp[sys]:
@@ -4295,7 +4253,7 @@ class data_loader:
             #BUG
             #options['CER system']['Correction']['remove first data after blip'] = tk.IntVar(value=1)
             NIMP = self.load_nimp(tbeg,tend, cer_sys,options['CER system'])
-            
+            ##print(NIMP)
             for sys in cer_sys:
                 zeff['diag_names'][sys] = NIMP['diag_names'][sys]
                 zeff[sys] = deepcopy(NIMP[sys])
@@ -4358,7 +4316,6 @@ class data_loader:
                 printe('No SPRED data')
                 
             SPRED_CX_ions = ['He2','Li3','B5','C6','N7','O8','Ne10']
-            #SPRED_CX_ions = ['C6']
 
             concentrations = {imp:[] for imp in SPRED_CX_ions}
             charge = {'C6':6,'e': -1}
@@ -4487,7 +4444,6 @@ class data_loader:
                 ds['time'] = xarray.DataArray(tvec ,dims=['time'], attrs={'units':'s'})
                 zeff['SPRED'].append(ds)
             
-            #embed()
             sind = np.argsort(np.hstack(densities['time_cx']))
             time_cx = np.hstack(densities['time_cx'])[sind] 
             
@@ -4643,8 +4599,6 @@ class data_loader:
             
         #update equilibrium for already loaded systems
         
-        
-        #embed()
         cer = self.eq_mapping(cer)
         if len(load_systems) == 0:
             return cer
@@ -4673,35 +4627,15 @@ class data_loader:
             zeem_split=False
             if 'Corrections' in options and 'Zeeman Splitting' in options['Corrections']:
                 options['Corrections']['Zeeman Splitting'].set(False)
-            #geom_names = ['LENS_R','LENS_Z','LENS_PHI']
             #availible only for channels 5 - 24 
             cer[system] = List()
             cer['diag_names'][system] = List()
             for ch in range(5,25):
-                #node_calib = "\\IONS::TOP.CER.CALIBRATION."+system+".CHANNEL%.2d"%ch
-                #for par in geom_names:
-                    #TDI_lens_geom.append(node_calib+':'+par)
- 
-                #TDI_lineid.append(node_calib+':'+'LINEID')
-                #if ch in np.r_[1:8, 17:23]: #30 beam
-                    #beams = '0,1'
-                #elif ch in np.r_[8:17, 23:25 ]: #330 beam
-                    #beams = '2,3'
-                #else:
-                    #raise Exception('Not supported')
-                
-                #take just an average position, ignoring which beams was on
-                #for par in ['PLASMA_R', 'PLASMA_Z']:
-                #TDI_lens_geom.append(f'MEAN(({node_calib}:PLASMA_R)[[{beams}]])')
-                #TDI_lens_geom.append(f'MEAN(({node_calib}:PLASMA_Z)[[{beams}]])')
-
                 TDI.append('dim_of(PTDATA("crs%st%d",%d))'%(signals[1],ch,self.shot))
                 TDI.extend(['PTDATA("crs%st%d%s",%d)'%(q,ch,'a' if q=='rot' else '', self.shot) for q in signals[1:]])
                 all_nodes.append(system+'.T%.2d'%ch)
                 diags_.append(system)
-
-                 
-            #geom_names += ['PLASMA_R', 'PLASMA_Z']
+ 
 
         else:
             signals = cer_data['Ti']['sig']+cer_data['omega']['sig']+\
@@ -4733,7 +4667,7 @@ class data_loader:
                 #prepare list of loaded signals
                 for system in load_systems:
                     signals_ = deepcopy(signals)
-                    cer[system] = []
+                    cer[system] = List()
                     cer['diag_names'][system] = []
                     path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
                     
@@ -4813,20 +4747,12 @@ class data_loader:
             #lineid = output.pop(0)
             geom_data = output.pop(0)
             LENS_R,LENS_Z,LENS_PHI = geom_data.reshape(-1,3).T
-            
             LENS_PHI = np.int_(LENS_PHI)
-            #embed()
 
             if len(set([d.size for d in output])) > 1 :
                 raise Exception('CER data for mismatch length of timebases, try to turn off Zeeman correction')
             #get geometry info first
-            
-            #geom_data
-
-
-            #geom_data = geom_data.reshape(-1,len(geom_names)).T 
-            #geom_data = {name:val for name,val in zip(geom_names, geom_data)}
-            #lineid = output.pop()
+    
             
             #split data in list if profiles of list of signals
             mds_data = np.single(output).flatten()
@@ -4847,7 +4773,6 @@ class data_loader:
             n = 0
             
             for ich, ch_data in enumerate(output):
-                #embed()
                 if len(ch_data) == 0 or all(ch_data[1] == 0):
                     continue
         
@@ -4882,30 +4807,16 @@ class data_loader:
             int_err = 0.05*int_
             Ti_err = np.hypot(0.05*Ti, 100)
             rot_err = np.hypot(0.05*rot, 0.01*rot.mean())
-            #lineid = ['CI']
             lineid = ['C VI 8-7']*len(valid_ch)
-
-            #geom_names = ['LENS_R','LENS_Z','LENS_PHI']
-            #geom_data = {}
+ 
             LENS_R = [np.nan]*len(valid_ch)
             LENS_Z = [np.nan]*len(valid_ch)
-            
-                    #if ch in np.r_[1:8, 17:23]: #30 beam
-                        #beams = '0,1'
-                    #elif ch in np.r_[8:17, 23:25 ]: #330 beam
-                        #beams = '2,3'
-                    #else:
-                    
+           
             loc = np.array(['core']*3+['edge']*9+['core']*6+['edge']*2)
-            #print(len(loc), len(np.arange(5,25)))
             LENS_PHI = loc[valid_ch]
-
-            #= {k:v[valid_ch] for k,v in geom_data.items()}
                         
             all_nodes = np.array(all_nodes)[valid_ch]
             
-            #embed()
-
 
         
         #get a time in the center of the signal integration 
