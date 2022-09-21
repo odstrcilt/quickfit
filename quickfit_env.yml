@@ -1,0 +1,13 @@
+name: quickfit_conda
+
+dependencies:
+  - python=3.7
+  - numpy
+  - scipy
+  - matplotlib
+  - MDSplus
+  - tkinter
+  - IPython
+  - argparse
+  - xarray
+  - sksparse
