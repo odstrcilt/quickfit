@@ -278,17 +278,17 @@ class equ_map:
 # Profiles
         self.pf = np.outer(np.max(self.PSIN,0),(self.psix-self.psi0))+self.psi0
         q   = self.sf.get(self.gEQDSK+'QPSI').data()#[self.valid].T
-        vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()**2 #BUG it is wrong!!!
+        #vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()**2 #BUG it is wrong!!!
         fpol  = self.sf.get(self.gEQDSK+'FPOL').data()/mu_0*2*np.pi
     
         if q.shape[0] == len(self.valid):
             q =  q.T
-            vol =  vol.T
+            #vol =  vol.T
             fpol = fpol.T
  
         
         self.q =  q[:,self.valid]
-        self.vol =  vol[:,self.valid]
+        #self.vol =  vol[:,self.valid]
         self.fpol = fpol[:,self.valid]
     
         
@@ -830,7 +830,7 @@ class equ_map:
         nt = np.size(self.t_eq)
         
         if not hasattr(self,var_name):
-            print('Fetching ', var_name)
+            #print('Fetching ', var_name)
             self.sf.openTree(self.diag,self.shot)
             setattr(self,var_name,self.sf.get(self.gEQDSK+''+var_name).data()[self.valid].T)
         

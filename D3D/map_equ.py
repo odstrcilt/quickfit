@@ -131,6 +131,7 @@ class equ_map:
             self.sf.openTree(diag,shot)
             self.shot = shot
             self.diag = diag
+            self.exp = exp
 
             
             # R, z of PFM cartesian grid
@@ -314,6 +315,14 @@ class equ_map:
         self.q =  q[:,self.valid]
         self.vol =  vol[:,self.valid]
         self.fpol = fpol[:,self.valid]
+        
+        if self.exp == 'D3D':
+            from scipy.signal import savgol_filter
+            #smooth fpol (Bt), it unrealistically noisy on DIII-D, affecting ECE mapping 
+            dt = np.diff(self.t_eq).mean()
+            tau = 0.5
+            self.fpol = savgol_filter(self.fpol, 2*(int(tau/dt)//2)+1, 2, axis=1)
+            
     
         
         #self.ffp = self.sf.get(self.gEQDSK+'FFPRIM').data()[self.valid].T
@@ -477,7 +486,7 @@ class equ_map:
             if coord_in == 'r_V' :
                 r0_in  = np.sqrt(sep_in/ (2*np.pi**2*R0[i]))
             if coord_out == 'r_V' :
-                embed()
+                #embed()
                 r0_out = np.sqrt(sep_out/(2*np.pi**2*R0[i]))
             if coord_in == 'RMNMP' :
                 r0_in  = np.sqrt(sep_in)
@@ -575,6 +584,8 @@ class equ_map:
         offset  = np.array([self.Rmesh[0], self.Zmesh[0]])
 
         unique_idx, idx =  self._get_nearest_index(tarr)
+        
+        #embed()
         
         for i in unique_idx:
 

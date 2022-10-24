@@ -169,7 +169,7 @@ class FitPlot():
         unit,labels = '',[]
         data_rho, plot_rho, data, data_err,weights, data_tvec, plot_tvec,diags = [],[],[],[],[],[],[],[]
         #channel and point index for later identification
-        ind_channels, ind_points = [], []
+        ind_channels, name_channels, ind_points = [], [], []
         n_ch,n_points = 0,0
         for ch in data_d['data']:
             if prof not in ch: continue
@@ -187,7 +187,13 @@ class FitPlot():
        
 
             s = d.shape
-            dch = 1 if len(s) == 1 else s[1]
+            if len(s) == 1:
+                dch = 1
+                name_channels.append(ch.attrs.get('channel', n_ch))
+            else:
+                dch = s[1]
+                name_channels += [ch.attrs['system']+'_%d'%i for i in range(n_ch,n_ch+dch)]
+      
             ind_channels.append(np.tile(np.arange(dch,dtype='uint32')+n_ch,(s[0],1)))
             n_ch+=  dch
             ind_points.append(np.tile(n_points+np.arange(d.size,dtype='uint32').reshape(d.shape).T,
@@ -218,6 +224,7 @@ class FitPlot():
 
         self.elms = elms
         self.mhd_modes = mhd_modes
+        self.name_channels = name_channels
 
         self.options['data_loaded'] = True
         self.options['fitted'] = False
@@ -235,7 +242,9 @@ class FitPlot():
         self.options['rho_min'] = np.minimum(0, np.maximum(-1.1,self.plot_rho.min()))
         diag_dict = {d:i for i,d in enumerate(diag_names)} 
         self.ind_diag = np.array([diag_dict[d] for d in diags])
-        self.diags = diag_names
+        #show legend only for diags which actually have some data
+        uind = np.unique(self.ind_diag)
+        self.diags = [diag_names[i] for i in uind]
         
         if self.parent.elmsphase:
             #epl phase
@@ -247,8 +256,7 @@ class FitPlot():
             self.plot_tvec -= self.elms['elm_beg'][self.elms['elm_beg'].searchsorted(self.plot_tvec)-1]
             tvec -= self.elms['elm_beg'][self.elms['elm_beg'].searchsorted(tvec)-1]
 
- 
-        
+  
         tstep = 'None'
         if self.tstep is None:
             tstep = float(data_d['tres'])
@@ -1166,7 +1174,8 @@ class FitPlot():
         if what == 'channel':
             ch = np.unique(self.channel[ind])
             ind = np.in1d(self.channel,ch)
-            print('Channel %s was '%ch+action)
+            
+            print('Channels '+','.join([self.name_channels[i] for i in ch])+' were '+action)
  
         elif what == 'diagnostic':
             i_diag = self.ind_diag[ind]

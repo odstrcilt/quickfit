@@ -740,18 +740,16 @@ def default_settings(MDSconn, shot):
 
             #fast fetch of MDS+ data
             _line_id = MDSconn.get('['+','.join(TDI_lineid)+']').data()
-            lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
             
-            #print('wavelengths: ',np.unique(lam))
             
-            #for ch, l in zip(channel, lam):
-                #print(ch, l)
+            #lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
+            #for ch, l, i in zip(channel, lam, _line_id):
+                #print(ch,i,  l)
 
             MDSconn.closeTree('IONS', shot)
             
             line_id = []
-            for l in np.unique(_line_id):
-                
+            for l in np.unique(_line_id):                
                 if not isinstance(l,str):
                     l = l.split(b'\x00')[0] #sometimes are names quite wierd
                     l = l.decode()
@@ -765,7 +763,6 @@ def default_settings(MDSconn, shot):
                     imp, Z = tmp.group(1), tmp.group(2)
                     imps.append(imp+str(roman2int(Z) ))
                 except:
-                    print(l)
                     imps.append('XX')
                 #embed()
 
@@ -773,6 +770,10 @@ def default_settings(MDSconn, shot):
             #print(e)
             #embed()
             imps = ['C6']
+    
+    #exception data from main ion CER
+    if shot == 183188:
+        imps.append('Li3')
     
  
     #build a large dictionary with all settings
@@ -1952,15 +1953,12 @@ class data_loader:
                     if analysis_type == 'cerauto': #neon
                         for i in range(16): #rest is Ne9+
                             line_id[i] = 'Ne X 11-10'
-                        #line_id = ['Ne X 11-10']*16+['Ne IX 11-10']*8
-                        
-                                        
+                         
+             
 
-                    
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
-                #embed()
                 selected_imp = np.array([l.startswith(imp_name) and r_charge in l for l in line_id])
                                 
                 selected_imp &= np.any(beam_geom > 0,1) #rarely some channel has all zeros!
@@ -1968,6 +1966,7 @@ class data_loader:
                     if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
                         #some data were loaded before, nothing in the actually loaded system
                         return nimp
+                    #embed()
                     raise Exception('No '+imp+' data in '+analysis_type.upper(),'edition. ', 'Availible are :'+','.join(np.unique(line_id)))
                 
                 #keep data only from the selected impurity 
@@ -2303,7 +2302,7 @@ class data_loader:
                                         attrs={'units':'m^{-3}','label':'n_{%s}^{%d+}'%(element,charge),'Z':charge, 'impurity':element})
 
                 ds['nimp_err']  = xarray.DataArray(0*utvec-np.inf,dims=['time'])
- 
+
                 ds['int'] = xarray.DataArray(INT[ich][beam_ind], dims=['time'], 
                                         attrs={'units':'ph / sr m^{3}','line':line_id[ich].strip()})
                 ds['int_err']  = xarray.DataArray(INT_ERR[ich][beam_ind],dims=['time'])
@@ -2368,14 +2367,19 @@ class data_loader:
         data_index = []
         
         if imp == 'XX':
-            printe('bug XX is Ca18')
-            imp =  'Ca18'
+            if self.shot in [190652, 190654, 190654]:
+                printe('bug XX is Ne9')
+                imp =  'Ne9'
+            else:
+                printe('bug XX is Ca18')
+                imp =  'Ca18'
         
         
-        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16']:
+        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16','Ne9']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
 
+        ########################   Get beam data  ##########################
 
         n = 0
         for diag in systems:
@@ -2486,12 +2490,7 @@ class data_loader:
                 ch_valid = np.any(TS_valid[tslice],0)
                 
                 rho_slice = np.average(TSrho[tslice, ch_valid],0, TS_valid[tslice, ch_valid])
-                #if len(rho_slice) < 3:
-                    #print('Too low number of valid radial points from TS %s system'%sys)
-                    #continue
-
-                    #embed()
-                    
+     
                 beam_profiles['rho'][sys].append(rho_slice)  
                 ne_slice = np.exp(np.average(np.log(n_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
                 
@@ -2546,17 +2545,14 @@ class data_loader:
                     d[it] = d[it][sind%len(rho)]
                     
                     
-            #plot(np.hstack([R_hfs,R_lfs]), np.hstack([rho,rho]),'o')
-            #show()
-            
-            
-
-        #embed()
+  
 
         ########################   From CER     ##########################
-        #fetch ion temperature and rotation C:\Users\odstrcil\projects\quickfit\D3D\fetch_beams.py
+        #fetch ion temperature and rotation quickfit\D3D\fetch_beams.py
         cer_systems = [sys for sys in nimp['systems'] if 'SPRED' not in sys]
- 
+        
+        cer_systems = ['tangential']
+        
         cer = self.load_cer(tbeg,tend, cer_systems,options=options)
         
         #slice and interpolate omega and Ti on the same coordinates as TS
@@ -2912,17 +2908,20 @@ class data_loader:
                 qeff = 10 ** np.polyval(coeffs_energy[::-1],erel/1e3)* 1.0e-8
                 qeff2 = qeff_th = qeff2_th = 0
             
-            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3']:
+            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8']:
 
                 atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar16': ('qef07#h_arf#ar16.dat','qef07#h_arf#ar16_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
+                                 'Ne9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
                                  'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
-                                'Li3': ('qef97#li_kvi#li3.dat',None)}
+                                 'O8': ('qef93#h_o8.dat',None),
+                                'Li3': ('qef07#h_arf#li3.dat','qef97#h_en2_kvi#li3.dat')}
  
                 blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'Ar16':{'14-13':[5,2]},
-                          'B5':{'3-2':[1,1]}, 'F9':{'10-9':[2,2]}, 'Li3':{'2-1':[1,0], '3-1':[9,0]}}
+                          'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[2,3]}, 'F9':{'10-9':[2,2]},
+                          'Li3':{ '3-1':[7,7], '7-5':[11,11]}, 'O8': {'12-10': [16,16]}}
                 
                 
                 tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
@@ -2936,8 +2935,6 @@ class data_loader:
                 if file2 is not None:
                     qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
  
-                
-    
             else:
                 raise Exception('CX data for line %s was not found'%line_id)
 
@@ -4964,7 +4961,7 @@ class data_loader:
                 line = 'C VI 8-7'
             
             if line == 'unknown':
-                printe('unknown line at '+ch.split('.')[-1])
+                printe('unknown spectra line at '+ch.split('.')[-1])
                 continue
 
             

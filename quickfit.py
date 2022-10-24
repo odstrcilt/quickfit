@@ -143,11 +143,12 @@ class DataFit():
 
         # Creating a Font object of "TkDefaultFont"
         self.defaultFont = font.nametofont("TkDefaultFont")
-        print( self.defaultFont)
+        #print( self.defaultFont)
         # Overriding default-font with custom settings
         # i.e changing font-family, size and weight
         self.defaultFont.configure(family="Segoe UI" )
-        
+        #print( self.defaultFont)
+
         
         self.data_loader_class = fetch_data.data_loader
         #list of kinetic profiles avalible to be loaded
@@ -827,7 +828,7 @@ class DataFit():
 
             nsys = len(opts['systems'])            
             for i, (sys_name, systems) in enumerate(opts['systems'].items()):
-                iframe = min(1,i//max(1,nsys//2))
+                iframe = 0 if i == 0 else 1
 
                 frame = frames[iframe]
                 diag_frame = tk.LabelFrame(frame, pady=2,padx=2,relief='groove', text=sys_name)
@@ -963,8 +964,8 @@ class DataFit():
 
         
                 
-        refit = tk.Button(fit_opt_frame_bott,text="Apply",command=self.fitPlot.calculate)
-        refit.pack( side=tk.RIGHT,   pady=0, padx=2)
+        #refit = tk.Button(fit_opt_frame_bott,text="Apply",command=self.fitPlot.calculate)
+        #refit.pack( side=tk.RIGHT,   pady=0, padx=2)
 
         #inicialize
         newselection()
@@ -1228,6 +1229,7 @@ class DataFit():
                 
             output[prof] = {'tvec':t_out, 'rho':x_out, 'rho_lbl': self.options['rho_coord'],
                             'data':np.single(d_out), 
+                            'random_samples': np.single(m2g.g_samples),
                             'err': np.single(d_err),
                             'unc_low':np.single(m2g.g_d),
                             'unc_up':np.single(m2g.g_u),
@@ -1381,7 +1383,7 @@ def main():
                   elmsphase=args.elmsphase, elmstime=args.elmstime, 
                   device=args.device,coordinate= args.map_coordinate)
     myroot.title('QUICKFIT')
-    myroot.minsize(width=950, height=800)
+    myroot.minsize(width=300, height=400)
     imgicon = tk.PhotoImage(file=icon_dir+'icon.gif',master=myroot)
     myroot.tk.call('wm', 'iconphoto', myroot._w, imgicon) 
     myroot.protocol("WM_DELETE_WINDOW", mlp.Quit)
