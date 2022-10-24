@@ -1,2 +1,2 @@
 # quickfit
-Fast tool for fitting of kinetic profiles in tokamaks
+Convinient tool for fitting of kinetic profiles in tokamaks
