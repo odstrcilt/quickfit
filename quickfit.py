@@ -264,8 +264,7 @@ class DataFit():
             ndig = 10
         elif self.device == 'AUG':
             ndig = 5
-            #print('AUG not finished ',num)
-            #exit()
+       
         if len(num) == ndig :
             if self.shot is not None:
                 #clean cache
@@ -280,23 +279,9 @@ class DataFit():
             #load avalible efit editions
             def handler(signum, frame): raise Exception('MDS connection is broken')
 
-            #print "starting"
             self.main_frame.config(cursor="watch")
             self.main_frame.update()
        
-            #try:
-                #signal.signal(signal.SIGALRM, handler)
-                #signal.alarm(20) #Set the parameter to the amount of seconds you want to wait
-                #self.MDSconn.closeAllTrees()
-            #except:
-                
-            
-                #t = time.time()
-                #self.MDSconn = MDSplus.Connection(self.MDSserver)
-                #print 'Connected to MDS+ in %.1fs'%(time.time()-t)
-
-            #finally:
-                #signal.alarm(0) #Disables the alarm 
             connected = self.connectMDSplus()
             if not connected:
                 return False
@@ -388,13 +373,11 @@ class DataFit():
             self.efit_combo.configure(state=tk.NORMAL)
 
             self.BRIEF = ''
-            self.CONFIG = ''
             if self.device == 'D3D':                    
                 try:
 
                     self.MDSconn.openTree('D3D', shot)
                     self.BRIEF = self.MDSconn.get(r'\D3D::TOP.COMMENTS:BRIEF').data() #slow
-                    ##self.CONFIG = self.MDSconn.get(r'\D3D::TOP.COMMENTS:CONFIG').data()
                     self.MDSconn.closeTree('D3D', shot)
                     if not isinstance(self.BRIEF,str):
                         self.BRIEF = self.BRIEF.decode()
@@ -406,6 +389,7 @@ class DataFit():
                 try:
                     self.MDSconn.openTree('PEDESTAL', shot)
                     self.default_elms_signal = self.MDSconn.get(r'\PEDESTAL::TOP.ELM:ELMDANAME').data()
+                    self.default_elms_signal = self.default_elms_signal.decode()
                 except:
                     pass
                 
@@ -419,10 +403,6 @@ class DataFit():
 
             self.efit_edition_changed()
             self.init_set_prof_load()
-            
-            #if self.BRIEF != '':
-                #self.fitPlot.ax_main.set_title(self.BRIEF)
-                #self.fitPlot.ax_main.figure.canvas.draw()
             self.main_frame.config(cursor="")   
 
         elif len(num) > ndig:
@@ -459,8 +439,6 @@ class DataFit():
             try:
                 assert self.eqm.Open(self.shot, efit, exp=self.device), 'EFIT loading problems'
             except:
-                #print(self.shot, efit, self.device)
-                #raise
                 tkinter.messagebox.showerror('Loading problems','EFIT '+efit+' could not be loaded, try another edition')
                 return False
             
@@ -578,7 +556,6 @@ class DataFit():
                     
                 finally:
                     self.main_frame.config(cursor="")
-                #print('splines done', self.options['data_loaded'])
             
             label = self.device+' splines'
             if self.device == 'D3D':
@@ -907,6 +884,7 @@ class DataFit():
                 elif isinstance(val, int):
                     self.fit_options[var] = tk.IntVar(master=self.fit_opt_frame, value=val)
                 else:
+                    #embed()
                     raise Exception('Unsupported type')
                 
                 
