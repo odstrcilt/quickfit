@@ -184,15 +184,20 @@ class FitPlot():
             data_rho.append(ch['rho'].values)
             data_tvec.append(np.tile(ch['time'].values, data_rho[-1].shape[:0:-1]+(1,)).T)
             plot_tvec.append(np.tile(ch['time'].values, d.shape[1:]+(1,)).T )
-       
+            diags.append(ch['diags'].values)
+            labels.append(ch[prof].attrs['label'])
 
+            #embed
             s = d.shape
             if len(s) == 1:
                 dch = 1
-                name_channels.append(ch.attrs.get('channel', n_ch))
+                if 'channel' in ch:
+                    name_channels.append(ch.attrs['channel'])              
+                else:
+                    name_channels.append(diags[-1][0]+'_%d'%(n_ch+1))
             else:
                 dch = s[1]
-                name_channels += [ch.attrs['system']+'_%d'%i for i in range(n_ch,n_ch+dch)]
+                name_channels += [diags[-1][0,i-n_ch]+'_%d'%(i+1) for i in range(n_ch,n_ch+dch)]
       
             ind_channels.append(np.tile(np.arange(dch,dtype='uint32')+n_ch,(s[0],1)))
             n_ch+=  dch
@@ -209,8 +214,6 @@ class FitPlot():
                 weights.append(np.ones_like(d))
                 plot_rho.append(ch['rho'].values )
 
-            diags.append(ch['diags'].values)
-            labels.append(ch[prof].attrs['label'])
 
         
         unit  = ch[prof].attrs['units'] 
@@ -220,6 +223,8 @@ class FitPlot():
             return
   
         diag_names = data_d['diag_names'] 
+        
+        #embed()
         label = ','.join(np.unique(labels))
 
         self.elms = elms
@@ -510,8 +515,8 @@ class FitPlot():
         hbox2.pack(side=tk.BOTTOM,fill=tk.X)
         
         
-        helv36 = tkinter.font.Font(family='Helvetica', size=10, weight='bold')
-        calc_button = tk.Button(hbox2,text='Fit',bg='red',command=self.calculate,font=helv36)
+        helv36 = tkinter.font.Font(family='Helvetica', size=13, weight='bold')
+        calc_button = tk.Button(hbox2,text='Fit',bg='red',command=self.calculate,font=helv36,  height= 2, width=5)
         calc_button.pack(side=tk.LEFT)
         
         
@@ -520,14 +525,14 @@ class FitPlot():
         self.forwardfig = tk.PhotoImage(file=icon_dir+'forward.gif',master=self.fit_frame)
         self.backwardfig = tk.PhotoImage(file=icon_dir+'backward.gif',master=self.fit_frame)
  
-        self.backward_button = tk.Button(hbox2,command=self.Backward,image=self.backwardfig)
+        self.backward_button = tk.Button(hbox2,command=self.Backward,image=self.backwardfig, height= 45, width=40)
         self.backward_button.pack(side=tk.LEFT)
-        self.play_button = tk.Button(hbox2,command=self.Play,image=self.playfig)
+        self.play_button = tk.Button(hbox2,command=self.Play,image=self.playfig, height= 45, width=40)
         self.play_button.pack(side=tk.LEFT)
-        self.forward_button = tk.Button(hbox2,command=self.Forward,image=self.forwardfig)
+        self.forward_button = tk.Button(hbox2,command=self.Forward,image=self.forwardfig, height= 45, width=40)
         self.forward_button.pack(side=tk.LEFT)
         
-        self.button_3d = tk.Button(hbox2,command=self.plot3d,text='3D',font=helv36)
+        self.button_3d = tk.Button(hbox2,command=self.plot3d,text='3D',font=helv36, height= 2, width=5)
         self.button_3d.pack(side=tk.LEFT)
         
         
@@ -1174,9 +1179,10 @@ class FitPlot():
         if what == 'channel':
             ch = np.unique(self.channel[ind])
             ind = np.in1d(self.channel,ch)
-            
-            print('Channels '+','.join([self.name_channels[i] for i in ch])+' were '+action)
- 
+            #try:
+            print('Channels '+','.join([str(self.name_channels[i]) for i in ch])+' were '+action)
+            #except:
+                #embed()
         elif what == 'diagnostic':
             i_diag = self.ind_diag[ind]
             ind = np.in1d(self.ind_diag,i_diag)

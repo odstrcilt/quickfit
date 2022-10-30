@@ -5,6 +5,7 @@ import os,time,sys
 import matplotlib
 matplotlib.use('TkAgg')
 import MDSplus
+import signal
 
 #if matplotlib.compare_versions(matplotlib.__version__, '1.9.9'):
 # http://matplotlib.org/users/dflt_style_changes.html
@@ -94,6 +95,7 @@ class DataFit():
     options = {'eta':.5, 'lam':.5}
 
     kinprof_ind = None
+    default_elms_signal = 'fs04'
 
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
@@ -206,7 +208,6 @@ class DataFit():
         try:
             if isinstance(self.MDSserver,str):
                 self.MDSconn.disconnect()
-                print('MDS+ disconnected')
         except:
             pass
     
@@ -248,7 +249,7 @@ class DataFit():
         num = num.strip()
         if not num.isnumeric():
             return False
-        
+
         try:
             shot = int(num) 
         except:
@@ -278,7 +279,6 @@ class DataFit():
             self.fitPlot.shot = shot
             #load avalible efit editions
             def handler(signum, frame): raise Exception('MDS connection is broken')
-            import signal
 
             #print "starting"
             self.main_frame.config(cursor="watch")
@@ -300,7 +300,7 @@ class DataFit():
             connected = self.connectMDSplus()
             if not connected:
                 return False
-            
+
             self.eqm = self.equ_map(self.MDSconn)
 
             efit_editions = []
@@ -325,7 +325,7 @@ class DataFit():
                 efit_editions = [e[1:] for e in efit_editions if 'EFIT' in e]
                 efit_editions+= [ 'EFITRT1','EFITRT2' ]
                 
-                
+
             if self.device == 'NSTX':
                 efit_names = []
                 for tree in ['EFIT','LRDFIT']:
@@ -391,17 +391,23 @@ class DataFit():
             self.CONFIG = ''
             if self.device == 'D3D':                    
                 try:
+
                     self.MDSconn.openTree('D3D', shot)
-                    self.BRIEF = self.MDSconn.get(r'\D3D::TOP.COMMENTS:BRIEF').data()
-                    self.CONFIG = self.MDSconn.get(r'\D3D::TOP.COMMENTS:CONFIG').data()
+                    self.BRIEF = self.MDSconn.get(r'\D3D::TOP.COMMENTS:BRIEF').data() #slow
+                    ##self.CONFIG = self.MDSconn.get(r'\D3D::TOP.COMMENTS:CONFIG').data()
                     self.MDSconn.closeTree('D3D', shot)
                     if not isinstance(self.BRIEF,str):
                         self.BRIEF = self.BRIEF.decode()
-                    
                     print(self.BRIEF)
                 except:
+                    raise
                     pass
-                
+                #load default filterscope for elm identification
+                try:
+                    self.MDSconn.openTree('PEDESTAL', shot)
+                    self.default_elms_signal = self.MDSconn.get(r'\PEDESTAL::TOP.ELM:ELMDANAME').data()
+                except:
+                    pass
                 
 
             #use a default setting for a new discharge
@@ -413,6 +419,10 @@ class DataFit():
 
             self.efit_edition_changed()
             self.init_set_prof_load()
+            
+            #if self.BRIEF != '':
+                #self.fitPlot.ax_main.set_title(self.BRIEF)
+                #self.fitPlot.ax_main.figure.canvas.draw()
             self.main_frame.config(cursor="")   
 
         elif len(num) > ndig:
@@ -646,7 +656,7 @@ class DataFit():
                                   'elmsync':0,
                                   'sawteeth':1,
                                   'null_outer':0,
-                                  'elm_signal':'fs04',
+                                  'elm_signal':self.default_elms_signal,
                                   'outside_rho':'1.0',
                                   'pedestal_rho':'.95',
                                   'dr':'0.1',
@@ -797,7 +807,8 @@ class DataFit():
         
         #if it was already initialized
         if self.options['data_loaded']:
-            for var in ('m2g','ind_diag','diags','channel','tres','xlab','ylab','ylab_diff','plot_rho','plot_tvec'):
+            for var in ('m2g','ind_diag','diags','channel','name_channels','tres','xlab',
+                        'ylab','ylab_diff','plot_rho','plot_tvec'):
                 setattr(self.fitPlot,var,self.load_options[self.kin_prof][var])
             self.set_trange(*self.load_options[self.kin_prof]['trange'])
         else:
@@ -958,15 +969,11 @@ class DataFit():
         
         
 
-        elm_signal_entry = tk.Entry(frames['elmrem'],width=4,justify=tk.CENTER,
+        elm_signal_entry = tk.Entry(frames['elmrem'],width=6,justify=tk.CENTER,
                                     textvariable=self.fit_options['elm_signal'])
         elm_signal_entry.pack(side=tk.LEFT, padx=0)
 
-        
-                
-        #refit = tk.Button(fit_opt_frame_bott,text="Apply",command=self.fitPlot.calculate)
-        #refit.pack( side=tk.RIGHT,   pady=0, padx=2)
-
+     
         #inicialize
         newselection()
 
@@ -1057,6 +1064,7 @@ class DataFit():
             self.load_options[self.kin_prof]['ind_diag'] = self.fitPlot.ind_diag
             self.load_options[self.kin_prof]['diags'] = self.fitPlot.diags
             self.load_options[self.kin_prof]['channel'] = self.fitPlot.channel
+            self.load_options[self.kin_prof]['name_channels'] = self.fitPlot.name_channels
             self.load_options[self.kin_prof]['tres'] = self.fitPlot.tres
             self.load_options[self.kin_prof]['plot_rho'] = self.fitPlot.plot_rho
             self.load_options[self.kin_prof]['plot_tvec'] = self.fitPlot.plot_tvec
@@ -1265,7 +1273,6 @@ class DataFit():
                 'data': {'lbl':dlbl,'arr':tr_fac*d_out}}
             
                 uf_d['comm'] = prof+'\n' 
-                #uf_d['comm'] = 'exp=%s\n diag=%s\n ed=%s\n' %(self.exp,self.diag,self.ed)
                 uf_d['comm'] += ' Mapping:\n'
                 uf_d['comm'] += '  diag=%s\n' %(self.eqm.diag)
                 uf_d['comm'] += comment
@@ -1312,6 +1319,23 @@ class DataFit():
     
 def main():
     
+    #guess on which device is the quickfit running
+    #any better way how to distinguis in betwen different instalations? 
+    if os.path.exists('/fusion/projects/codes/quickfit'):
+        tok_name = 'D3D'
+        mds_server = 'atlas.gat.com'
+    elif os.path.exists('/afs/ipp-garching.mpg.de/'):
+        tok_name = 'AUG'
+        mds_server = 'None'
+    elif os.path.exists('/p/'):
+        tok_name = 'NSTX'
+        mds_server = 'skylark.pppl.gov:8501'
+    else:
+        tok_name = 'D3D'
+        mds_server='atlas.gat.com'
+        print('Local installation of pySpecview - DIII-D?')
+                
+    
     import argparse
     parser = argparse.ArgumentParser( usage='Fast profiles fitting GUI')
     
@@ -1319,8 +1343,8 @@ def main():
     parser.add_argument('--tmin',type=float, metavar='S', help='optional tmin', default=None)
     parser.add_argument('--tmax',type=float, metavar='S', help='optional tmax', default=None)
     parser.add_argument('--preload', help='optional',action='store_true')
-    parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD, NSTX or AUG)',default='D3D')
-    parser.add_argument('--mdsplus', type=str,help='MDS+ server',default='atlas.gat.com')
+    parser.add_argument('--device', type=str,help='tokamak name (D3D, CMOD, NSTX or AUG)',default=tok_name)
+    parser.add_argument('--mdsplus', type=str,help='MDS+ server',default=mds_server )
     parser.add_argument('--elmsphase', help='Apply ELMs synchronisation - elm fraction',default=False,action='store_true')
     parser.add_argument('--elmstime', help='Apply ELMs synchronisation - elm time',default=False,action='store_true')
     parser.add_argument('--map_coordinate', type=str,help='rho_pol, rho_tor, Psi_N, r_a',default='rho_tor')
@@ -1329,54 +1353,13 @@ def main():
  
     args = parser.parse_args()
     
-    
-    #print(args.preload)
-    #exit()
-    #try:
-        ##embed()
-        #data = np.load(r'C:\Users\odstrcil\kin_data_%s.npz'%str(args.shot), allow_pickle=True )
-        ##print(data.keys())
-        #if 'nC6' in  data:
-            #return 
-        ###raise('Loaded')
-        ##exit()
-    #except:
-        ##raise
-        #pass
-    #if int(args.shot) <= 175864:
-        #return
-    
-    #import pickle
-    #file = open('1900.pkl', 'rb')
-    #data = pickle.load(file)
-    #file.close()
-    
-    #if os.path.isfile('raw_data_'+args.shot+'.npz'):
-        #exit()
-        
-    ##file.close()
-    
-    #if os.path.isfile('/home/tomas/kin_data_%s.npz'%args.shot):
-        #exit()
-        
+
 
     raw = {}
-    #embed()
 
-    #try:
-        #raw = np.load('raw_data_'+args.shot+'.npz', allow_pickle=True)
-        #raw = {k:d.item() for k,d in raw.items()}raw_data
-        ##exit()
-    #except:
-        #print('no raw')
-        ##raise
-        #pass
-        
- 
     
     mdsserver =  args.mdsplus
- 
-    
+
     
     myroot = tk.Tk(className=' Profiles')
     mlp = DataFit(myroot, mdsserver,shot=args.shot,raw_data = raw,
@@ -1390,56 +1373,23 @@ def main():
     
     if args.tmin is not None or args.tmax is not None:
         mlp.set_trange(tbeg=args.tmin,tend=args.tmax,tstep='None')
-    
-    #self.default_settings.setdefault('nimp', {\
-        #'systems':{'CER system':(['tangential',True], ['vertical',True])},
-        #'load_options':{'CER system':OrderedDict((
-                            #('Analysis', ('best', ('best','fit','auto','quick'))),
-                            #('Correction',{'Relative calibration':False}  )))   }})
-
-
-    #mlp.diag_nb.select(4)    
 
     mlp.elmsphase = args.elmsphase
     mlp.elmstime = args.elmstime
 
     
-    
-    #mlp.options['systems']['CER system'][1][1]=False
-    
-    #mlp.load_options['nimp'][1][1]=False
-
-    #mlp.init_data()
-    #mlp.fitPlot.calculate()
-    #print('done')
-    #embed()
-    #mlp.default_settings['nC6']['load_options']['CER system']['Correction']['Relative calibration'] = True
-
-    #mlp.default_settings['nC6']['load_options']['CER system']['Correction']['nz from CER intensity'] = True
     if args.preload:
         
         for i,k in enumerate(mlp.kin_profs):
             if k[0] =='n' and k != 'nC6' or k == 'Zeff': continue
             mlp.diag_nb.select(i)    
-            #mlp.default_settings_loader['CER system']['Correction']['Relative calibration'] = True
-            #mlp.default_settings_loader['CER system']['Correction']['nz from CER intensity'] = True
-
             mlp.init_data()
-            #mlp.fitPlot.calculate()
         mlp.diag_nb.select(0)    
-        #np.savez_compressed('raw_data_'+args.shot, **raw)
         myroot.mainloop()
     
     else:
         myroot.mainloop()
 
-        
-    #embed()
-    #print('done')
-    #myroot.mainloop()
-
-    
-    
     
     
  

@@ -815,9 +815,8 @@ def default_settings(MDSconn, shot):
         'systems':{'CER system':(['tangential',True], ['vertical',False], ['SPRED',False])},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', ('best', ('best','fit','auto','quick','real'))),
-                                ('Correction',{'Relative calibration':True, 'nz from CER intensity': False,
-                                               'remove first data after blip':False,
-                                               'Wall reflections': False}  )))   }}
+                                ('Correction',{'Relative calibration':True, 'nz from CER intensity': True,
+                                               'remove first data after blip':False}  )))   }}
     #,'Remove first point after blip':False
     #if there are multiple impurities
     for imp in imps:
@@ -5635,6 +5634,10 @@ class data_loader:
             printe('relativistic mass downshift could not be done')
             gamma = np.ones((1,len(r_in)))
 
+        Te = 6e3
+        v=np.sqrt(2*Te*(e/m_e))
+        gamma = 1/np.sqrt(1-(v/c)**2)
+        
         wce = e*Btot/(m_e*gamma)
 
         nharm = 2
@@ -5673,7 +5676,7 @@ class data_loader:
                 f_cut_loc[it] = np.interp(R[iteq],  r_in, f_cut[it])
                 
                 
-            #ind = (ne_tvec > 2 )&(ne_tvec < 5)
+            #ind = (ne_tvec > 2 )&(ne_tvec < 2.5)
             #plt.axhline(110,label='f ECH')
             #plt.plot(r_in, f_RHC[ind].mean(0), label='f RHC cutoff')
             #plt.plot(r_in, f_CE[ind].mean(0), label='f CE')
@@ -5683,6 +5686,20 @@ class data_loader:
             #plt.ylabel('f [GHz]')
             #plt.legend()
             #plt.show()
+            
+            embed()
+            
+            LO = 93 #GHz
+            OpWspan = 16.5/100 #cm??
+            Pc = np.linspace(OpWspan, - OpWspan, 20)[::-1]
+            df = np.array([8.9, 7.8, 6.9, 6.0, 5.1, 4.2, 3.3, 2.4])
+            fc = LO + df
+
+            #good channels
+            GC = [3, 5, 6, 7, 8, 10, 11, 13, 14, 16, 18, 20, 22]
+            GCid = [x - 3 for x in GC]
+            R,Z = RRc[::-1][GCid], PPc[::-1][GCid]
+
                 
         except:
             printe( 'ZIPFIT ne data are missing, density cutoff was not estimated')
@@ -5933,7 +5950,7 @@ class data_loader:
         ne_err[ne < 0]  = np.infty
  
 
-        CO2['CO2'] = Dataset('interfer.nc')
+        CO2['CO2'] = Dataset('interfer.nc',attrs={'system':'CO2'})
         CO2['CO2']['channel'] = xarray.DataArray( los_names ,dims=['channel'])
         CO2['CO2']['path'] = xarray.DataArray( t ,dims=['path'])
         CO2['CO2']['time'] = xarray.DataArray( co2_time ,dims=['time'], attrs={'units':'s'})
@@ -6447,7 +6464,7 @@ def main():
     #shot = 185157  #BUg uplne blbe relativni kalibrace
     #shot = 184777
     shot = 184840
-    shot = 190652
+    shot = 175900
     #shot = 
 
     default_settings(MDSconn, shot  )
@@ -6617,7 +6634,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nNe10', settings,tbeg=1.8, tend=5)
+    data = loader( 'Te', settings,tbeg=1.8, tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
