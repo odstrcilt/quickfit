@@ -186,15 +186,16 @@ class FitPlot():
             plot_tvec.append(np.tile(ch['time'].values, d.shape[1:]+(1,)).T )
             diags.append(ch['diags'].values)
             labels.append(ch[prof].attrs['label'])
-
-            #embed
+ 
             s = d.shape
             if len(s) == 1:
                 dch = 1
                 if 'channel' in ch:
                     name_channels.append(ch.attrs['channel'])              
-                else:
+                elif len(diags[-1]):
                     name_channels.append(diags[-1][0]+'_%d'%(n_ch+1))
+                else:
+                    name_channels.append(str(n_ch+1))
             else:
                 dch = s[1]
                 name_channels += [diags[-1][0,i-n_ch]+'_%d'%(i+1) for i in range(n_ch,n_ch+dch)]
@@ -516,7 +517,7 @@ class FitPlot():
         
         
         helv36 = tkinter.font.Font(family='Helvetica', size=13, weight='bold')
-        calc_button = tk.Button(hbox2,text='Fit',bg='red',command=self.calculate,font=helv36,  height= 2, width=5)
+        calc_button = tk.Button(hbox2,text='Fit',bg='red',command=self.calculate,font=helv36,  height= 2)
         calc_button.pack(side=tk.LEFT)
         
         
@@ -532,7 +533,7 @@ class FitPlot():
         self.forward_button = tk.Button(hbox2,command=self.Forward,image=self.forwardfig, height= 45, width=40)
         self.forward_button.pack(side=tk.LEFT)
         
-        self.button_3d = tk.Button(hbox2,command=self.plot3d,text='3D',font=helv36, height= 2, width=5)
+        self.button_3d = tk.Button(hbox2,command=self.plot3d,text='3D',font=helv36, height= 2)
         self.button_3d.pack(side=tk.LEFT)
         
         
