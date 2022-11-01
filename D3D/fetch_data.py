@@ -447,7 +447,7 @@ def beam_get_fractions(Einj=81.0, model='mickey'):
     # Fraction
     j = np.array([1.0, 2.0, 3.0])[:,None] 
     
-    if Einj is 0.0:
+    if np.size(Einj) == 0 and Einj == 0.0:
         return {'cfracs': np.zeros(3), 'pfracs': np.zeros(3), 'nfracs': np.zeros(3)}
 
  
@@ -3067,10 +3067,10 @@ class data_loader:
 
                 R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
                 # sum over beam species crossection before interpolation
-                try:
-                    denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
-                except:
-                    embed()
+                #try:
+                denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
+                #except:
+                    #embed()
 
                 #try:
                 # uncertainties in beam_att_err between species are 100% correlated, we can sum them
