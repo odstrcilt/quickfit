@@ -199,8 +199,7 @@ class map2grid():
         it = (self.T-self.t_min)/self.dt
         ir = (self.R-self.r_min)/dr
         
-        #print('sum(it > self.nt_new0-1)',np.sum(it > self.nt_new0-2),np.sum(it > self.nt_new0-1) ,self.missing_data.shape,  )
-
+ 
         #new grid for output
         r_new  = np.linspace(self.r_min,self.r_max,self.nr_new)
         #t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0)
@@ -212,8 +211,7 @@ class map2grid():
         index_p = np.tile(self.P, (4,1))
         index_t = np.tile(floor_it, (4,1))
         index_r = np.tile(floor_ir, (4,1))
-        #print('sum(floor_it > self.nt_new0-2)',np.sum(floor_it > self.nt_new0-2),self.missing_data.shape,  self.nt_new0  )
-
+ 
         index_t[1::2] += 1
         index_r[2:  ] += 1
         
@@ -226,13 +224,11 @@ class map2grid():
         weight[1::2] *= frac_it
         weight[  :2] *= 1.-frac_ir
         weight[2:  ] *= frac_ir
-        
-        #embed()
-
+   
         #skip fit of temporal regions without any data
         if elm_phase is None:
             #if elm syncing is not used
-            #time regions which are not covered by any measurements
+            #idenify time bins which are not covered by any measurements
             try:
                 self.missing_data[index_t[0]] = False
                 self.missing_data[index_t[1]] = False
@@ -240,18 +236,19 @@ class map2grid():
                 print('error:  self.missing_data[index_t[1]] = False ')
             #weakly constrained timepoints
             weak_data,_ = np.histogram(index_t,self.nt_new0,weights=weight,range=(0,self.nt_new0))
-            
-            self.missing_data[weak_data<np.mean(weak_data)*.02] = True #almost missing data
-                    
-            weak_data = (weak_data<np.mean(weak_data)/5.)[~self.missing_data]
-            weak_data = weak_data[1:]|weak_data[:-1]
-
+             
+            self.missing_data[weak_data<np.mean(weak_data)*.02] = True #almost unconstrained time bins
+       
             #correction of dt for regions with a missing or weakly constrained data 
             dt = np.ones(self.nt_new0)
             dt = np.ediff1d(np.cumsum(dt)[~self.missing_data])
-            dt = (dt/(1+weak_data))*self.dt 
+            
+            #BUG what was this part for??
+            #weak_data = (weak_data<np.mean(weak_data)*.2)[~self.missing_data]
+            #weak_data = weak_data[1:]|weak_data[:-1]
+            #dt = dt/(1+weak_data)
+           
             self.nt_new = np.sum(~self.missing_data)
-            #embed()
             #skipping a fit in regions without the data
             used_times = np.cumsum(~self.missing_data)-1
             index_t    = used_times[index_t]
@@ -260,10 +257,11 @@ class map2grid():
         else:
             t_new = self.t_new0
             self.nt_new = self.nt_new0
-            dt = self.dt*np.ones(self.nt_new-1 )
+            dt = np.ones(self.nt_new-1 )
             used_times = np.arange(len(self.t_new0))
             self.elm_phase = True
-
+        
+        dt *= self.dt
         self.r_new,self.t_new = np.meshgrid(r_new,t_new)
 
         weight  = weight.ravel()
@@ -299,7 +297,7 @@ class map2grid():
             #diffusion /= (rvec_b*np.arctan(np.pi*rvec_b)-np.log((np.pi*rvec_b)**2+1)/(2*np.pi))/rvec_b
             #diffusion /= np.arctan( 3/2*rvec_b)
             
-            from  scipy.special import erf
+            #from  scipy.special import erf
             #erf = 2/sqrt(pi)*integral(exp(-t**2), t=0..z).
             #diffusion /= erf(rvec_b)
             
@@ -483,7 +481,6 @@ class map2grid():
 
         I = sp.eye(self.nt_new)
         self.DRDR = sp.kron(DR.T*DR,I, format='csc')
-        #print(self.DRDR.size)
 
         self.prepared = True
 
