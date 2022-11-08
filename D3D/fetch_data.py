@@ -749,13 +749,14 @@ def default_settings(MDSconn, shot):
             MDSconn.closeTree('IONS', shot)
             
             line_id = []
-            for l in np.unique(_line_id):                
+            uids = np.unique(_line_id)
+            for l in uids:                
                 if not isinstance(l,str):
                     l = l.split(b'\x00')[0] #sometimes are names quite wierd
                     l = l.decode()
-                l = l.strip()
-                if l not in line_id:
-                    line_id.append(l)
+                #l = l.strip()
+                #if l not in line_id:
+                line_id.append(l.strip())
  
             for l in line_id:
                 try:
@@ -764,11 +765,21 @@ def default_settings(MDSconn, shot):
                     imps.append(imp+str(roman2int(Z) ))
                 except:
                     imps.append('XX')
-                #embed()
+
+            #if there are other impurities than carbon, print their channels
+            if len(line_id) > 1:
+                for imp, lid, uid in zip(imps,  line_id, uids):
+                    if imp == 'C6': continue
+                    print(imp+': ',end = '')
+                    for ch, _id in zip(channel, _line_id):
+                        if _id == uid:
+                            print(ch+', ', end = '')
+                    print('')
+                
+                
+                    
 
         except Exception as e:
-            #print(e)
-            #embed()
             imps = ['C6']
     
     #exception data from main ion CER
@@ -930,7 +941,7 @@ class data_loader:
         
             
         if quantity == 'sawteeth':
-            return self.load_sawteeth()
+            return self.load_sawteeth(options)
         
             
         
@@ -5541,12 +5552,28 @@ class data_loader:
                 printe( 'MDS error: '+ str(e))
             finally:
                 self.MDSconn.closeTree(tree, self.shot)
-  
+            
+            
+            #t = time()
             TDI =  [r"\TECE%s%02d"%(suffix, d) for d in range(1,1+nchs)]
             TDI += [r'dim_of(\TECE%s01)'%suffix, ]
             
         
             out = mds_load(self.MDSconn, TDI, tree, self.shot)
+            
+            #print(time()-t)
+            
+            #t = time()
+            #TDI =  [f'_x=PTDATA2("ece{d}", {self.shot}, 4)' for d in range(1,1+nchs)]
+            #TDI += [f'dim_of(PTDATA2("ece1", {self.shot}))']
+            
+        
+            #out = mds_load(self.MDSconn, TDI, None, self.shot)
+            
+            #print(time()-t)
+            
+            #embed()
+
 
             tvec,data_ = out[-1],out[:-1]
             
@@ -5583,8 +5610,10 @@ class data_loader:
             ece['channel'] = xarray.DataArray(channel, dims=['channel'], attrs={'units':'-'} )
 
 
-
-                         
+        #cut to data to reduce the array size
+        tbeg = max(tbeg, self.eqm.t_eq[0])
+        tend = max(tend, self.eqm.t_eq[-1])
+        
         #process only selected time range 
         ece = ece.sel(time=slice(tbeg,tend))
 
@@ -5687,18 +5716,18 @@ class data_loader:
             #plt.legend()
             #plt.show()
             
-            embed()
+            #embed()
             
-            LO = 93 #GHz
-            OpWspan = 16.5/100 #cm??
-            Pc = np.linspace(OpWspan, - OpWspan, 20)[::-1]
-            df = np.array([8.9, 7.8, 6.9, 6.0, 5.1, 4.2, 3.3, 2.4])
-            fc = LO + df
+            #LO = 93 #GHz
+            #OpWspan = 16.5/100 #cm??
+            #Pc = np.linspace(OpWspan, - OpWspan, 20)[::-1]
+            #df = np.array([8.9, 7.8, 6.9, 6.0, 5.1, 4.2, 3.3, 2.4])
+            #fc = LO + df
 
-            #good channels
-            GC = [3, 5, 6, 7, 8, 10, 11, 13, 14, 16, 18, 20, 22]
-            GCid = [x - 3 for x in GC]
-            R,Z = RRc[::-1][GCid], PPc[::-1][GCid]
+            ##good channels
+            #GC = [3, 5, 6, 7, 8, 10, 11, 13, 14, 16, 18, 20, 22]
+            #GCid = [x - 3 for x in GC]
+            #R,Z = RRc[::-1][GCid], PPc[::-1][GCid]
 
                 
         except:
@@ -6286,6 +6315,7 @@ class data_loader:
                 self.MDSconn.closeTree(tree, self.shot)
             except:
                 pass
+            
         elm_time, elm_val, elm_beg, elm_end = [],[],[],[]
         if len(elms_sig):
             try:
@@ -6300,15 +6330,76 @@ class data_loader:
         return  self.RAW['ELMS'][node]
     
     
-    def load_sawteeth(self):
-        #BUG how to detect them?
-        import os
-        try:
-            sawteeth = np.loadtxt(os.path.expanduser('~/tomography/tmp/sawtooths_%d.txt'%self.shot))
-        except:
-            sawteeth = []
+    def load_sawteeth(self, option):
+ 
+        signal = option['saw_signal'].get()
         
-        return {'tvec':sawteeth}
+        self.RAW.setdefault('Sawteeth',Tree())
+        
+        if signal in self.RAW['Sawteeth']:
+            return self.RAW['Sawteeth'][signal]
+        
+        
+        print_line( f'  * Fetching Sawtooth data from  {signal} ... ')
+        T = time()
+        
+
+        try:
+            saw_signal = self.MDSconn.get(f'_x=PTDATA2("{signal}", {self.shot})').value
+            assert len(saw_signal) > 1
+            tmin,tmax = self.MDSconn.get('_t = dim_of(_x); [_t[0], _t[size(_t)-1]]').data()/1e3
+        except:
+            try:
+                tag  = self.MDSconn.get('findsig("'+signal+'",_fstree)').value
+                fstree = self.MDSconn.get('_fstree').value 
+                self.MDSconn.openTree(fstree, self.shot)
+                saw_signal = self.MDSconn.get('_x='+tag).value
+                tmin,tmax = self.MDSconn.get('_t = dim_of(_x); [_t[0], _t[size(_t)-1]]').data()/1e3
+            except:            
+                return []
+
+        
+        tvec = np.linspace(tmin,tmax, len(saw_signal))
+
+        
+        from scipy.signal import find_peaks
+        
+        saw_width = 0.001 #ms
+        min_period = 0.01#ms
+        N = len(saw_signal)
+        dt = (tmax-tmin)/(N-1)
+        n = int(np.ceil(saw_width/dt)//2*2+1)
+        dt *= n
+        
+        tbeg, tend = self.eqm.t_eq[[0,-1]]
+      
+            
+        ibeg,iend = tvec.searchsorted([tbeg, tend])
+        
+        smooth_sig = np.median(saw_signal[ibeg:iend][:(iend-ibeg)//n*n].reshape((iend-ibeg)//n, n),axis=1)
+        
+        tvec = np.mean(tvec[ibeg:iend][:(iend-ibeg)//n*n].reshape((iend-ibeg)//n, n),axis=1)
+        
+        
+        diff_sig = np.diff(np.log(smooth_sig))
+        
+        #look only for drops in signal (cases when it increases during sawtooth are rare)
+        ind, details =  find_peaks(-(diff_sig), 0.05, distance=int(min_period/dt),width=(1,int(saw_width/dt*3) ))
+        sawteeth =  (tvec[1:]+tvec[:-1])[ind]/2
+        
+        #embed()
+
+        #plt.plot(tvec,np.log(smooth_sig))
+        #plt.plot((tvec[1:]+tvec[:-1])/2, diff_sig)
+        #plt.plot(sawteeth, diff_sig[ind],'o')
+        #plt.show()
+        
+        
+        self.RAW['Sawteeth'][signal] = sawteeth
+        print('\t done in %.1fs'%(time()-T))
+
+        
+        return sawteeth
     
     
     
@@ -6577,7 +6668,7 @@ def main():
                                             'remove first data after blip':I(0)}  )))   }})
 
     settings.setdefault('Te', {\
-    'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
+    'systems':OrderedDict((( 'TS system',(['tangential',I(0)], ['core',I(0)],['divertor',I(0)])),
                             ('ECE system',(['slow',I(1)],['fast',I(0)])))),
     'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
                     'ECE system':OrderedDict((
