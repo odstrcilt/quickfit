@@ -5789,14 +5789,13 @@ class data_loader:
 
       
         if ts_correction:
-            #rescale using TS data
+            #rescale using TS te data
             TS_systems = ['tangential','core']
             if TS is None:
                 TS = self.load_ts(tbeg,tend,TS_systems)
             
             TS_rho,TS_Te,TS_err,TS_tvec = [],[],[],[]
             for s in TS_systems:
-                
                 TS_rho.append(TS[s]['rho'].values)
                 TS_tvec.append(np.tile(TS[s]['time'].values,(len(TS[s]['channel']),1)).T)
                 TS_Te.append(TS[s]['Te'].values)
@@ -5809,22 +5808,39 @@ class data_loader:
             
             valid = np.isfinite(TS_err)
             TS_rho, TS_Te,TS_tvec = TS_rho[valid], TS_Te[valid], TS_tvec[valid]
-            #interpolate Te from TS on the time and radia positions of ECE
-            NDinterp = NearestNDInterpolator(np.vstack([TS_tvec,TS_rho]).T,TS_Te ,rescale=True )
-
+            
+            
+            #interpolate Te from TS on the time and radial positions of ECE 
+            NDinterp = NearestNDInterpolator(np.vstack([TS_tvec,TS_rho]).T,TS_tvec)
+            
             #use only high Te part of the signals
             high_te_ind = data.max(1) > np.mean(data.max(1))/2
             high_te_ind = slice(*np.where(high_te_ind)[0][[0,-1]])
             
-            TS_Te_ = NDinterp(np.vstack([np.tile(tvec[high_te_ind],(nchs,1)).T.flatten(),rho[high_te_ind].flatten()]).T)
-            TS_Te_ = TS_Te_.reshape(data[high_te_ind].shape)
-                          
+            tvec_ = tvec[high_te_ind]
+ 
+            tvec_TS_ECE = np.unique(TS_tvec)
+            tvec_TS_ECE = tvec_TS_ECE[(tvec_TS_ECE > tvec_[0])&(tvec_TS_ECE < tvec_[-1])]
+            data_ = interp1d(tvec_, data[high_te_ind], axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE)
+            rho_  = interp1d(tvec_, rho[high_te_ind],  axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE)
+            valid_ = np.bool_(interp1d(tvec_, np.isfinite(data_err[high_te_ind]), axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE))
+
+            #find ECE measuremets closed in time to TS
+            nearest_TS_time = NDinterp(np.tile(tvec_TS_ECE,(nchs,1)).T, rho_)
+            close = abs(nearest_TS_time-tvec_TS_ECE[:,None]) < 1e3 #closer than 1ms
+
+            #coresponding TS Te values
+            NDinterp.values[:] = TS_Te
+            nearest_TS_Te = NDinterp(np.tile(tvec_TS_ECE,(nchs,1)).T, rho_)
+            
+            #use only close TS measurements
+            valid_ &= close
+    
             #apply correction
             data = deepcopy(data)
             for ch in range(nchs):
-                valid = np.isfinite(data_err[high_te_ind,ch])
-                if any(np.isfinite(valid)):
-                    data[:,ch]*= np.median(TS_Te_[valid,ch])/np.median(data[high_te_ind,ch][valid])
+                if any(valid_[:,ch]):
+                    data[:,ch]*= np.median(nearest_TS_Te[valid_[:,ch],ch])/np.median(data_[valid_[:,ch],ch])
             
 
         ece['Te'] = xarray.DataArray(data, dims=['time','channel'], attrs={'units':'eV','label':'T_e'} )
