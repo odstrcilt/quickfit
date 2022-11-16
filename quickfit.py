@@ -96,6 +96,8 @@ class DataFit():
 
     kinprof_ind = None
     default_elms_signal = 'fs04'
+    sawteeth = []
+    elms = []
 
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
@@ -383,8 +385,9 @@ class DataFit():
                         self.BRIEF = self.BRIEF.decode()
                     print(self.BRIEF)
                 except:
-                    raise
-                    pass
+                    print('Shot does  not exist')
+                    return False
+                    #pass
                 #load default filterscope for elm identification
                 try:
                     self.MDSconn.openTree('PEDESTAL', shot)
@@ -596,9 +599,10 @@ class DataFit():
 
             default_settings = self.default_settings_loader(self.MDSconn,self.shot)
             self.kin_profs = list(default_settings.keys())
-            
+  
             for key, val in  default_settings.items():
-                self.default_settings.setdefault(key, OrderedDict())
+                self.default_settings[key] = OrderedDict()
+
                 for k,v in val.items():
                     self.default_settings[key].setdefault(k,v)
         else:
@@ -677,10 +681,9 @@ class DataFit():
                 dic['fit_options']['transformation']='linear'
                 dic['options']['eta']=.5 
                 dic['options']['lam']=.7  
+        
 
-  
         #create working dictionary with TK variables keeping actual setting
-   
         def tk_var(x):
             if isinstance(x, bool):
                 return tk.BooleanVar(master=self.main_frame,value=x)
@@ -718,9 +721,8 @@ class DataFit():
                             self.load_options[kin_prof]['load_options'][system][name][var] = tk_var(opt)
                     else:
                         self.load_options[kin_prof]['load_options'][system][name] = tk_var(options[0]), options[1]
-
-                    
-
+ 
+        
         self.tbeg, self.tend = 0, 7
         for prof in self.kin_profs:
             self.load_options[prof]['trange'] = self.tbeg,self.tend,None
@@ -809,7 +811,7 @@ class DataFit():
             
             panel = tk.Frame(self.diag_nb)
             opts = self.load_options[prof]
-            
+
             frames = tk.Frame(panel),tk.Frame(panel) 
             frames[0].pack(side=tk.LEFT , fill=tk.BOTH, expand=tk.Y)
             frames[1].pack(side=tk.RIGHT, fill=tk.BOTH, expand=tk.Y)
@@ -852,7 +854,7 @@ class DataFit():
                         tkinter.ttk.Combobox(inner_frame2 ,width=8,textvariable=options[0],
                                      values=options[1]).pack(anchor='w', side=tk.LEFT,pady=2)
    
-               
+           
             self.diag_nb.add(panel, text= prof) # add tab to Notebook
 
         
@@ -899,6 +901,10 @@ class DataFit():
         def newselection(val=None):
             transform_ind = self.fit_options['transformation'].get()
             self.options['fit_prepared'] = False
+            #reload data if something has changed
+            #self.load_sawteeth()
+            #self.load_elms()
+            #print('newselection fit option')
             return self.isfloat(val)
   
                     
@@ -939,19 +945,21 @@ class DataFit():
 
         outside_rho_entry.pack(side=tk.LEFT, padx=0)
         
-        saw_time_entry = tk.Entry(frames['sawteeth'],validate=None,#width=10,
-                    validatecommand=(vcmd, '%P') ,justify=tk.RIGHT,  
+
+        saw_time_entry = tk.Entry(frames['sawteeth'],justify=tk.RIGHT,  
                     textvariable=self.fit_options.get('sawteeth_times',[]))
-
+        createToolTip(saw_time_entry, 'list of sawteeth times or signal name')
         saw_time_entry.pack(side=tk.LEFT, padx=0, fill=tk.X,expand = True)
-        
-        
-
+        saw_time_entry.bind('<FocusOut>', self.load_sawteeth)
+ 
         elm_signal_entry = tk.Entry(frames['elmrem'],width=6,justify=tk.CENTER,
                                     textvariable=self.fit_options['elm_signal'])
         elm_signal_entry.pack(side=tk.LEFT, padx=0)
+        elm_signal_entry.bind('<FocusOut>', self.load_elms)
+ 
+        saw_time_entry.bind('<Return>', self.load_sawteeth)
+        elm_signal_entry.bind('<Return>', self.load_elms)
 
-     
         #inicialize
         newselection()
 
@@ -1006,15 +1014,16 @@ class DataFit():
                 self.spline_fits = self.data_loader(spline_fits=True)
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
-            self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
             
+            #load the other used signals
+            self.load_elms()
+            self.load_sawteeth()            
+            #used currently only for NSTX to shwo location of resonance surfaces
             try:
                 self.mhdmodes = self.data_loader('mhd_modes')
             except Exception as e:
                 self.mhdmodes = None
             
-            #self.elm_signal = self.fit_options['elm_signal']
-
         except Exception as e:
             printe( 'Error in loading:' )
             traceback.print_exc()
@@ -1035,21 +1044,46 @@ class DataFit():
         self.fitPlot.init_plot_data(kin_prof, data_d,   self.elms,  self.mhdmodes)
 
         if self.options['data_loaded']:
-            self.load_options[self.kin_prof]['m2g'] = self.fitPlot.m2g
-            self.load_options[self.kin_prof]['xlab'] = self.fitPlot.xlab
-            self.load_options[self.kin_prof]['ylab'] = self.fitPlot.ylab
-            self.load_options[self.kin_prof]['ylab_diff'] = self.fitPlot.ylab_diff
-            self.load_options[self.kin_prof]['ind_diag'] = self.fitPlot.ind_diag
-            self.load_options[self.kin_prof]['diags'] = self.fitPlot.diags
-            self.load_options[self.kin_prof]['channel'] = self.fitPlot.channel
-            self.load_options[self.kin_prof]['name_channels'] = self.fitPlot.name_channels
-            self.load_options[self.kin_prof]['tres'] = self.fitPlot.tres
-            self.load_options[self.kin_prof]['plot_rho'] = self.fitPlot.plot_rho
-            self.load_options[self.kin_prof]['plot_tvec'] = self.fitPlot.plot_tvec
+            for name in ['m2g','xlab','ylab','ylab_diff','ind_diag','diags','channel','name_channels','tres','plot_rho','plot_tvec']:
+                self.load_options[self.kin_prof][name] = getattr(self.fitPlot,name)
+
+    def load_elms(self, val=None):
+        if hasattr(self,'data_loader'):
+            self.fit_frame.config(cursor="watch")
+            self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
+            edge_dis = getattr(self.fitPlot, 'edge_discontinuties',[])
+            for ed in edge_dis:
+                ed.remove()
+                
+            #update plot
+            self.fitPlot.edge_discontinuties = [self.fitPlot.ax_main.axvline(t, ls='-',lw=.5,c='k', visible=False) for t in self.elms['elm_beg']] 
+            self.fitPlot.plot_step()
+            self.fit_frame.config(cursor="")
+            self.options['fit_prepared'] = False
+
+
+    
+    def load_sawteeth(self, val=None):
+        if hasattr(self,'data_loader'):
+            self.fit_frame.config(cursor="watch")
+            try:
+                self.sawteeth = eval(self.fit_options['sawteeth_times'].get())
+            except:
+                self.sawteeth = self.data_loader('sawteeth',{'saw_signal':self.fit_options['sawteeth_times']})
+
+            core_dis = getattr(self.fitPlot, 'core_discontinuties', [])
+            for ed in core_dis:
+                ed.remove()
+            
+            #update plot
+            self.fitPlot.core_discontinuties = [self.fitPlot.ax_main.axvline(t, ls='-',lw=.5,c='k', visible=False) for t in self.sawteeth] 
+            self.fitPlot.plot_step()
+            self.fit_frame.config(cursor="")
+            self.options['fit_prepared'] = False
+
 
 
     def init_save_frame(self):
-        
         
         if self.OMFITsave is not None:
             #executed inside of OMFIT
@@ -1086,6 +1120,8 @@ class DataFit():
         if  self.OMFITsave is None:
             return
         
+        self.fit_frame.config(cursor="watch")
+
         #create dictionary of fitted profiles and sent them to OMFIT
         data = {}
         rho = np.nan
@@ -1170,6 +1206,7 @@ class DataFit():
         if len(data):
             self.OMFITsave.runNoGUI(shot=self.shot, fitted_profiles=data, setting=settings) 
             self.saved_profiles = True
+        self.fit_frame.config(cursor="")
 
 
     def save_fits(self,save_ufiles=False):
@@ -1267,8 +1304,11 @@ class DataFit():
                 output = old_version
             except:
                 pass
-
-        output['sawteeth'] =  eval(self.fit_options['sawteeth_times'].get())
+        
+        
+        output['sawteeth'] = self.sawteeth#  eval(self.fit_options['sawteeth_times'].get())
+        
+        
         if hasattr(self,'elms'):
             output['elms'] = self.elms
         
@@ -1310,8 +1350,8 @@ def main():
         mds_server = 'skylark.pppl.gov:8501'
     else:
         tok_name = 'D3D'
-        mds_server='atlas.gat.com'
-        print('Local installation of pySpecview - DIII-D?')
+        mds_server='localhost'
+        print('Local installation of quickfit - DIII-D?')
                 
     
     import argparse

@@ -856,12 +856,11 @@ def default_settings(MDSconn, shot):
         'systems':{'CER system':(['tangential',True], ['vertical',False] )},
         'load_options':{'CER system':{'Analysis':('best', cer_ed),
                                       'Corrections':{'Zeeman Splitting':True, 'Wall reflections':False}}}}         
-        
-        
     if len(imps) > 1:
-        default_settings['Zeff']['load_options']['CER system']['Impurity'] = ('C6',imps)
-        #print(default_settings['Zeff']['load_options']['CER system']['Impurity'])
-        
+        if 'C6' in imps:
+            imps.remove('C6')
+        default_settings['Zeff']['load_options']['CER system']['Impurity'] = ['C6']+imps
+
     return default_settings
 
 class data_loader:
@@ -1341,7 +1340,7 @@ class data_loader:
         
         TDI  = [p+'PINJ'+s+'_'+p[-4:-1] for p in paths]
         TDI += ['dim_of('+TDI[0]+')']
-        #embed()
+        
         try:
             pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())
         except:
@@ -1352,6 +1351,7 @@ class data_loader:
                 pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())       
                 #oldest discharges do not have PTDATA_CAL in MDS+
             except:
+                print('Warning: Beam power timetrace are not availible!!')
                 TDI  = [p+'BEAMSTAT' for p in paths]
                 TDI += ['dim_of('+TDI[0]+')']
                 pow_data = list(self.MDSconn.get('['+','.join(TDI)+']').data())
@@ -1976,7 +1976,6 @@ class data_loader:
                     if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
                         #some data were loaded before, nothing in the actually loaded system
                         return nimp
-                    #embed()
                     raise Exception('No '+imp+' data in '+analysis_type.upper(),'edition. ', 'Availible are :'+','.join(np.unique(line_id)))
                 
                 #keep data only from the selected impurity 
@@ -1995,7 +1994,7 @@ class data_loader:
             
                 tvec,data = mds_load(self.MDSconn,TDI, tree, self.shot)
                 tvec = tvec.astype('single') #sometimes it can be double
-                #embed()
+                
                 #split in signals
                 if data.ndim == 1:
                     data = np.array(split_mds_data(np.hstack((tvec,data)), bytelens, 4),dtype=object)
@@ -2009,7 +2008,9 @@ class data_loader:
 
             else: #real time CER
                 channels = range(5,25)
-                TDI = ['[dim_of(PTDATA("crsampt{0}",{1})), PTDATA("crsampt{0}",{1})]'.format(ch, self.shot) for ch in channels]
+                TDI = [f'[_x=PTDATA("crsampt{ch}",{self.shot}),dim_of(_x)]' for ch in channels]
+                
+ 
                 mds_data = mds_load(self.MDSconn,TDI, tree, self.shot)
                 beam_geom = []
                 
@@ -2017,13 +2018,15 @@ class data_loader:
                 R_plasma = np.array([2043,2127,2194,2186,2194,2217,2232,2247,2262,\
                         2277,2292,2306,1701,1838,1904,1974,2088,2161,2178,2209])   
                 Z_plasma = np.array([-2,5,10,0,0,0,0,0,0,1,1,1,0,-5,-9,-12,1,8,0,0])
-                
+                 
+                #load some data from previous tree, because they are not written yet
+                self.MDSconn.openTree(tree, self.shot-1)
                 for ich, ch_data in enumerate(mds_data):
                     if len(ch_data) == 0 or all(ch_data[1] == 0):
                         continue
                     ch = channels[ich]
+                    I,T = ch_data.reshape(2,-1)
                     
-                    T,I = ch_data.reshape(2,-1)
                     #where the data becommed availible in realtime and they are nonzero
                     ind = (np.ediff1d(I,to_begin=0)!=0)&(I > 0)
                     t = T[ind]
@@ -2041,23 +2044,33 @@ class data_loader:
                     Z.append(t*0 + Z_plasma[ich]/1e3)
                     loaded_chan.append('T%.2d'%ch)
                     
-                    beam_fact = np.zeros(len(beam_order))       
-                    if ch in np.r_[1:8, 17:23]: #30 beam
-                        beams = [0,1]
-                    elif ch in np.r_[8:17, 23:25 ]: #330 beam
-                        beams = [2,3]
-                    else:
-                        raise Exception('Not supported channel ', ch)
+
+                    #load calibration from previous shot (it can be loaded from ASCI files,  but this would be too much work...)
+                    try:
+                        path = f'\\IONS::TOP.CER.%s.TANGENTIAL.CHANNEL{ch:02d}:'
+                        calib = self.MDSconn.get('_x='+path%'CERQUICK'+'INTENSITY/'+path%'CERQUICK'+'AMP;_x[0]')
+                        INT[-1] *= calib/100
+                        INT_ERR[-1] *= calib/100
+                        beam_fact = self.MDSconn.get('_x='+path%'CALIBRATION'+'BEAMGEOMETRY')
+                    except:
+                        print(f'CER channel {ch}: Calibration could not be loaded from the previous shot')
+                        if ch in np.r_[1:8, 17:23]: #30 beam
+                            beams = [0,1]
+                        elif ch in np.r_[8:17, 23:25 ]: #330 beam
+                            beams = [2,3]
+                        else:
+                            raise Exception('Not supported channel ', ch)
              
-                    beam_fact[beams] = 1
+                        beam_fact = np.zeros(len(beam_order))       
+                        beam_fact[beams] = 1
+ 
                     beam_geom.append(beam_fact)
-                    
-                                    
+
+                
                 nch = len(tvec)
                 phi = np.zeros(nch)    
                 line_id = ['C VI 8-7']*nch
-
-                #line_id = [line_id[i] for i in valid]
+ 
                 beam_geom = np.array(beam_geom)
      
 
@@ -2139,19 +2152,24 @@ class data_loader:
 
         self.nbi_info(load_beams,NBI)
         fired = [NBI[b]['fired'] for b in load_beams]
+        
+        if not any(fired):
+            printe('No beam fired, probably too soon after discharge')
+            return
+            
         load_beams = load_beams[fired]
         beam_geom = beam_geom[:,beam_ind][:,fired]
 
 
-        beam_tmin, beam_tmax = NBI[load_beams[0]]['power_trange']
-        PINJ = np.array([NBI[b]['power_timetrace'] for b in load_beams])
 
-        beam_time = np.linspace(beam_tmin, beam_tmax,PINJ.shape[1])
-        
         if load_real:
-            for i,b in enumerate(load_beams):
-                PINJ[i] = NBI[b]['power'] 
-
+            beam_time = np.linspace(0,10,1000)
+            PINJ = np.array([NBI[b]['power']+beam_time*0 for b in load_beams])
+        else:
+            beam_tmin, beam_tmax = NBI[load_beams[0]]['power_trange']
+            PINJ = np.array([NBI[b]['power_timetrace'] for b in load_beams])
+            beam_time = np.linspace(beam_tmin, beam_tmax,PINJ.shape[1])
+          
         
         #NOTE it will fail if two timepoinst has the same T_all+stime_all/2, but different stime_all!!
         nbi_cum_pow = cumtrapz(np.double(PINJ),beam_time,initial=0)
@@ -5313,7 +5331,10 @@ class data_loader:
             if len(tvec) <= isys or len(tvec[isys]) == 0: 
                 ts['systems'].remove(sys)
                 continue
-            tvec[isys]/= 1e3        
+            tvec[isys]/= 1e3   
+            
+            rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
+
             
             #these points will be ignored and not plotted (negative errobars )
             Te_err[isys][(Te_err[isys]<=0) | (Te[isys] <=0)]  = -np.infty
@@ -5325,7 +5346,8 @@ class data_loader:
             ne_mean_filter = medfilt(np.r_[ne_mean, ne_mean[::-1]], 3)[:len(ne_mean)]
             #embed()
             corrupted = (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
-            
+            #no very cold TS measuremenst with tiny errorbars inside of rho = 0.95
+            corrupted |= (Te[isys] < 20.)&( rho.T < 0.95  )
             #remove them, but it can be returned by user
             ne_err[isys][corrupted] *= -1
             Te_err[isys][corrupted] *= -1
@@ -5335,7 +5357,6 @@ class data_loader:
                 
             channel = np.arange(Te_err[isys].shape[0])
             
-            rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
          
             ts[sys] = Dataset('TS'+sys+'.nc',attrs={'system':sys})
             ts[sys]['ne'] = xarray.DataArray(ne[isys].T,dims=['time','channel'], attrs={'units':'m^{-3}','label':'n_e'})
@@ -5504,7 +5525,7 @@ class data_loader:
         ts_correction = bool(options['load_options']['ECE system']["TS correction"]['rescale'].get())
 
         rate = 'fast' if fast else 'slow'
-        suffix = 'F' if fast else ''
+        suffix = ''#'F' if fast else ''
 
         #use cached data
         self.RAW.setdefault('ECE',Tree())
@@ -5518,7 +5539,7 @@ class data_loader:
         self.RAW['ECE'][rate]['systems'] = ['ECE']
 
         if not 'Te_raw' in ece:
-            print_line( '  * Fetching ECE%s radiometer data ...'%suffix )
+            print_line( '  * Fetching ECE radiometer data ...' )
    
             tree = 'ECE'
     
@@ -5589,19 +5610,27 @@ class data_loader:
             data_ *= 1e3 #convert to eV units
 
             
-            if fast:
-                #fast downsample
-                data_ = np.median(data_.T.reshape(nchs,  -1, 32), 2)#remove spikes
-                data_ = np.mean(data_.reshape(nchs, -1, 4), -1).T
-                tvec  = np.mean(tvec.reshape( -1, 32*4), -1)
+            #if fast:
+                ##fast downsample
+                #data_ = np.median(data_.T.reshape(nchs,  -1, 32), 2)#remove spikes
+                #data_ = np.mean(data_.reshape(nchs, -1, 4), -1).T
+                #tvec  = np.mean(tvec.reshape( -1, 32*4), -1)
+            if not fast:
+                # downsample to 1ms
+                nt = len(tvec)
+                dt = (tvec[-1]-tvec[0])/(nt-1)
+                n_down = max(int(1e-3/dt), 1)
+                data_ = np.mean(data_[:nt//n_down*n_down].T.reshape(nchs,  -1, n_down), 2).T
+                tvec = np.mean(tvec[:nt//n_down*n_down].reshape( -1, n_down), 1)
+
+
 
             #remove offset
             data_-= data_[tvec<0].mean(0)[None,:]
                             
             #create dataset with raw data 
             channel = np.arange(nchs)
-            
-            #embed()
+     
 
             ece['Te_raw'] = xarray.DataArray(data_, coords=[tvec, channel], dims=['time','channel'], attrs={'units':'eV'})
             ece['freq'] = xarray.DataArray(freq[:nchs], dims=['channel'], attrs={'units':'Hz'} )
@@ -6554,8 +6583,8 @@ def main():
     
     #shot = 185157  #BUg uplne blbe relativni kalibrace
     #shot = 184777
-    shot = 184840
-    shot = 175900
+    shot = 192719
+    #shot = 175900
     #shot = 
 
     default_settings(MDSconn, shot  )
@@ -6663,7 +6692,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('real'), (S('real'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -6725,7 +6754,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'Te', settings,tbeg=1.8, tend=5)
+    data = loader( 'nC6', settings,tbeg=1.8, tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},

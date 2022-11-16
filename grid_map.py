@@ -35,6 +35,7 @@ np.seterr(all='raise')
 from  IPython import embed
 debug = False
 import matplotlib.pylab as plt
+import traceback
 
 #try:
 from sksparse.cholmod import  cholesky, analyze,cholesky_AAt,CholmodError
@@ -271,9 +272,13 @@ class map2grid():
         #if any(index_rt < 0):
         npix = self.nr_new*self.nt_new
         # Now, we'll exploit a sparse csc_matrix to build the 2D histogram...
-        self.M = sp.csc_matrix((weight[nonzero],(index_p,index_rt)),
-                                shape=(self.n_points,npix))
-        
+        try:
+            self.M = sp.csc_matrix((weight[nonzero],(index_p,index_rt)),
+                                    shape=(self.n_points,npix))
+        except:
+            traceback.print_exc()
+            embed()
+
     
         if debug:
             print('compression',self.M.data.size/(len(self.P)*4))
@@ -353,7 +358,7 @@ class map2grid():
                 if any(break_ind):
                     break_ind = break_ind[np.ediff1d(break_ind,to_begin=10)>1] #to close discontinuties
       
-            #remove discontinuties when there are no measurements
+            #TODO remove discontinuties when there are no measurements
             if len(break_ind) > 1 and elm_phase is None:
                 break_ind = break_ind[~binary_opening(self.missing_data)[break_ind]]
                 break_ind = np.unique(used_times[break_ind])

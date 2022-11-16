@@ -198,7 +198,7 @@ class FitPlot():
                     name_channels.append(str(n_ch+1))
             else:
                 dch = s[1]
-                name_channels += [diags[-1][0,i-n_ch]+'_%d'%(i+1) for i in range(n_ch,n_ch+dch)]
+                name_channels += [diags[-1][0,i]+'_%d'%(i+1) for i in range(dch)]
       
             ind_channels.append(np.tile(np.arange(dch,dtype='uint32')+n_ch,(s[0],1)))
             n_ch+=  dch
@@ -327,7 +327,8 @@ class FitPlot():
         self.lcfs_line = self.ax_main.axvline(1, ls='--',c='k',visible=False)
         self.zero_line = self.ax_main.axhline(0, ls='--',c='k',visible=False)
         
-        self.core_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.5,c='k',visible=False) for t in eval(self.fit_options['sawteeth_times'].get())] 
+        sawteeth = self.parent.sawteeth
+        self.core_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.5,c='k',visible=False) for t in sawteeth] 
         self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.5,c='k',visible=False) for t in self.elms['elm_beg']] 
         
         if self.mhd_modes is not None:
@@ -517,7 +518,7 @@ class FitPlot():
         
         
         helv36 = tkinter.font.Font(family='Helvetica', size=13, weight='bold')
-        calc_button = tk.Button(hbox2,text='Fit',bg='red',command=self.calculate,font=helv36,  height= 2)
+        calc_button = tk.Button(hbox2,text='Fit',bg='red',command=self.calculate,font=helv36,  height= 2, width=5)
         calc_button.pack(side=tk.LEFT)
         
         
@@ -581,7 +582,7 @@ class FitPlot():
         createToolTip(self.play_button,'Go step by step forward, pause by second press')
         createToolTip(self.view_step,'Plotting time/radial step, this option influences only the plotting, not fitting!')
 
-        createToolTip(calc_button,'Calculate the 2d fit of the data')
+        #createToolTip(calc_button,'Calculate the 2d fit of the data')
 
 
         def update_eta(eta):
@@ -635,10 +636,10 @@ class FitPlot():
                 raise Exception('Loading of data failed!')
             
             
-        if self.elms['signal'] != self.fit_options['elm_signal'].get():
-            print('Load new ELM signal '+self.fit_options['elm_signal'].get())
-            self.elms = self.parent.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
-            self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
+        #if self.elms['signal'] != self.fit_options['elm_signal'].get():
+            #print('Load new ELM signal '+self.fit_options['elm_signal'].get())
+            #self.elms = self.parent.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
+            #self.edge_discontinuties = [self.ax_main.axvline(t, ls='-',lw=.2,c='k',visible=False) for t in self.elms['elm_beg']] 
 
 
          
@@ -651,12 +652,10 @@ class FitPlot():
         self.fit_frame.update()
         
         self.parent.saved_profiles = False
-
- 
-        sawteeth =  eval(self.fit_options['sawteeth_times'].get()) if self.fit_options['sawteeth'].get() else []
         
-        
-        
+        sawteeth = self.parent.sawteeth  if self.fit_options['sawteeth'].get() else []
+    
+          
         elms = self.elms['elm_beg'] if self.fit_options['elmsync'].get() else []
         elm_phase = (self.elms['tvec'],self.elms['data']) if self.fit_options['elmsync'].get() else None
 
@@ -672,7 +671,7 @@ class FitPlot():
         
         if self.m2g is None:
             return
-        
+                
         if not self.options['fit_prepared']:
             #print 'not yet prepared! in calculate'
             self.m2g.PrepareCalculation(zero_edge=zeroedge ,          
