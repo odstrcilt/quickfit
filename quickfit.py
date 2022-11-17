@@ -151,7 +151,13 @@ class DataFit():
         # Overriding default-font with custom settings
         # i.e changing font-family, size and weight
         self.defaultFont.configure(family="Segoe UI" )
-        embed()
+        if self.defaultFont.actual()['family'] != 'Segoe UI':
+            print(self.defaultFont.actual())
+            self.defaultFont.configure(family="Helvetica" )
+            print(self.defaultFont.actual())
+
+        #print( )
+        #embed()
         #print( self.defaultFont)
 
         
@@ -341,7 +347,7 @@ class DataFit():
                 efits = ['ANALYSIS','EFIT20']+['EFIT%.2d'%i for i in range(1,10)] 
             if self.device == 'D3D':#for D3D
                 efits = ['EFIT02er','EFITS1','EFITS2','EFITS2er']+['EFIT%.2d'%i for i in range(1,10)] 
-            
+  
             
             for efit in efits:
                 if efit in efit_editions: continue
@@ -366,7 +372,9 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02',    'EFIT03',  'EFIT04', efit_editions[0]     
+                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02',    'EFIT03',  'EFIT04', efit_editions[0]  
+                    if  self.device == 'NSTX':
+                        prefered_efit =  'LRDFIT09', 'LRDFIT06', 'EFIT02', 'EFIT01'
                     for pref_ef in prefered_efit:
                         if pref_ef in efit_editions:
                             break
