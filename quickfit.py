@@ -151,6 +151,7 @@ class DataFit():
         # Overriding default-font with custom settings
         # i.e changing font-family, size and weight
         self.defaultFont.configure(family="Segoe UI" )
+        embed()
         #print( self.defaultFont)
 
         
@@ -1019,10 +1020,10 @@ class DataFit():
             self.load_elms()
             self.load_sawteeth()            
             #used currently only for NSTX to shwo location of resonance surfaces
-            try:
-                self.mhdmodes = self.data_loader('mhd_modes')
-            except Exception as e:
-                self.mhdmodes = None
+            #try:
+                #self.mhdmodes = self.data_loader('mhd_modes')
+            #except Exception as e:
+            self.mhdmodes = None
             
         except Exception as e:
             printe( 'Error in loading:' )

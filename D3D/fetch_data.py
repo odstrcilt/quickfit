@@ -768,13 +768,23 @@ def default_settings(MDSconn, shot):
 
             #if there are other impurities than carbon, print their channels
             if len(line_id) > 1:
+                print('------------ CER setup ---------')
                 for imp, lid, uid in zip(imps,  line_id, uids):
                     if imp == 'C6': continue
                     print(imp+': ',end = '')
+                    ch_prew = None
                     for ch, _id in zip(channel, _line_id):
                         if _id == uid:
-                            print(ch+', ', end = '')
-                    print('')
+                            if ch_prew is None:
+                                print(ch, end = '') 
+                            elif int(ch_prew[1:])!=  int(ch[1:])-1:
+                                print('-'+ch_prew+', '+ch, end = '')                            
+                            ch_prew = ch
+                    print('-'+ch_prew)
+
+                            
+                    
+                    
                 
                 
                     
