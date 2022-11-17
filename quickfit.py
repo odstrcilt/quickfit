@@ -152,9 +152,9 @@ class DataFit():
         # i.e changing font-family, size and weight
         self.defaultFont.configure(family="Segoe UI" )
         if self.defaultFont.actual()['family'] != 'Segoe UI':
-            print(self.defaultFont.actual())
+            #print(self.defaultFont.actual())
             self.defaultFont.configure(family="Helvetica" )
-            print(self.defaultFont.actual())
+            #print(self.defaultFont.actual())
 
         #print( )
         #embed()
