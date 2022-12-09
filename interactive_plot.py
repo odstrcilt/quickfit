@@ -482,13 +482,22 @@ class FitPlot():
 
         def print_figure(filename, **kwargs):
             #cheat print_figure function to save only the plot without the sliders. 
-            if 'bbox_inches' not in kwargs:
-                fig = self.ax_main.figure
-                extent = self.ax_main.get_tightbbox(fig.canvas.renderer).transformed(fig.dpi_scale_trans.inverted())
-                extent.y1+=.3
-                extent.x1+=.3
-                kwargs['bbox_inches'] = extent
+            
+            #make figure bigger and remove sliders 
+            for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax]:
+                obj.set_visible(False)
+            
+            fig_size = self.fig.get_size_inches()
+            self.fig.set_size_inches(5,5)   
+            print(f'Figure saved to {filename} at size of 5x5 inches and {int(kwargs["dpi"])} dpi')
             self.canvas_print_figure(filename, **kwargs)
+            
+            #reset to original setup 
+            self.fig.set_size_inches(fig_size)
+            for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax]:
+                obj.set_visible(True)
+            self.fig.canvas.draw_idle()
+        
             
         self.canvas_print_figure = self.toolbar.canvas.print_figure
         self.toolbar.canvas.print_figure = print_figure 
@@ -567,14 +576,14 @@ class FitPlot():
         self.sl_ax_main = self.fig.add_axes([.1,.10, .8, .03],**kargs)
         self.main_slider = Slider(self.sl_ax_main,'',self.tbeg,self.tend, valinit=self.tbeg)
 
-        sl_ax = self.fig.add_axes([.1,.03, .35, .03], **kargs)
-        self.sl_eta  = Slider(sl_ax ,'', 0, 1, valinit=self.options['eta'])
+        self.sl_ax = self.fig.add_axes([.1,.03, .35, .03], **kargs)
+        self.sl_eta  = Slider(self.sl_ax ,'', 0, 1, valinit=self.options['eta'])
 
-        sl_ax2 = self.fig.add_axes([.55,.03, .35, .03], **kargs)
-        self.sl_lam = Slider(sl_ax2,'', 0, 1, valinit=self.options['lam'])
+        self.sl_ax2 = self.fig.add_axes([.55,.03, .35, .03], **kargs)
+        self.sl_lam = Slider(self.sl_ax2,'', 0, 1, valinit=self.options['lam'])
         
-        self.fig.text(.1,.075, 'Time smoothing -->:')
-        self.fig.text(.55,.075, 'Radial smoothing -->:')
+        self.tsmooth_txt = self.fig.text(.1,.075, 'Time smoothing -->:')
+        self.rsmooth_txt = self.fig.text(.55,.075, 'Radial smoothing -->:')
         
  
         createToolTip(self.forward_button,'Go forward by one step')
@@ -854,7 +863,7 @@ class FitPlot():
         
     def plot_step(self):
         #single step plotting routine 
-        if not self.options['data_loaded']:
+        if not self.options['data_loaded'] or self.m2g is None:
             return 
         
         t = self.plt_time

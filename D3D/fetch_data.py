@@ -770,7 +770,7 @@ def default_settings(MDSconn, shot):
             if len(line_id) > 1:
                 print('------------ CER setup ---------')
                 for imp, lid, uid in zip(imps,  line_id, uids):
-                    if imp == 'C6': continue
+                    #if imp == 'C6': continue
                     print(imp+': ',end = '')
                     ch_prew = None
                     for ch, _id in zip(channel, _line_id):
@@ -781,6 +781,7 @@ def default_settings(MDSconn, shot):
                                 print('-'+ch_prew+', '+ch, end = '')                            
                             ch_prew = ch
                     print('-'+ch_prew)
+                print('--------------------------------')
 
                             
                     
@@ -1418,7 +1419,10 @@ class data_loader:
             beam['power_trange'] = tvec[[0,-1]]
             beam['mass'] = {'D2':2.014, 'H2':1.007, 'He': 4.0026 }[gas[i]]
             beam['beam_fire_time'] = np.nan
-      
+        
+        if len(_load_beams) == 0:
+            raise Exception('No neutral beams were found!!')
+        
         return nbi
         
     def load_nimp_spred(self,imp, beam_order = [], cx_line=True, beam_blip_avg=True):
@@ -2036,12 +2040,17 @@ class data_loader:
                         continue
                     ch = channels[ich]
                     I,T = ch_data.reshape(2,-1)
+                    if np.all(I == 0):
+                        print('No CER data in channel ', ch)
+                        continue
                     
                     #where the data becommed availible in realtime and they are nonzero
                     ind = (np.ediff1d(I,to_begin=0)!=0)&(I > 0)
                     t = T[ind]
+                    embed()
                     tvec.append(t)
                     #estimate integration time
+                    print(T, t)
                     dt = np.diff(t)
                     dt = np.median(dt[dt < dt.min()*2])
                     stime.append(t*0+dt)
@@ -3621,8 +3630,14 @@ class data_loader:
                 rcalib = False
                 nimp = return_nimp(nimp)
                 return nimp
-            #embed()
-            #print(groups)
+            
+            if calib_beam.replace('_','') not in groups:
+                print('Error groups.index(calib_beam.replace())', groups, calib_beam)
+                options['Correction']['Relative calibration'].set(0) 
+                rcalib = False
+                nimp = return_nimp(nimp)
+                return nimp
+         
             ind_calib = groups.index(calib_beam.replace('_',''))
             calib = {n:np.hstack(d).T for n,d in calib.items()}
             other = {n:np.hstack(d).T for n,d in other.items()}
@@ -5456,7 +5471,7 @@ class data_loader:
         refl['diag_names'] = Tree()
 
         for band, (tvec,ne, R) in zip(bands, out):
-            if np.size(tvec) == 0:  continue
+            if np.size(tvec) <= 1:  continue
             tvec/= 1e3 #s
             R, ne = np.single(R.T), np.single(ne.T)
             z = np.zeros_like(R)+Z0

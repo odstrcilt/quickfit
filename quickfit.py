@@ -28,7 +28,11 @@ params = {'legend.fontsize': 'large',
             'errorbar.capsize':3,
             'mathtext.fontset': 'cm',
             #'text.antialiased':False,
-            'mathtext.rm' : 'serif' }
+            'mathtext.rm' : 'serif',
+            'savefig.dpi': 300}
+
+#plt.rcParams['savefig.dpi'] = 300
+
 matplotlib.rcParams.update(params)
 
  #plt.rcParams['text.antialiased'] = False
@@ -103,6 +107,7 @@ class DataFit():
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
                  raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False):
         
+        #settings={'Ti':{'load_options':{'CER system':{'Corrections':{'Wall reflections': True}}}}}
         print('Accesing data from %s tokamak'%device)
         
         self.main_frame=main_frame
@@ -147,24 +152,14 @@ class DataFit():
 
         # Creating a Font object of "TkDefaultFont"
         self.defaultFont = font.nametofont("TkDefaultFont")
-        #print( self.defaultFont)
         # Overriding default-font with custom settings
         # i.e changing font-family, size and weight
         self.defaultFont.configure(family="Segoe UI" )
         if self.defaultFont.actual()['family'] != 'Segoe UI':
-            #print(self.defaultFont.actual())
             self.defaultFont.configure(family="Helvetica" )
-            #print(self.defaultFont.actual())
-
-        #print( )
-        #embed()
-        #print( self.defaultFont)
 
         
         self.data_loader_class = fetch_data.data_loader
-        #list of kinetic profiles avalible to be loaded
-        #self.kin_profs =  fetch_data.kin_profs
-
         self.default_settings_loader = fetch_data.default_settings
             
          
@@ -610,7 +605,7 @@ class DataFit():
             self.kin_profs = list(default_settings.keys())
   
             for key, val in  default_settings.items():
-                self.default_settings[key] = OrderedDict()
+                self.default_settings.setdefault(key, OrderedDict())
 
                 for k,v in val.items():
                     self.default_settings[key].setdefault(k,v)
@@ -1184,10 +1179,13 @@ class DataFit():
                         settings[kin_prof]['load_options'][system][name] = OrderedDict()
                         for var, opt in options.items():
                             settings[kin_prof]['load_options'][system][name][var] = opt.get()
+                    elif isinstance(options, str):
+                        settings[kin_prof]['load_options'][system][name] = options
                     else:
                         try:
                             settings[kin_prof]['load_options'][system][name] = options[0].get(), options[1]
-                        except:
+                        except Exception as e:
+                            print(e)
                             printe(('Error in saving',kin_prof, system,name,var,  options  ))
                             
         settings['EFIT'] = self.eqm.diag
