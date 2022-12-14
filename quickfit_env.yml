@@ -9,7 +9,7 @@ dependencies:
   - python=3.7
   - numpy
   - scipy
-  - matplotlib
+  - matplotlib<=3.4
   - MDSplus
   - tk
   - IPython
