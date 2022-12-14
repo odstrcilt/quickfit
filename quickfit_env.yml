@@ -15,3 +15,4 @@ dependencies:
   - IPython
   - xarray
   - scikit-sparse
+  - importlib-metadata
