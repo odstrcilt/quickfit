@@ -571,6 +571,7 @@ class FitPlot():
 
         self.fig.subplots_adjust(left=.10,bottom=.16,right=.95,top=.95
                           ,hspace=.1, wspace = 0)
+        
         from numpy.lib import NumpyVersion 
         kargs = {'facecolor':axcolor} if NumpyVersion(matplotlib.__version__) > NumpyVersion('2.0.0') else {'axisbg':axcolor}
         self.sl_ax_main = self.fig.add_axes([.1,.08, .8, .025],**kargs)
