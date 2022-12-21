@@ -472,7 +472,7 @@ class FitPlot():
         
         # canvas frame
 
-        self.fig = Figure(figsize=(10,10), dpi=75)
+        self.fig = Figure(figsize=(9.5,9), dpi=75)
         self.fig.patch.set_facecolor((.93,.93,.93))
         self.ax_main = self.fig.add_subplot(111)
         
@@ -569,21 +569,21 @@ class FitPlot():
 
         axcolor = 'lightgoldenrodyellow'
 
-        self.fig.subplots_adjust(left=.10,bottom=.20,right=.95,top=.95
+        self.fig.subplots_adjust(left=.10,bottom=.16,right=.95,top=.95
                           ,hspace=.1, wspace = 0)
         from numpy.lib import NumpyVersion 
         kargs = {'facecolor':axcolor} if NumpyVersion(matplotlib.__version__) > NumpyVersion('2.0.0') else {'axisbg':axcolor}
-        self.sl_ax_main = self.fig.add_axes([.1,.10, .8, .03],**kargs)
+        self.sl_ax_main = self.fig.add_axes([.1,.08, .8, .025],**kargs)
         self.main_slider = Slider(self.sl_ax_main,'',self.tbeg,self.tend, valinit=self.tbeg)
 
-        self.sl_ax = self.fig.add_axes([.1,.03, .35, .03], **kargs)
+        self.sl_ax = self.fig.add_axes([.1,.02, .35, .025], **kargs)
         self.sl_eta  = Slider(self.sl_ax ,'', 0, 1, valinit=self.options['eta'])
 
-        self.sl_ax2 = self.fig.add_axes([.55,.03, .35, .03], **kargs)
+        self.sl_ax2 = self.fig.add_axes([.55,.02, .35, .025], **kargs)
         self.sl_lam = Slider(self.sl_ax2,'', 0, 1, valinit=self.options['lam'])
         
-        self.tsmooth_txt = self.fig.text(.1,.075, 'Time smoothing -->:')
-        self.rsmooth_txt = self.fig.text(.55,.075, 'Radial smoothing -->:')
+        self.tsmooth_txt = self.fig.text(.1,.058, 'Time smoothing -->:')
+        self.rsmooth_txt = self.fig.text(.55,.058, 'Radial smoothing -->:')
         
  
         createToolTip(self.forward_button,'Go forward by one step')
