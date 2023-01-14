@@ -305,7 +305,7 @@ class FitPlot():
 
         self.ax_main.set_ylabel(self.ylab,fontsize=self.fsize+2)
         self.ax_main.set_xlabel(self.xlab,fontsize=self.fsize+2)
-
+ 
         #the plots inside 
         colors = matplotlib.cm.brg(np.linspace(0,1,len(self.diags)))
         self.plotline,self.caplines,self.barlinecols = [],[],[]
@@ -475,7 +475,8 @@ class FitPlot():
         self.fig = Figure(figsize=(9.5,9), dpi=75)
         self.fig.patch.set_facecolor((.93,.93,.93))
         self.ax_main = self.fig.add_subplot(111)
-        
+        self.title = self.ax_main.set_title('')
+
 
         self.canvasMPL = tkagg.FigureCanvasTkAgg(self.fig,master=fit_frame_down)
         self.toolbar = NavigationToolbar2Tk( self.canvasMPL, fit_frame_down)
@@ -484,17 +485,21 @@ class FitPlot():
             #cheat print_figure function to save only the plot without the sliders. 
             
             #make figure bigger and remove sliders 
-            for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax]:
+            for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax, self.title]:
                 obj.set_visible(False)
             
             fig_size = self.fig.get_size_inches()
-            self.fig.set_size_inches(5,5)   
+            self.fig.subplots_adjust(left=.15 )
+            self.fig.set_size_inches(5,5)  
+            
             print(f'Figure saved to {filename} at size of 5x5 inches and {int(kwargs["dpi"])} dpi')
             self.canvas_print_figure(filename, **kwargs)
             
             #reset to original setup 
+            self.fig.subplots_adjust(left=.10 )
             self.fig.set_size_inches(fig_size)
-            for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax]:
+
+            for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax, self.title]:
                 obj.set_visible(True)
             self.fig.canvas.draw_idle()
         
@@ -825,7 +830,7 @@ class FitPlot():
     def PreparePloting(self):
         #set the limits and title of the plots
         if hasattr(self.parent,'BRIEF'):
-            self.ax_main.set_title(self.parent.BRIEF)
+            self.title = self.ax_main.set_title(self.parent.BRIEF)
 
         minlim,maxlim = 0,1
         if self.plot_type.get() in [0,1] and self.options['data_loaded']:

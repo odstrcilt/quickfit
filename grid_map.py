@@ -1005,117 +1005,150 @@ class map2grid():
 
 
 
-
-
-
-
-
-
-
-
-
-
 def main():
-
-    np.random.seed(0)
-
-    #MG = map2grid
-    
-    n = 100
-    R = np.random.rand(n)
-    T = np.random.rand(n)
-    Y = (1-R**2)**1.5*(1-T**3/3)
-    Yerr = np.ones_like(Y)/3
-
-    Y += np.random.randn(n)*Yerr
-    
-    log_trans    = lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
-
-    #radial resolution strongly increases computation time
-    MG = map2grid(R,T,Y,Yerr/10,dt = 0.01,nr_new=100)
-    MG.PrepareCalculation(zero_edge=True, transformation =None)
-    MG.PreCalculate( )
-    MG.Calculate(0.4, 0.6)
-    
-    subplot(121)
-    plot( MG.g_r[0],  MG.g[::10].T,'r')
-    plot( MG.g_r[::10].T ,  np.maximum(1-MG.g_r.T**2,0)[:,::10]**1.5*np.maximum(0,1-MG.g_t.T**3/3)[:,::10],'b--')
-    subplot(122)
-    plot( MG.g_t[:,0],  MG.g[:,::10] ,'r')
-    plot( MG.g_t[:,::10] ,  np.maximum(1-MG.g_r**2,0)[:,::10]**1.5*np.maximum(0,1-MG.g_t**3/3)[:,::10],'b--')
-    show()
+ 
+    nr_fit = 201
+    #nt = 5
+    dt = 0.05
+    eta = 0.5
+    lam = 0.5
+    edge = 0
+    pedestal_rho = 1.01
     
     
+    invalid = ~np.isfinite(yexp)| ~np.isfinite(yerr)
+    yerr[invalid] = -np.inf
+    yexp[invalid] = -1
     
-    embed()
-    
-    exit()
-    #10, 0.01
-    #30, 0.089
-    #100, 0.26
-    #300, 1.36
-    #1000, 8 
-    
-    
-    
-
-
-    discontinuties = np.load('discontinuties.npz' )
-    data = np.load('map2grid.npz' )
-    MG = map2grid(data['R'],data['T'],data['Y'],data['Yerr'],data['P'],data['W'],data['nr_new'],data['nt_new'] )
-    MG.PrepareCalculation(   zero_edge=False, core_discontinuties = [],
-                           edge_discontinuties = [],transformation = None,even_fun=True,
-                           robust_fit=False,pedestal_rho=None, elm_phase=None)
+    #data transformations
+    #  fun, inversed fun, derivative
+    transformations = OrderedDict()
+    transformations['linear']   = lambda x:x,lambda x:x, lambda x:1
+    transformations['log']   = lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
+    transformations['sqrt']  = lambda x: np.sqrt(np.maximum(0, x)), np.square,lambda x:.5/np.sqrt(np.maximum(1e-5, x))
+    transformations['asinh'] = np.arcsinh, np.sinh, lambda x:1./np.hypot(x,1)
+ 
+ 
+    MG = map2grid(xexp,tvec,yexp,yerr,nr_new=nr_fit, dt=dt)
+    MG.PrepareCalculation( zero_edge=edge,
+                          transformation = transformations['log'],
+                          even_fun=True,robust_fit=False,
+                          pedestal_rho=pedestal_rho)
                            
-    #print(discontinuties['arr_0'])
-    #print(discontinuties['arr_1'])
-    #print(discontinuties['arr_2'])
-
-    #MG.PrepareCalculation(  zero_edge=False)
-    
-    #MG.PrepareCalculation(  zero_edge=False, edge_discontinuties = discontinuties['arr_1'], elm_phase = discontinuties['arr_2'].T)
-    MG.PreCalculate( )
+ 
+    MG.PreCalculate()
     
     
-    MG.Calculate(0.1, 0.1)
+    MG.Calculate(lam,eta)
     
     
-    
-    exit()
-    
-    import pickle as pkl
-    from matplotlib.pylab import plt
-
-    with open('data_for_tomas.pkl','rb') as f:
-        data = pkl.load(f)
-    out_ne, out_Te = data
-    rhop_ne, ne, ne_err, rhop_ne_err = out_ne
-    rhop_Te, Te, Te_err, rhop_Te_err = out_ne
-    
-    nt = 1
-    nr = 201
-    nd = len(ne)
-    
-    MG = map2grid(rhop_Te,np.zeros(nd),Te,Te_err,np.arange(nd),np.ones(nd),nr,nt)
-    
-    MG.r_max = 1.04
-    
-    transformation =  lambda x: np.sqrt(np.maximum(0, x)), np.square,lambda x:.5/np.sqrt(np.maximum(1e-5, x))
-    transformation =   lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
-
-    MG.PrepareCalculation(transformation=transformation, zero_edge=False)
-    MG.PreCalculate( )
-    
-    
-    MG.Calculate(0.1, 0.1)
-    
-    
-    plt.errorbar(rhop_Te, Te, Te_err, fmt='.')
-    plt.plot( MG.r_new[0], MG.g_samples[:,0].T,lw=.2,c='r')
-    plt.plot( MG.r_new[0], MG.g[0] ,lw=2,c='r')
+  
+    plt.errorbar(xexp.flatten(), yexp.flatten(), yerr.flatten(), fmt='.')
+    print(MG.g_samples.shape)
+    #plt.plot( MG.r_new[0], MG.g_samples.reshape(-1, nr_fit).T,lw=.2,c='r')
+    plt.plot( MG.r_new[0], MG.g.T ,lw=2,c='r')
     plt.xlim(0,1.1)
     plt.ylim(0,None)
     plt.show()
+
+
+
+
+#def main2():
+
+    #np.random.seed(0)
+
+    ##MG = map2grid
+    
+    #n = 100
+    #R = np.random.rand(n)
+    #T = np.random.rand(n)
+    #Y = (1-R**2)**1.5*(1-T**3/3)
+    #Yerr = np.ones_like(Y)/3
+
+    #Y += np.random.randn(n)*Yerr
+    
+    #log_trans    = lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
+
+    ##radial resolution strongly increases computation time
+    #MG = map2grid(R,T,Y,Yerr/10,dt = 0.01,nr_new=100)
+    #MG.PrepareCalculation(zero_edge=True, transformation =None)
+    #MG.PreCalculate( )
+    #MG.Calculate(0.4, 0.6)
+    
+    #subplot(121)
+    #plot( MG.g_r[0],  MG.g[::10].T,'r')
+    #plot( MG.g_r[::10].T ,  np.maximum(1-MG.g_r.T**2,0)[:,::10]**1.5*np.maximum(0,1-MG.g_t.T**3/3)[:,::10],'b--')
+    #subplot(122)
+    #plot( MG.g_t[:,0],  MG.g[:,::10] ,'r')
+    #plot( MG.g_t[:,::10] ,  np.maximum(1-MG.g_r**2,0)[:,::10]**1.5*np.maximum(0,1-MG.g_t**3/3)[:,::10],'b--')
+    #show()
+    
+    
+    
+    #embed()
+    
+    #exit()
+    ##10, 0.01
+    ##30, 0.089
+    ##100, 0.26
+    ##300, 1.36
+    ##1000, 8 
+    
+    
+    
+
+
+    #discontinuties = np.load('discontinuties.npz' )
+    #data = np.load('map2grid.npz' )
+    #MG = map2grid(data['R'],data['T'],data['Y'],data['Yerr'],data['P'],data['W'],data['nr_new'],data['nt_new'] )
+    #MG.PrepareCalculation(   zero_edge=False, core_discontinuties = [],
+                           #edge_discontinuties = [],transformation = None,even_fun=True,
+                           #robust_fit=False,pedestal_rho=None, elm_phase=None)
+                           
+    ##print(discontinuties['arr_0'])
+    ##print(discontinuties['arr_1'])
+    ##print(discontinuties['arr_2'])
+
+    ##MG.PrepareCalculation(  zero_edge=False)
+    
+    ##MG.PrepareCalculation(  zero_edge=False, edge_discontinuties = discontinuties['arr_1'], elm_phase = discontinuties['arr_2'].T)
+    #MG.PreCalculate( )
+    
+    
+    #MG.Calculate(0.1, 0.1)
+    
+    
+    
+    #exit()
+    
+    #import pickle as pkl
+    #from matplotlib.pylab import plt
+
+    #with open('data_for_tomas.pkl','rb') as f:
+        #data = pkl.load(f)
+    #out_ne, out_Te = data
+    #rhop_ne, ne, ne_err, rhop_ne_err = out_ne
+    #rhop_Te, Te, Te_err, rhop_Te_err = out_ne
+    
+    #nt = 1
+    #nr = 201
+    #nd = len(ne)
+    
+    #MG = map2grid(rhop_Te,np.zeros(nd),Te,Te_err,np.arange(nd),np.ones(nd),nr,nt)
+    
+    #MG.r_max = 1.04
+    
+    #transformation =  lambda x: np.sqrt(np.maximum(0, x)), np.square,lambda x:.5/np.sqrt(np.maximum(1e-5, x))
+    #transformation =   lambda x: np.log(np.maximum(x,0)/.1+1),  lambda x:np.maximum(np.exp(x)-1,1.e-6)*.1,   lambda x:1/(.1+np.maximum(0, x))  #not a real logarithm..
+
+    #MG.PrepareCalculation(transformation=transformation, zero_edge=False)
+    #MG.PreCalculate( )
+    
+    
+    #MG.Calculate(0.1, 0.1)
+    
+  
     
     
 if __name__ == "__main__":

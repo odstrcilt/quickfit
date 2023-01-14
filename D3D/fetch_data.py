@@ -210,6 +210,9 @@ def read_adf12_aug(data_dir, line, beam_spec='D', therm=False, n_neut=1):
 #path = os.path.dirname(os.path.realpath(__file__))+'/openadas/' 
 #line = 'C VI 8-7'
 #interp = read_adf12_aug(path, line, beam_spec='D', therm=False, n_neut=1)
+#embed()
+#interp(1, 2e3, 1e13, 80e3)
+
 
 #f,ax = subplots(1,3,sharey=True)
 #erel = np.linspace(1e3,100e3)
@@ -332,8 +335,9 @@ def read_adf15(PECfile, isel, te,ne):
 
             line_isel = int(header_line[-1])
             if line_isel != isel:
-                for it in range(int(n_T)):
-                    f.readline()
+                nnum = n_ne+ n_T+n_ne* n_T
+                while(nnum > 0):
+                    nnum-= len(f.readline().split())
             else:
                 break
         
@@ -823,8 +827,11 @@ def default_settings(MDSconn, shot):
     'load_options':{'TS system':{"TS revision":('BLESSED',['BLESSED']+ts_revisions)},
                     'ECE system':OrderedDict((
                                 ("Bt correction",{'Bt *=': 1.0}),
-                                ('TS correction',{'rescale':False})))   }}
-        
+                                ('TS correction',{'rescale':False}),
+                                ('Refraction', {'Include':False})
+                                ))   }}
+                    #refraction = bool(options['load_options']['ECE system']["Refraction"]['Include'].get())
+
     default_settings['ne']= {\
         'systems':OrderedDict((( 'TS system',(['tangential',True], ['core',True],['divertor',False])),
                                 ( 'Reflectometer',(['all bands',False],)),
@@ -870,7 +877,8 @@ def default_settings(MDSconn, shot):
     if len(imps) > 1:
         if 'C6' in imps:
             imps.remove('C6')
-        default_settings['Zeff']['load_options']['CER system']['Impurity'] = ['C6']+imps
+            imps = ['C6']+imps
+        default_settings['Zeff']['load_options']['CER system']['Impurity'] = (imps[0], imps)
 
     return default_settings
 
@@ -2047,10 +2055,10 @@ class data_loader:
                     #where the data becommed availible in realtime and they are nonzero
                     ind = (np.ediff1d(I,to_begin=0)!=0)&(I > 0)
                     t = T[ind]
-                    embed()
+                    #embed()
                     tvec.append(t)
                     #estimate integration time
-                    print(T, t)
+                    #print(T, t)
                     dt = np.diff(t)
                     dt = np.median(dt[dt < dt.min()*2])
                     stime.append(t*0+dt)
@@ -2756,7 +2764,7 @@ class data_loader:
 
         path = os.path.dirname(os.path.realpath(__file__))+'/openadas/' 
 
-        files_bms = [path+'bms93#h_h1.dat',path+'bms93#h_c6.dat' ]
+        files_bms = [path+'bms93#h_h1.dat'  ,path+'bms93#h_c6.dat' ]
         files_bmp = [path+'bmp97#h_2_h1.dat',path+'bmp97#h_2_c6.dat' ]
         
 
@@ -2897,14 +2905,17 @@ class data_loader:
         #n=2 halo fraction, magnitude consistent with Rachael's paper, normalised to the total number of injected neutrals
         f0halo2 = f0halo1*(PEC*ne)/A21
         #  Rachael used FIDASIM to calculate a spatial profile of these ions
-        
-        #embed()
+ 
   
         ######################### Calculate CX cross-sections  ############################# 
         zeff = beam_prof_merged['zeff']
         ti = beam_prof_merged['Ti'] # ev
-        ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
         erel = beam_prof_merged['erel']   #eV/amu
+        ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
+        fC = beam_prof_merged['fC'] 
+        #assume only carbon impurity and deuterium
+        nion = (1-5*fC)*ne
+   
  
         line_ids = []
         for sys in systems:
@@ -2965,6 +2976,10 @@ class data_loader:
                                  'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
                                  'O8': ('qef93#h_o8.dat',None),
                                 'Li3': ('qef07#h_arf#li3.dat','qef97#h_en2_kvi#li3.dat')}
+
+                #qef93#h_gyt#li3.dat
+
+ 
  
                 blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'Ar16':{'14-13':[5,2]},
                           'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[2,3]}, 'F9':{'10-9':[2,2]},
@@ -2978,9 +2993,9 @@ class data_loader:
                 qeff_th = qeff2_th = qeff2 = 0
                 file1, file2 = atom_files[imp]
                 block1, block2 = blocks[imp][transition]
-                qeff  = read_adf12(path+file1,block1, erel, ne, ti, zeff)
+                qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
                 if file2 is not None:
-                    qeff2 = read_adf12(path+file2,block2, erel, ne, ti, zeff)
+                    qeff2 = read_adf12(path+file2,block2, erel, nion, ti, zeff)
  
             else:
                 raise Exception('CX data for line %s was not found'%line_id)
@@ -3649,9 +3664,9 @@ class data_loader:
             nearest_ind = dist < .1 #use only a really close points 
             #weight = np.exp(-dist**2/.1**2)
             #if some system was nearly ignored, allow a bigger distance
-            ignored_sys = (other['f'][nearest_ind]>.4).sum(0) < (other['f']>.4).sum(0)*0.2
+            ignored_sys = (other['f'][nearest_ind]>.4).sum(0) < (other['f']>.4).sum(0)*0.05
             ignored_ind = np.any(other['f'][:,ignored_sys] > .4,1)
-            nearest_ind[ignored_ind] |= dist[ignored_ind] < .2
+            nearest_ind[ignored_ind] |= dist[ignored_ind] < dist[ignored_ind].min()*1.5
             
  
             interpl = LinearNDInterpolator(np.c_[calib['t'],calib['r']],np.copy(calib['n']))
@@ -3689,7 +3704,6 @@ class data_loader:
             out = least_squares(fun,C0,loss='cauchy')
             C = out.x
             
-            #embed()
 
             #in some cases when beam 30L+30R+30B are used and 30R is poorly constrained, it can fail (184773)
             #plt.errorbar(np.arange(len(N)), N, E);plt.show()
@@ -3708,9 +3722,10 @@ class data_loader:
             
             
             
-            
-            C = np.insert(C,ind_calib,1)  #calibration for calib_beam is forced to be one
-            C = {b:c for b,c in zip(groups, C)}
+            #calibration for calib_beam is forced to be 1.0
+            C = np.insert(C,ind_calib,1.0)  
+            #remove negative and zero cases, anelater assume C = 1 for them
+            C = {b:c for b,c in zip(groups, C) if c > 0}
             
             #embed()
  
@@ -3724,9 +3739,10 @@ class data_loader:
             #plt.show()
 
             for b,c in C.items():
-                if c > 0: print('\t\t correction '+b+': %.2f'%(1/c))
+                print('\t\t correction '+b+': %.2f'%(1/c))
                 
-                
+            #embed()
+
             #if '30L' in NBI and NBI['30L']['fired'] and ( 77 < NBI['30L']['volts']/1e3 < 83) and NBI['30L']['beam_fire_time'] > .5:
                 ##print('saing')
                 #with open('beams_corrections_%s_30_noG.txt'%('int' if nz_from_intens else 'impcon'), "a") as file:                
@@ -5548,7 +5564,11 @@ class data_loader:
         fast =  bool(options['systems']['ECE system'][1][1].get())
         bt_correction = float(options['load_options']['ECE system']["Bt correction"]['Bt *='].get())
         ts_correction = bool(options['load_options']['ECE system']["TS correction"]['rescale'].get())
-
+        try:
+            refraction = bool(options['load_options']['ECE system']["Refraction"]['Include'].get())
+        except:
+            refraction = False
+            
         rate = 'fast' if fast else 'slow'
         suffix = ''#'F' if fast else ''
 
@@ -5599,28 +5619,15 @@ class data_loader:
             finally:
                 self.MDSconn.closeTree(tree, self.shot)
             
-            
-            #t = time()
+ 
+        
             TDI =  [r"\TECE%s%02d"%(suffix, d) for d in range(1,1+nchs)]
             TDI += [r'dim_of(\TECE%s01)'%suffix, ]
             
         
             out = mds_load(self.MDSconn, TDI, tree, self.shot)
             
-            #print(time()-t)
-            
-            #t = time()
-            #TDI =  [f'_x=PTDATA2("ece{d}", {self.shot}, 4)' for d in range(1,1+nchs)]
-            #TDI += [f'dim_of(PTDATA2("ece1", {self.shot}))']
-            
-        
-            #out = mds_load(self.MDSconn, TDI, None, self.shot)
-            
-            #print(time()-t)
-            
-            #embed()
-
-
+ 
             tvec,data_ = out[-1],out[:-1]
             
             if len(tvec) == 1:
@@ -5690,6 +5697,7 @@ class data_loader:
         horiz_rho = self.eqm.rz2rho(r_in, z_in*np.ones_like(r_in),t_eq,coord_out=self.rho_coord)
         #Accounting for relativistic mass downshift
         #self.MDSconn.openTree('EFIT01',self.shot)
+        wce = e*Btot/m_e
 
         #sig = '\\EFIT01::TOP.RESULTS.AEQDSK:BCENTR'
         
@@ -5697,44 +5705,133 @@ class data_loader:
         #tvec = self.MDSconn.get('dim_of('+sig+')').data()
         #bt = self.MDSconn.get('PTDATA("bt", 183503)').data()
         #bttvec = self.MDSconn.get('dim_of(PTDATA("bt", 183503))').data()
-
-        
         try:
             zipfit = self.load_zipfit()
+        except:
+            zipfit = None
+            printe('Missing ZIPFIT data')
+        #embed()
+        
+        R_res = np.zeros((len(t_eq), nchs))
+        Z_res = np.zeros((len(t_eq), nchs))+z_in
 
-            Te_tvec = zipfit['Te']['time'].values
+        if refraction and zipfit is not None:
+            from scipy.constants import c, e,m_e, epsilon_0
+            
+
+            Te_tvec = zipfit['Te']['time'].values.copy()
             Te_tvec[[0,-1]] = -10,100
+            
+            ne_tvec = zipfit['ne']['time'].values.copy()
+            ne_tvec[[0,-1]] = -10,100
+      
     
             Te_ = interp1d(Te_tvec, zipfit['Te']['Te'].values,axis=0,copy=False, assume_sorted=True)(t_eq)
-            Te = np.zeros_like(horiz_rho)
+            ne_ = interp1d(ne_tvec, zipfit['ne']['ne'].values,axis=0,copy=False, assume_sorted=True)(t_eq)
 
+            Rgrid = np.linspace(self.eqm.Rmesh[0],self.eqm.Rmesh[-1], 100) 
+            Zgrid = np.linspace(self.eqm.Zmesh[0],self.eqm.Zmesh[-1], 150) 
+
+            Br,Bz,Bt = self.eqm.rz2brzt(Rgrid,Zgrid, t_in=t_eq)
+            B0 = np.sqrt(Br**2+Bz**2+Bt**2)
+            B0 = B0.swapaxes(1,2)
+
+
+            #get 2D profiles of Te and ne
+            R_in,Z_in = np.meshgrid(Rgrid, Zgrid)
+            rhoRZ = self.eqm.rz2rho(R_in[None],Z_in[None], t_in=t_eq, coord_out='rho_tor')
+ 
+            Te = np.zeros_like(rhoRZ, dtype='double')
+            ne = np.zeros_like(rhoRZ, dtype='double')
             for it,t in enumerate(t_eq):
-                Te[it] = np.interp(horiz_rho[it], zipfit['Te']['rho'].values, np.abs(Te_[it]))
+                Te[it] = np.interp(rhoRZ[it], zipfit['Te']['rho'].values, np.abs(Te_[it]))
+                ne[it] = np.interp(rhoRZ[it], zipfit['ne']['rho'].values, np.abs(ne_[it]))
 
+
+            #relativistic mass increase 
             v=np.sqrt(2*Te*(e/m_e))
             gamma = 1/np.sqrt(1-(v/c)**2)
-        except:
-            printe('relativistic mass downshift could not be done')
-            gamma = np.ones((1,len(r_in)))
+            m_e_ = m_e*gamma
 
-        Te = 6e3
-        v=np.sqrt(2*Te*(e/m_e))
-        gamma = 1/np.sqrt(1-(v/c)**2)
-        
-        wce = e*Btot/(m_e*gamma)
+            #plasma and cyclotron frequencies
+            wc = (e*B0/m_e_)
+            wp2 = ne*e**2/(m_e_*epsilon_0) 
+            w0 = 2*np.pi*ece['freq'].values[:,None,None,None]
+            nharm = 2
 
-        nharm = 2
-        R = np.zeros((len(t_eq),nchs))
-        for it,t in enumerate(t_eq):
-            R[it] = np.interp(-2*np.pi*ece['freq'],-wce[it]*nharm,r_in)
+            #index squared for extraordinary wave perpendicular to B
+            N = np.sqrt(np.maximum(1-wp2/w0**2*(w0**2-wp2)/(w0**2-wp2-wc**2),0))
+
+
+            #follow approach based on Fermat principle
+            #https://physics.stackexchange.com/a/606479
+
+
+            for it,t in enumerate(t_eq):
+                
+                #assume horisontal LOS with only small refraction -> ds/dt = sqrt((dR/dt)**2+(dZ/dt)**2) ~ dR/dt
+                R_los = Rgrid[::-1]#it starts from LFS 
+                Z_los = np.zeros((nchs, len(Rgrid)))+z_in
+
+                for ich in range(nchs): 
+      
+                    Nspline = RectBivariateSpline(Zgrid,Rgrid,N[ich, it], kx=2, ky=2)
+
+
+                    #calculate Z_los in 3 iterations
+                    for i in range(1):
+                        dNdZ_los = Nspline.ev(Z_los[ich], R_los, dx=1)
+                        intdNdz = cumtrapz(dNdZ_los, R_los,initial=0)
+                        N_los = np.maximum(Nspline.ev(Z_los[ich], R_los), 1e-6) #to avoid issues at n=1 resonance
+                        Z_los[ich] = z_in+cumtrapz(intdNdz/N_los, R_los,initial=0)
+
+                ##calculare resonance location
+                wc_spline = RectBivariateSpline(Zgrid,Rgrid, wc[it]*nharm)
+                
+                for ich, w0ch in enumerate(w0): 
+                    wc_los = wc_spline.ev(Z_los[ich], R_los)
+
+                    R_res[it, ich] = np.interp(w0ch, wc_los, R_los)
+                    Z_res[it, ich] = np.interp(w0ch, wc_los, Z_los[ich])
+
+                        
+                        
             
+            
+            
+        else:
+            if zipfit is not None:
+                Te_tvec = zipfit['Te']['time'].values.copy()
+                Te_tvec[[0,-1]] = -10,100
+        
+                Te_ = interp1d(Te_tvec, zipfit['Te']['Te'].values,axis=0,copy=False, assume_sorted=True)(t_eq)
+                Te = np.zeros_like(horiz_rho)
+
+                for it,t in enumerate(t_eq):
+                    Te[it] = np.interp(horiz_rho[it], zipfit['Te']['rho'].values, np.abs(Te_[it]))
+
+                v=np.sqrt(2*Te*(e/m_e))
+                gamma = 1/np.sqrt(1-(v/c)**2)
+            else:
+                printe('relativistic mass downshift could not be done')
+                gamma = np.ones((1,len(r_in)))
+
+    
+            ece_freq = ece['freq'].values
+            wce /= gamma
+
+            nharm = 2
+            #R = np.zeros((len(t_eq),nchs))
+            for it,t in enumerate(t_eq):
+                R_res[it] = np.interp(-2*np.pi*ece_freq,-wce[it]*nharm,r_in)
+                
 
         r_lfs = self.eqm.rhoTheta2rz(1, 0, t_eq)[0].mean() #m 
         f_3harm_lfs = 3*wce[:,r_in.searchsorted(r_lfs)]/(2*np.pi) #freq above this value can be contaminated by 3. harmonics 
     
         #calculate ne_critical
         #everything in GHz 
-        try:
+        if zipfit is not None:
     
             ne_ = zipfit['ne']['ne'].values.copy()
             ne_err =  zipfit['ne']['ne'].values*0.05 #zipfit errorbars are often wrong, while the fit is OK 
@@ -5745,7 +5842,7 @@ class data_loader:
             for it,t in enumerate(ne_tvec ):
                 iteq = np.argmin(abs(t_eq-t))
                 ne[it] = np.interp(horiz_rho[iteq], ne_rho ,  ne_[it])
-            
+            #embed()
             f_CE = interp1d(t_eq, wce/(2*np.pi*1e9),fill_value="extrapolate",
                             axis=0,copy=False, assume_sorted=True)(ne_tvec)  #f_ce at R
             f_PE = np.sqrt(np.maximum(ne,0)*e**2/m_e/epsilon_0)/(2*np.pi*1e9)#f_pe at R
@@ -5756,7 +5853,7 @@ class data_loader:
             f_cut_loc = np.zeros((len(ne_tvec), nchs))
             for it,t in enumerate(ne_tvec):
                 iteq = np.argmin(abs(t_eq-t))
-                f_cut_loc[it] = np.interp(R[iteq],  r_in, f_cut[it])
+                f_cut_loc[it] = np.interp(R_res[iteq],  r_in, f_cut[it])
                 
                 
             #ind = (ne_tvec > 2 )&(ne_tvec < 2.5)
@@ -5784,7 +5881,7 @@ class data_loader:
             #R,Z = RRc[::-1][GCid], PPc[::-1][GCid]
 
                 
-        except:
+        else:
             printe( 'ZIPFIT ne data are missing, density cutoff was not estimated')
             f_cut_loc = np.zeros((2,nchs))
             ne_tvec = [0,10]
@@ -5793,12 +5890,15 @@ class data_loader:
         #interpolate on the Te timescale
         tvec = ece['time'].values
         f_3harm_lfs = np.interp(tvec, t_eq, f_3harm_lfs)
-        R         = interp1d(t_eq,R  ,axis=0,fill_value="extrapolate",
+        R         = interp1d(t_eq,R_res  ,axis=0,fill_value="extrapolate",
                              copy=False, assume_sorted=True)(tvec)
+        z         = interp1d(t_eq,Z_res  ,axis=0,fill_value="extrapolate",
+                             copy=False, assume_sorted=True)(tvec)
+        
         f_cut_loc = interp1d(ne_tvec,f_cut_loc,axis=0,fill_value="extrapolate",
                              copy=False, assume_sorted=True)(tvec)
 
-        z = ece['z0'].values*np.ones_like(R)
+  
         rho = self.eqm.rz2rho(R,z,tvec,coord_out=self.rho_coord)
 
         data = ece['Te_raw'].values
@@ -6625,6 +6725,7 @@ def main():
     #shot = 185157  #BUg uplne blbe relativni kalibrace
     #shot = 184777
     shot = 192719
+    shot = 193812
     #shot = 175900
     #shot = 
 
@@ -6733,7 +6834,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('real'), (S('real'),'fit','auto','quick'))),
+                                ('Analysis', (S('quick'), (S('quick'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -6795,7 +6896,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nC6', settings,tbeg=1.8, tend=5)
+    data = loader( 'nC6', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
