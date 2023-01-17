@@ -321,8 +321,10 @@ class equ_map:
             #smooth fpol (Bt), it unrealistically noisy on DIII-D, affecting ECE mapping 
             dt = np.diff(self.t_eq).mean()
             tau = 0.5
-            self.fpol = savgol_filter(self.fpol, 2*(int(tau/dt)//2)+1, 2, axis=1)
-            
+            try:
+                self.fpol = savgol_filter(self.fpol, 2*(int(tau/dt)//2)+1, 2, axis=1)
+            except:
+                pass
     
         
         #self.ffp = self.sf.get(self.gEQDSK+'FFPRIM').data()[self.valid].T

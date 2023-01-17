@@ -190,7 +190,7 @@ class FitPlot():
             s = d.shape
             if len(s) == 1:
                 dch = 1
-                if 'channel' in ch:
+                if 'channel' in ch.attrs:
                     name_channels.append(ch.attrs['channel'])              
                 elif len(diags[-1]):
                     name_channels.append(diags[-1][0]+'_%d'%(n_ch+1))

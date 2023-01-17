@@ -3666,7 +3666,8 @@ class data_loader:
             #if some system was nearly ignored, allow a bigger distance
             ignored_sys = (other['f'][nearest_ind]>.4).sum(0) < (other['f']>.4).sum(0)*0.05
             ignored_ind = np.any(other['f'][:,ignored_sys] > .4,1)
-            nearest_ind[ignored_ind] |= dist[ignored_ind] < dist[ignored_ind].min()*1.5
+            if any(ignored_ind):
+                nearest_ind[ignored_ind] |= dist[ignored_ind] < dist[ignored_ind].min()*1.5
             
  
             interpl = LinearNDInterpolator(np.c_[calib['t'],calib['r']],np.copy(calib['n']))
