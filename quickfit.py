@@ -646,7 +646,7 @@ class DataFit():
                                   'elm_signal':self.default_elms_signal,
                                   'outside_rho':'1.0',
                                   'pedestal_rho':'.95',
-                                  'dr':'0.1',
+                                  'dr':'0.03',
                                   'dt':'',
                                   'sawteeth_times':'[]'
                                   }

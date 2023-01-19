@@ -490,9 +490,10 @@ class FitPlot():
             
             fig_size = self.fig.get_size_inches()
             self.fig.subplots_adjust(left=.15 )
-            self.fig.set_size_inches(5,5)  
+            size = 7
+            self.fig.set_size_inches(size,size*fig_size[1]/fig_size[0])  
             
-            print(f'Figure saved to {filename} at size of 5x5 inches and {int(kwargs["dpi"])} dpi')
+            print(f'Figure saved to {filename} at size of {size}x{size} inches and {int(kwargs["dpi"])} dpi')
             self.canvas_print_figure(filename, **kwargs)
             
             #reset to original setup 

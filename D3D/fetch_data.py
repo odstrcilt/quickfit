@@ -468,7 +468,7 @@ def beam_get_fractions(Einj=81.0, model='mickey'):
         current_fractions[2] = 1.0 - current_fractions.sum(0)  # the rest is 1/3 energy
 
         power_fractions = (current_fractions / j) / np.sum(current_fractions / j, 0)
-        density_fractions = (current_fractions / np.sqrt(1.0 / j)) / np.sum(current_fractions / np.sqrt(1.0 / j), 0)
+        density_fractions = current_fractions * np.sqrt( j) / np.sum(current_fractions * np.sqrt( j), 0)
 
     elif model == 'mickey':
         ## Power Fraction stolen from original compute_impdens
@@ -1118,8 +1118,9 @@ class data_loader:
                             output['data'].append(dd)
                 elif quantity in d[sys]:
                     output['data'].append(d[sys])
-                output['diag_names'].extend(d['diag_names'][sys])
-
+                if len(d[sys]):
+                    output['diag_names'].extend(d['diag_names'][sys])
+    
         #cut data in the selected range
         for i in range(len(output['data'])):
             times.append(output['data'][i]['time'].values)
@@ -2430,7 +2431,7 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16','Ne9']:
+        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16','Ne9','Al13']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
 
@@ -2517,7 +2518,7 @@ class data_loader:
         #slice data from TS
         beam_profiles = {'ne':{},'ne_err':{}, 'te':{}, 'rho':{}}
         for sys in TS['systems']:
-            if sys not in TS: continue
+            if sys not in TS or len(TS[sys]) == 0: continue
             n_e = TS[sys]['ne'].values
             n_e_err = TS[sys]['ne_err'].values
             T_e = TS[sys]['Te'].values
@@ -2850,11 +2851,7 @@ class data_loader:
         ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
         v = vrel  # cm/s
         
-        #root_dir = os.getenv('ADASCENT', '')
-        #adf15d = root_dir + '/adf15/'
-        #adf11d = root_dir + '/adf11/'
-                
-
+    
         #ionisation rate of deuterium
         SCDfile = path+'/scd96_h.dat'
         Se = read_adf11(SCDfile,  1, te, ne )#cm**3 s**-1)
@@ -2966,24 +2963,24 @@ class data_loader:
                 qeff = 10 ** np.polyval(coeffs_energy[::-1],erel/1e3)* 1.0e-8
                 qeff2 = qeff_th = qeff2_th = 0
             
-            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8']:
+            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13']:
 
                 atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar16': ('qef07#h_arf#ar16.dat','qef07#h_arf#ar16_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
+                                 'Al13': ('qef07#h_arf#al13.dat',None),
                                  'Ne9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
                                  'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
-                                 'O8': ('qef93#h_o8.dat',None),
+                                 #'O8': ('qef93#h_o8.dat',None),  #
                                 'Li3': ('qef07#h_arf#li3.dat','qef97#h_en2_kvi#li3.dat')}
-
-                #qef93#h_gyt#li3.dat
 
  
  
                 blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'Ar16':{'14-13':[5,2]},
                           'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[2,3]}, 'F9':{'10-9':[2,2]},
-                          'Li3':{ '3-1':[7,7], '7-5':[11,11]}, 'O8': {'12-10': [16,16]}}
+                          'Li3':{ '3-1':[7,7], '7-5':[11,11]}, #'O8': {'12-10': [16,16]} special case!
+                          'Al13': {'12-11': [2,None]}}
                 
                 
                 tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
@@ -3113,7 +3110,7 @@ class data_loader:
             #err_ne  = np.hstack(err_ne)
 
                 
-            #impurity densities foe all channels
+            #impurity densities for all channels
             nz = np.zeros_like(nimp_data['int'])
             nz_err = np.ones_like(nimp_data['int'])*np.inf
             n = 0
@@ -5372,6 +5369,8 @@ class data_loader:
         for isys, sys in enumerate(systems):
             if len(tvec) <= isys or len(tvec[isys]) == 0: 
                 ts['systems'].remove(sys)
+                ts[sys] = []
+                
                 continue
             tvec[isys]/= 1e3   
             
@@ -6199,8 +6198,8 @@ class data_loader:
     
     def co2_correction(self,TS, tbeg,tend):
         
-        T = time()
-        if not 'core' in TS or not 'tangential' in TS:
+  
+        if len(TS.get('core',[])) == 0 or len(TS.get('tangential',[])) == 0:
             print('CO2 correction could not be done, either core or tangential TS data are missing')
             return TS
         
