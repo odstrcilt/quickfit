@@ -1003,6 +1003,7 @@ class data_loader:
                 try:
                     ts = self.co2_correction(ts, tbeg, tend)
                 except:
+                    raise
                     printe('CO2 correction failed')
                     
             data.append(ts) 
@@ -1064,7 +1065,7 @@ class data_loader:
 
             rho_Te,tvec_Te,data_Te,err_Te = [],[],[],[]
             for sys in TS['systems']:
-                if sys not in TS: continue 
+                if sys not in TS or len(TS[sys]) == 0: continue 
                 t = TS[sys]['time'].values
                 te = TS[sys]['Te'].values
                 e = TS[sys]['Te_err'].values
@@ -4200,10 +4201,11 @@ class data_loader:
 
         n_e,n_er,T_e,T_er,rho, tvec = [],[],[],[],[],[]
         for sys in TS['systems']:
-            if sys not in TS: continue
+            if sys not in TS or len(TS[sys]) == 0: continue
+         
             ind =  np.isfinite(TS[sys]['Te_err'].values)& np.isfinite(TS[sys]['rho'].values)
             ind &= np.isfinite(TS[sys]['ne_err'].values)&(TS[sys]['ne'].values > 0)&(TS[sys]['ne'].values < 1.5e20)
-        
+           
             
             n_e.append(TS[sys]['ne'].values[ind].flatten())
             n_er.append(TS[sys]['ne_err'].values[ind].flatten())
@@ -6199,15 +6201,25 @@ class data_loader:
     def co2_correction(self,TS, tbeg,tend):
         
   
-        if len(TS.get('core',[])) == 0 or len(TS.get('tangential',[])) == 0:
-            print('CO2 correction could not be done, either core or tangential TS data are missing')
+        if len(TS.get('core',[])) == 0:
+            print('CO2 correction could not be done, core TS data are missing')
             return TS
         
+        use_ts_tan = True
+        if len(TS.get('tangential',[])) == 0:
+            print('CO2 correction will be done assuming flat near axis density, tangential TS data are missing')
+            use_ts_tan = False
+        #embed()
+            
+        
+        TS_systems = ['core'] + (['tangential'] if use_ts_tan else [])
+
         #if already corrected return corrected values
-        if 'ne_corr' in TS['tangential'] and 'ne_corr' in TS['core']:
+        if all(['ne_corr' in TS[sys] for  sys in TS_systems]):
             TS = deepcopy(TS)
-            TS['tangential']['ne'] = TS['tangential']['ne_corr']
-            TS['core']['ne'] = TS['core']['ne_corr']
+            for sys in TS_systems:
+                TS[sys]['ne'] = TS[sys]['ne_corr']
+         
             return TS 
   
         #BUG ignoring user selected wrong channels of TS in GUI 
@@ -6217,10 +6229,9 @@ class data_loader:
 
         print_line( '  * Calculate TS correction using CO2 ...')
         
+        for sys in TS_systems:
+            TS[sys]['ne_corr'] = TS[sys]['ne']
         
-        TS['tangential']['ne_corr'] = TS['tangential']['ne'].copy()
-        TS['core']['ne_corr'] = TS['core']['ne'].copy()
-
 
         tbeg = max(tbeg, CO2['time'][0].values)
         tend = min(tend, CO2['time'][-1].values)
@@ -6241,57 +6252,59 @@ class data_loader:
         
         #1)  correction of the tang system with respect to core
 
-        tang_tvec = TS['tangential']['time'].values
-        ind = slice(*tang_tvec.searchsorted((tbeg, tend)))
-        tang_tvec = tang_tvec[ind]
-        tang_lasers  = TS['tangential']['laser'].values[ind]
-        tang_lens  = TS['tangential']['lens'].values
-        tang_lasers_list = np.unique(tang_lasers)
-        tang_ne  = TS['tangential']['ne'].values[ind]
-        tang_err  = TS['tangential']['ne_err'].values[ind]
-        tang_rho = TS['tangential']['rho'].values[ind]
-        
-        
-        core_lens  = TS['core']['lens'].values
-        core_rho= interp1d(TS['core']['time'],TS['core']['rho'],axis=0,copy=False, assume_sorted=True)(tang_tvec)
-        core_ne = interp1d(TS['core']['time'],TS['core']['ne'],axis=0,copy=False, assume_sorted=True)(tang_tvec)
-        core_err= interp1d(TS['core']['time'],TS['core']['ne_err'] ,axis=0,copy=False, assume_sorted=True,kind='nearest')(tang_tvec)
-
-        #remove corrupted channels with more than 20% wrong points (usualy in SOL, not important)
-        corrupted_tg = np.sum(~np.isfinite(tang_err),0)>tang_err.shape[0]/5.
-        corrupted_core = np.sum(~np.isfinite(core_err),0)>core_err.shape[0]/5.
-        
- 
-        rho = np.hstack((tang_rho[:,~corrupted_tg],core_rho[:,~corrupted_core]))
-        rho_sort_ind  = np.argsort(rho,axis=1)
-        #tang_lasers = tang_lasers[~corrupted_tg]
-        core_ne = core_ne[:,~corrupted_core]
-
-        
-        time_sort_ind = np.tile(np.arange(rho.shape[0]), (rho.shape[1], 1)).T
-        
-        rho = rho[time_sort_ind, rho_sort_ind]
-        def cost_fun(corr):
-            tang_ne_ = np.double(tang_ne[:,~corrupted_tg])
-            for l,c in zip(tang_lasers_list, corr):
-                tang_ne_[tang_lasers==l] *= np.exp(c)
-            core_ne_ = np.double(core_ne)
-            #core_ne_[:,core_lens[~corrupted_core] == 0]*= np.exp(corr[-1])
-            ne  = np.hstack((tang_ne_,core_ne_ ))/1e19
-            ne  = ne[time_sort_ind, rho_sort_ind]
-            val = np.nansum((np.diff(ne)/(ne[:,1:]+ne[:,:-1]+.1))**2)
-            return val
+        if use_ts_tan:
+            tang_tvec = TS['tangential']['time'].values
+            ind = slice(*tang_tvec.searchsorted((tbeg, tend)))
+            tang_tvec = tang_tvec[ind]
+            tang_lasers  = TS['tangential']['laser'].values[ind]
+            tang_lens  = TS['tangential']['lens'].values
+            tang_lasers_list = np.unique(tang_lasers)
+            tang_ne  = TS['tangential']['ne'].values[ind]
+            tang_err  = TS['tangential']['ne_err'].values[ind]
+            tang_rho = TS['tangential']['rho'].values[ind]
             
-        from scipy.optimize import minimize 
-   
-        p0 = np.zeros(len(tang_lasers_list))
-        opt = minimize(cost_fun,  p0, tol = .0001 )
-        corr = np.exp(opt.x)
- 
-     
-        #correct core system
-        for l,c in zip(tang_lasers_list , corr):
-            TS['tangential']['ne_corr'].values[TS['tangential']['laser'].values == l] *= c
+            
+            core_lens  = TS['core']['lens'].values
+            core_rho= interp1d(TS['core']['time'],TS['core']['rho'],axis=0,copy=False, assume_sorted=True)(tang_tvec)
+            core_ne = interp1d(TS['core']['time'],TS['core']['ne'],axis=0,copy=False, assume_sorted=True)(tang_tvec)
+            core_err= interp1d(TS['core']['time'],TS['core']['ne_err'] ,axis=0,copy=False, assume_sorted=True,kind='nearest')(tang_tvec)
+
+            #remove corrupted channels with more than 20% wrong points (usualy in SOL, not important)
+            corrupted_tg = np.sum(~np.isfinite(tang_err),0)>tang_err.shape[0]/5.
+            corrupted_core = np.sum(~np.isfinite(core_err),0)>core_err.shape[0]/5.
+            
+    
+            rho = np.hstack((tang_rho[:,~corrupted_tg],core_rho[:,~corrupted_core]))
+            rho_sort_ind  = np.argsort(rho,axis=1)
+            #tang_lasers = tang_lasers[~corrupted_tg]
+            core_ne = core_ne[:,~corrupted_core]
+
+            
+            time_sort_ind = np.tile(np.arange(rho.shape[0]), (rho.shape[1], 1)).T
+            
+            rho = rho[time_sort_ind, rho_sort_ind]
+            def cost_fun(corr):
+                tang_ne_ = np.double(tang_ne[:,~corrupted_tg])
+                for l,c in zip(tang_lasers_list, corr):
+                    tang_ne_[tang_lasers==l] *= np.exp(c)
+                core_ne_ = np.double(core_ne)
+                #core_ne_[:,core_lens[~corrupted_core] == 0]*= np.exp(corr[-1])
+                ne  = np.hstack((tang_ne_,core_ne_ ))/1e19
+                ne  = ne[time_sort_ind, rho_sort_ind]
+                val = np.nansum((np.diff(ne)/(ne[:,1:]+ne[:,:-1]+.1))**2)
+                return val
+                
+            from scipy.optimize import minimize 
+    
+            p0 = np.zeros(len(tang_lasers_list))
+            opt = minimize(cost_fun,  p0, tol = .0001 )
+            corr = np.exp(opt.x)
+    
+        
+            #correct core system
+            #if use_ts_tan:
+            for l,c in zip(tang_lasers_list , corr):
+                TS['tangential']['ne_corr'].values[TS['tangential']['laser'].values == l] *= c
 
         #correct core r+0 system
         #TS['core']['ne_corr'].values[:,core_lens == 0] *= corr[-1]
@@ -6299,7 +6312,7 @@ class data_loader:
 
         #interpolate data on the time of the core system
         N,R = [],[]
-        for diag in ['core','tangential']:
+        for diag in TS_systems:
             t,n,e,r = TS[diag]['time'].values, TS[diag]['ne'].values, TS[diag]['ne_err'].values, TS[diag]['rho'].values
             nchs = n.shape[1]
             n_interp = np.zeros((len(tvec_compare), n.shape[1]))
@@ -6428,7 +6441,7 @@ class data_loader:
  
 
          #correction of laser intensity variation and absolute value
-        for sys in ['core', 'tangential']:
+        for sys in TS_systems:
             laser = TS[sys]['laser'].values
             data = TS[sys]['ne_corr'].values
             #total correction of all data
@@ -6439,15 +6452,17 @@ class data_loader:
                 
                     
         print('\t done in %.1fs'%(time()-T))
-        print('\t\tCO2 corrections:\n\t\t', 'lasers: ',(np.round(mean_laser_correction,3)),
-              '\n\t\t tang vs. core:', np.round(corr[:-1]/np.mean(mean_laser_correction),3))
+        print('\t\tCO2 corrections:\n\t\t', 'lasers: ',(np.round(mean_laser_correction,3)))
+        if use_ts_tan:
+            print('\t\t tang vs. core:', np.round(corr[:-1]/np.mean(mean_laser_correction),3))
               #', core r+0 vs. core r+1:', np.round(corr[-1]/np.mean(mean_laser_correction),3))
  
  
         #return corrected values
         TS = deepcopy(TS)
-        TS['tangential']['ne'] = TS['tangential']['ne_corr']
-        TS['core']['ne'] = TS['core']['ne_corr']
+        for sys in TS_systems:
+            TS[sys]['ne'] = TS[sys]['ne_corr']
+ 
         return TS 
     
     
