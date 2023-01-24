@@ -2442,7 +2442,7 @@ class data_loader:
         n = 0
         for diag in systems:
             for ch in nimp[diag]:
-                if ch.attrs['imp'] == imp:
+                if ch.attrs.get('imp',imp) == imp:
                     for k in nimp_data.keys():
                         nimp_data[k].append(ch[k].values)
                     beams = list(ch['beams'].values)
@@ -2920,11 +2920,10 @@ class data_loader:
         line_ids = []
         for sys in systems:
             for ch in nimp[sys]:
-                if ch['int'].attrs['line'] not in line_ids and ch.attrs['imp'] == imp:
+                if ch['int'].attrs['line'] not in line_ids and ch.attrs.get('imp',imp) == imp:
                     line_ids.append(ch['int'].attrs['line'])  #NOTE assume that all data are from the same line
       
-        #print('line_ids', imp, line_ids)
-        #embed()
+    
         for line_id in line_ids:
             #BUG it is not very efficient way, everything will be calculated for every channel and at the end
             #I will pick up just the channels with the right line_id
@@ -3188,7 +3187,7 @@ class data_loader:
             n = 0 
             for diag in systems:
                 for ch in nimp[diag]:
-                    if ch.attrs['imp'] != imp:
+                    if ch.attrs.get('imp',imp) != imp:
                         continue
                     if line_id != ch['int'].attrs['line']:
                         n+=1
