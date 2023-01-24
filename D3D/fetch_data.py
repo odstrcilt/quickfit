@@ -2352,7 +2352,8 @@ class data_loader:
                 beam_intervals.setdefault(bname,[])
                 beam_intervals[bname].append((tvec[ich][beam_ind],stime[ich][beam_ind]))  
                 
-                ds = Dataset('CER_'+ch+'_'+bname+'.nc', attrs={'channel':ch+'_'+bname, 'system': diag,'edge':edge,'name':names[idx[ID]],'Z':charge})
+                ds = Dataset('CER_'+ch+'_'+bname+'.nc', attrs={'channel':ch+'_'+bname, 'phi': phi[ich], 'imp': element+str(charge), 
+                                                               'system': diag,'edge':edge,'name':names[idx[ID]],'Z':charge})
 
                 #fill by zeros for now, 
                 ds['nimp'] = xarray.DataArray(0*utvec, dims=['time'], 
@@ -2441,24 +2442,25 @@ class data_loader:
         n = 0
         for diag in systems:
             for ch in nimp[diag]:
-                for k in nimp_data.keys():
-                    nimp_data[k].append(ch[k].values)
-                beams = list(ch['beams'].values)
-                nt = len(nimp_data['time'][-1])
-                for b in nimp['loaded_beams']:
-                    for k in beam_data.keys():
-                        beam_data[k].setdefault(b,[])
-                        if b in beams:
-                            ib = beams.index(b)
-                            data = ch[k].values[ib]
-                            if k == 'beam_geom':
-                                data = np.tile(data,nt)  
-                                
-                            beam_data[k][b].append(data)
-                        else:
-                            beam_data[k][b].append(np.zeros(nt))
-                data_index.append(slice(n,n+nt))
-                n += nt
+                if ch.attrs['imp'] == imp:
+                    for k in nimp_data.keys():
+                        nimp_data[k].append(ch[k].values)
+                    beams = list(ch['beams'].values)
+                    nt = len(nimp_data['time'][-1])
+                    for b in nimp['loaded_beams']:
+                        for k in beam_data.keys():
+                            beam_data[k].setdefault(b,[])
+                            if b in beams:
+                                ib = beams.index(b)
+                                data = ch[k].values[ib]
+                                if k == 'beam_geom':
+                                    data = np.tile(data,nt)  
+                                    
+                                beam_data[k][b].append(data)
+                            else:
+                                beam_data[k][b].append(np.zeros(nt))
+                    data_index.append(slice(n,n+nt))
+                    n += nt
         
         if n == 0:
             raise Exception('No CER intensity data')
@@ -2918,10 +2920,11 @@ class data_loader:
         line_ids = []
         for sys in systems:
             for ch in nimp[sys]:
-                if ch['int'].attrs['line'] not in line_ids:
+                if ch['int'].attrs['line'] not in line_ids and ch.attrs['imp'] == imp:
                     line_ids.append(ch['int'].attrs['line'])  #NOTE assume that all data are from the same line
       
-        
+        #print('line_ids', imp, line_ids)
+        #embed()
         for line_id in line_ids:
             #BUG it is not very efficient way, everything will be calculated for every channel and at the end
             #I will pick up just the channels with the right line_id
@@ -2965,6 +2968,32 @@ class data_loader:
                 qeff2 = qeff_th = qeff2_th = 0
             
             elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13']:
+                #from Rachael's paper
+                #Element
+                #n=1
+                #n=2
+                #He n =4−3 (468.52 nm)
+                #qcx#h0_old#he2.dat
+                #qcx#h0_en2_kvi#he2.dat
+                #B n=7−6 (494.467 nm)
+                #qcx#h0_old#b5.dat
+                #qcx#h0_en2_kvi#b5.dat
+                #C n=8−7 (529.059 nm)
+                #qcx#h0_old#c6.dat
+                #qcx#h0_en2_kvi#c6.dat
+                #N n=9−8 (566.95 nm)
+                #From Igenbergs [22]
+                #From Igenbergs [22]
+                #Ne n=11−10 (524.49 nm)
+                #qcx#h0_old#ne10.dat
+                #qcx#h0_en2_kvi#ne10.dat
+                #ADAS adf12 Files
+                #O n=10−9 (606.85 nm)
+                #qef93#h_o8.dat
+                #qef07tmi#h_en2_int#08.dat
+                #Li n=7−5 (516.67 nm)
+                #qef07#h_arf#li3.dat
+                #qef97#h_en2_kvi#li3.dat
 
                 atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
@@ -2973,7 +3002,7 @@ class data_loader:
                                  'Al13': ('qef07#h_arf#al13.dat',None),
                                  'Ne9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
                                  'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
-                                 #'O8': ('qef93#h_o8.dat',None),  #
+                                 #'O8': ('qef93#h_o8.dat','qef07tmi#h_en2_int#08.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat','qef97#h_en2_kvi#li3.dat')}
 
  
@@ -3159,6 +3188,8 @@ class data_loader:
             n = 0 
             for diag in systems:
                 for ch in nimp[diag]:
+                    if ch.attrs['imp'] != imp:
+                        continue
                     if line_id != ch['int'].attrs['line']:
                         n+=1
                         continue
