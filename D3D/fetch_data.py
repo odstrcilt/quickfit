@@ -94,7 +94,7 @@ def read_adf11(file,Z, Te, ne):
 
 def read_adf12(file,block, ein, dens, tion, zeff):
     with open(file,'r') as f:
-        nlines = int(f.readline())
+
 
         for iline in range(block):
             cer_line = {}
@@ -2930,44 +2930,9 @@ class data_loader:
                 
           
             if line_id  in ['B V 7-6','C VI 8-7','He II 4-3','Ne X 11-10','N VII 9-8']:
-                #CX with beam ions
-                adf_interp = read_adf12_aug(path,line_id, n_neut=1)
-                qeff = adf_interp(zeff, ti, ne, erel)
-                adf_interp = read_adf12_aug(path,line_id, n_neut=2)
-                qeff2 = adf_interp(zeff, ti, ne, erel)
+                #CX data from AUG
                 
-                #CX with beam halo
-                adf_interp = read_adf12_aug(path,line_id, n_neut=1, therm=True)
-                qeff_th = adf_interp(zeff, ti, ne).T
-                adf_interp = read_adf12_aug(path,line_id, n_neut=2, therm=True)
-                qeff2_th = adf_interp(zeff, ti, ne).T
-                
-
-                
-            elif line_id in ['B V 3-2','C VI 3-2','OVIII 3-2','He II 2-1' ,'NVII 3-2','Ne X 4-3']:
-                # Define CX rate coefficient fitted parameters used to construct rate coefficient
-                # From /u/whyte/idl/spred/spred_cx.pro on GA workstations
-
-                if imp == 'He2':
-                    coeffs_energy = [1.1370244, 0.0016991233, -0.00015731925, 6.4706743e-7, 0.0]
-                if imp == 'C6': #with lmixing
-                    coeffs_energy = [0.98580991, 0.046291358, -0.0010789930, 8.9991561e-6, -2.7316781e-8]
-                if imp == 'N7': #with lmixing, linear combination of O and C
-                    coeffs_energy_c = [0.98580991, 0.046291358, -0.0010789930, 8.9991561e-6, -2.7316781e-8]
-                    coeffs_energy_o = [1.1975958, 0.025612778, -0.00048135883, 2.1715730e-6, 0.0]
-                    coeffs_energy = np.add(coeffs_energy_c, coeffs_energy_o) / 2.0
-                if imp == 'O8':
-                    coeffs_energy = [1.1975958, 0.025612778, -0.00048135883, 2.1715730e-6, 0.0]
-                if imp == 'B5':
-                    coeffs_energy = [ 1.15113500e+00,  3.00654905e-02, -6.68824080e-04,  4.35114750e-06,-9.42988278e-09]
-                if imp == 'Ne10': #hope that it is not far from 08
-                    coeffs_energy = [1.1975958, 0.025612778, -0.00048135883, 2.1715730e-6, 0.0]
-                # CX rate coefficient for given energy (ph cm**3/s)
-                qeff = 10 ** np.polyval(coeffs_energy[::-1],erel/1e3)* 1.0e-8
-                qeff2 = qeff_th = qeff2_th = 0
-            
-            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13']:
-                #from Rachael's paper
+                #from Rachael McDermott's paper
                 #Element
                 #n=1
                 #n=2
@@ -2993,6 +2958,49 @@ class data_loader:
                 #Li n=7−5 (516.67 nm)
                 #qef07#h_arf#li3.dat
                 #qef97#h_en2_kvi#li3.dat
+
+                
+                #CX with beam ions
+                adf_interp = read_adf12_aug(path,line_id, n_neut=1)
+                qeff = adf_interp(zeff, ti, ne, erel)
+                adf_interp = read_adf12_aug(path,line_id, n_neut=2)
+                qeff2 = adf_interp(zeff, ti, ne, erel)
+                
+                #CX with beam halo
+                adf_interp = read_adf12_aug(path,line_id, n_neut=1, therm=True)
+                qeff_th = adf_interp(zeff, ti, ne).T
+                adf_interp = read_adf12_aug(path,line_id, n_neut=2, therm=True)
+                qeff2_th = adf_interp(zeff, ti, ne).T
+                
+
+                
+            elif line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2','Ne X 4-3']:
+                #SPRED lines
+                
+                
+                #data prepared using ADF309 containls only one transition
+                atom_files = { 'He2': ('qef93#h_he2_spred.dat', 'qef93#h_he2_n2_spred.dat'),
+                               'B5': ('qef93#h_b5_spred.dat', 'qef93#h_b5_n2_spred.dat'),
+                               'C6': ('qef93#h_c6_spred.dat', 'qef93#h_c6_n2_spred.dat'),
+                               'N7': ('qef93#h_n7_spred.dat', None),
+                               'O8': ('qef93#h_o8_spred.dat', None),
+                               'Ne10': ('qef93#h_ne10_spred.dat',  'qef93#h_ne10_n2_spred.dat')}
+ 
+  
+                
+                tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
+                transition = tmp.group(3)             
+                
+                #unavailible
+                qeff_th = qeff2_th = qeff2 = 0
+                file1, file2 = atom_files[imp]
+                qeff  = read_adf12(path+file1,1, erel, nion, ti, zeff)
+                if file2 is not None:
+                    qeff2 = read_adf12(path+file2,1, erel, nion, ti, zeff)
+                
+                
+            
+            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13']:
 
                 atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
