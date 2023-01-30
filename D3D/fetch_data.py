@@ -3164,10 +3164,9 @@ class data_loader:
 
                 R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
                 # sum over beam species crossection before interpolation
-                #try:
-                denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
-                #except:
-                    #embed()
+                #denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
+                denom_TS_R = np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1)
+                denom_interp = lambda x: np.exp(interp1d(Rmid, np.log(denom_TS_R), copy=False)(x))  # nR x nbeam
 
                 #try:
                 # uncertainties in beam_att_err between species are 100% correlated, we can sum them
@@ -4601,7 +4600,7 @@ class data_loader:
 
             
             densities['charge'] = charge
-            np.savez_compressed('SPRED_data_%d'%self.shot, **densities)
+            #np.savez_compressed('SPRED_data_%d'%self.shot, **densities)
 
 
             if len(zeff['SPRED']) == 0:
