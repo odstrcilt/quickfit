@@ -782,6 +782,10 @@ class FitPlot():
         self.Forward(-1)
     
     def Play(self):
+        
+        if self.m2g is None:
+            return 
+        
         #animated plot
         self.stop = False
         self.play_button['image']=self.pausefig

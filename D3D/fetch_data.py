@@ -2804,10 +2804,7 @@ class data_loader:
         bmp_mix = np.sum(np.array(bmp)* weights[:,None,None],0)
         
         sigma_eff = bms_mix / vrel  #cross-section cm^2
-
-        
-
-        
+ 
 
         #integrate beam attenuation
         beam_att,beam_att_err,n2frac = [],[],[]
@@ -3683,6 +3680,9 @@ class data_loader:
             
             if calib_beam.replace('_','') not in groups:
                 print('Error groups.index(calib_beam.replace())', groups, calib_beam)
+
+                for ch in all_channels:
+                    print(ch.attrs)
                 options['Correction']['Relative calibration'].set(0) 
                 rcalib = False
                 nimp = return_nimp(nimp)
@@ -4612,9 +4612,12 @@ class data_loader:
             print('Impurity concentrations from SPRED are rescaled by %.3f to match CER carbon density'%corr.mean())
             print('\t Mean concentration on axis between %.3f-%.3fs'%(_tbeg,_tend))
             imp_names = [k for k, c in concentrations.items() if len(c)]
-       
-            imp_conce = [max(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
-            
+            try:
+                imp_conce = [max(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
+            except Exception as e:
+                print('Error: SPRED concentration ', e)
+                print([np.hstack(concentrations[k])  for k in imp_names])
+                imp_conce = np.zeros(len(imp_names))
             #print deuterium concentration
             charge = np.array([charge[k] for k in imp_names])
             cD = 1-sum(imp_conce*charge)
@@ -6501,8 +6504,7 @@ class data_loader:
             TS[sys]['ne'] = TS[sys]['ne_corr']
  
         return TS 
-    
-    
+
     def load_elms(self,option):
         
         node = option['elm_signal'].get()
