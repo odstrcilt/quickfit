@@ -2635,7 +2635,7 @@ class data_loader:
                     nz = None
                     #try to load the impurity data in this order                    
                     for c in ['_corr','']:
-                        for s in ['impcon','int']:
+                        for s in ['impdens','int']:
                             if 'nimp_'+s+c in ch:
                                 nz = ch['nimp_'+s+c].values
                                 nz_err = ch['nimp_'+s+'_err'+c].values
@@ -2874,6 +2874,9 @@ class data_loader:
         nbi_width  = 10.36+(R_wall-beam_prof_merged['Rmid'][valid])*100*np.tan(0.0123)
         nbi_height = 24.68+(R_wall-beam_prof_merged['Rmid'][valid])*100*np.tan(0.0358)
         corr = np.hypot(nbi_height, halo_std/np.sqrt(2)) / nbi_height
+        
+        #this correction was found when compared to FIDASIM
+        corr /= 2
  
         #CX crossection for D beam ions in D plasma
         #data from file qcx#h0_ory#h1.dat
@@ -3268,10 +3271,10 @@ class data_loader:
         return nimp
       
  
-    def load_nimp_impcon(self, nimp,load_systems, analysis_type,imp):
-        #load IMPCON data and split them by CER systems
+    def load_nimp_impdens(self, nimp,load_systems, analysis_type,imp):
+        #load IMPDENS data and split them by CER systems
         #in nimp are already preload channels
-        #currently there is no SPRED density from impcon
+        #currently there is no SPRED density from impdens
 
         load_systems = [sys for sys in load_systems if 'SPRED' not in sys]
             
@@ -3282,7 +3285,7 @@ class data_loader:
         
         ##############################  LOAD DATA ######################################## 
 
-        print_line( '  * Fetching IMPCON data from %s ...'%analysis_type.upper())
+        print_line( '  * Fetching IMPDENS data from %s ...'%analysis_type.upper())
         T = time()
 
         
@@ -3297,7 +3300,7 @@ class data_loader:
         #fast fetch
         nz,nz_err, ch_ind, tvec,array_order = mds_load(self.MDSconn, TDI, 'IONS', self.shot)
         if len(nz) == 0:
-            raise Exception('No IMPCON data')
+            raise Exception('No IMPDENS data')
 
         nz_err[(nz<=0)|(nz > 1e20)] = np.inf
         ch_ind = np.r_[ch_ind,len(tvec)]
@@ -3318,7 +3321,7 @@ class data_loader:
                     continue
                 
                 
-                #merge impcon and CER timebases
+                #merge impdens and CER timebases
                 tch = np.round((ch['time'].values-ch['stime'].values/2)*1e3,2)
                 timp = np.round(tvec[ind],2)#round to componsate for small rounding numerical errors
                 #sometimes there are two measuremenst with the same time (175602, AL, T25)
@@ -3338,10 +3341,10 @@ class data_loader:
                         jt += 1
                         if jt < timp.size:
                             t2 = timp[jt]
-                    #else - point is missing in IMPCON
+                    #else - point is missing in IMPDENS
                 
  
-                #channel was not included in IMPCON analysis
+                #channel was not included in IMPDENS analysis
                 if not any(nz_ > 0):
                     continue
                 
@@ -3359,10 +3362,10 @@ class data_loader:
                 if imp == 'C6' and ch_name in ['T09','T11','T13','T41','T43','T45'] and 168000<self.shot<172799:
                     nz_ /= 1.12
             
-                ch['nimp_impcon'] = ch['nimp'].copy()
-                ch['nimp_impcon'].values = nz_  
-                ch['nimp_impcon_err'] = ch['nimp_err'].copy()
-                ch['nimp_impcon_err'].values = nzerr_
+                ch['nimp_impdens'] = ch['nimp'].copy()
+                ch['nimp_impdens'].values = nz_  
+                ch['nimp_impdens_err'] = ch['nimp_err'].copy()
+                ch['nimp_impdens_err'].values = nzerr_
          
 
 
@@ -3429,7 +3432,7 @@ class data_loader:
         load_systems_nz = []
         load_systems_intens = []
 
-        nimp_name = 'nimp_int' if nz_from_intens else 'nimp_impcon'
+        nimp_name = 'nimp_int' if nz_from_intens else 'nimp_impdens'
         for sys in systems:
             if sys not in nimp or len(nimp[sys])==0:
                 load_systems_nz.append(sys)
@@ -3446,7 +3449,7 @@ class data_loader:
             #function returning the requested impurity density
             nz_from_intens = options['Correction']['nz from CER intensity'].get() 
             
-            nimp_name = 'nimp_int' if nz_from_intens else 'nimp_impcon'
+            nimp_name = 'nimp_int' if nz_from_intens else 'nimp_impdens'
 
             #if SOL_reflections:
                 #print('BUG!!!!!! temporary fix')
@@ -3514,7 +3517,7 @@ class data_loader:
         if len(load_systems_intens):
             nimp = self.load_nimp_intens(nimp,load_systems_intens, analysis_type,imp)
  
-        #load either from IMPCON or calculate from CX intensity
+        #load either from IMPDENS or calculate from CX intensity
         if nz_from_intens:
             
             #try to load C6 for Zeff estimate needed for CX crossections
@@ -3524,30 +3527,30 @@ class data_loader:
                 options['Correction']['nz from CER intensity'].set(0) 
                 options['Correction']['Relative calibration'].set(1)
                 options['Impurity'] = 'C6'
-                systems_impcon = [sys for sys in systems if not 'SPRED' in sys]
+                systems_impdens = [sys for sys in systems if not 'SPRED' in sys]
                 
                 #special case when only SPRED data are loaded
                 if len(systems) == 0:
-                    systems_impcon = ['tangential']
+                    systems_impdens = ['tangential']
                     selected.set('auto')
    
-                #other cases,  IMPCON density is used as initial guess
+                #other cases,  IMPDENS density is used as initial guess
                 nimp0 = None
 
                 try:
-                    nimp0 = self.load_nimp(tbeg,tend,systems_impcon,options) 
+                    nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
                 except Exception as e:
-                    printe('Error in loading of nC from IMPCON: '+str(e))
+                    printe('Error in loading of nC from IMPDENS: '+str(e))
                     try:
                         if selected.get() != 'auto':
                             #try to load from AUTO edition
                             selected.set('auto')
-                            nimp0 = self.load_nimp(tbeg,tend,systems_impcon,options) 
+                            nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
                     except:
-                        printe('Error in loading of nC from IMPCON AUTO edition: '+str(e))
+                        printe('Error in loading of nC from IMPDENS AUTO edition: '+str(e))
                     #finally:
                         #print('selected',analysis_type, analysis_type[3:] )
-                #set back changes made for IMPCON density fetch
+                #set back changes made for IMPDENS density fetch
                 selected.set(analysis_type[3:])
                 nimp['systems'] = systems
 
@@ -3560,7 +3563,7 @@ class data_loader:
         else:
             #load just the impurity density from MDS+
             try:
-                nimp = self.load_nimp_impcon(nimp,load_systems_nz, analysis_type,imp)
+                nimp = self.load_nimp_impdens(nimp,load_systems_nz, analysis_type,imp)
                 #SPRED must be calculated from intensity 
                 if 'SPRED_'+imp in load_systems_nz:
                     try:
@@ -3575,7 +3578,7 @@ class data_loader:
                     
             except Exception as e:
 
-                printe('Error in loading of impurity density from IMPCON: '+str(e))
+                printe('Error in loading of impurity density from IMPDENS: '+str(e))
                 print('Impurity density will be calculated from CER intensity')
                 options['Correction']['nz from CER intensity'].set(1) 
 
@@ -3678,6 +3681,7 @@ class data_loader:
                 nimp = return_nimp(nimp)
                 return nimp
             
+            #BUG something is going wrong here.. 
             if calib_beam.replace('_','') not in groups:
                 print('Error groups.index(calib_beam.replace())', groups, calib_beam)
 
@@ -3781,7 +3785,7 @@ class data_loader:
 
             #if '30L' in NBI and NBI['30L']['fired'] and ( 77 < NBI['30L']['volts']/1e3 < 83) and NBI['30L']['beam_fire_time'] > .5:
                 ##print('saing')
-                #with open('beams_corrections_%s_30_noG.txt'%('int' if nz_from_intens else 'impcon'), "a") as file:                
+                #with open('beams_corrections_%s_30_noG.txt'%('int' if nz_from_intens else 'impdens'), "a") as file:                
                     #corr_str = str(self.shot)+';'
                     #for b in ['T30L', 'T30R','T330Le','T330Re', 'T210L','T210R', 'V330L', 'V330R','V330Le', 'V330Re','S30L','S30R']:
                         #if b in C and C[b] > 0:   
@@ -4457,8 +4461,8 @@ class data_loader:
                     if 'nimp_int_corr' in nC:
                         corr = nC['nimp_int_corr'].values/(nC['nimp_int'].values+1e-5)
                 else:
-                    if 'nimp_impcon_corr' in nC:
-                        corr = nC['nimp_impcon_corr'].values/(nC['nimp_impcon'].values+1e-5)
+                    if 'nimp_impdens_corr' in nC:
+                        corr = nC['nimp_impdens_corr'].values/(nC['nimp_impdens'].values+1e-5)
                         
                 
                 correction.append(corr)
@@ -6760,7 +6764,7 @@ def main():
 
     shot = 184777# BUG !! poskozeny prvni po blipu 
     shot = 183167 #TODO blbe nC!!!
-    shot = 179119 #many missing timeslices in IMPCON
+    shot = 179119 #many missing timeslices in IMPDENS
     shot =  164988
     shot =    176778
     shot =  173054
