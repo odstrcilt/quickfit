@@ -158,7 +158,7 @@ class DataFit():
         if self.defaultFont.actual()['family'] != 'Segoe UI':
             self.defaultFont.configure(family="Helvetica" )
             if self.defaultFont.actual()['family'] !=  "Helvetica" :
-                print('Issue with TK fonts!')
+                print('Issue with TK fonts, use ', self.defaultFont.actual()['family'] )
 
         
         self.data_loader_class = fetch_data.data_loader
@@ -391,8 +391,8 @@ class DataFit():
                         self.BRIEF = self.BRIEF.decode()
                     print(self.BRIEF)
                 except:
-                    print('Shot does  not exist')
-                    return False
+                    print('Shot commentin MDS+ does not exist')
+                    #return False
                     #pass
                 #load default filterscope for elm identification
                 try:
