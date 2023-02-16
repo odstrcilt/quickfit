@@ -158,7 +158,9 @@ class DataFit():
         if self.defaultFont.actual()['family'] != 'Segoe UI':
             self.defaultFont.configure(family="Helvetica" )
             if self.defaultFont.actual()['family'] !=  "Helvetica" :
-                print('Issue with TK fonts, use ', self.defaultFont.actual()['family'] )
+                self.defaultFont.configure(family="Liberation Sans" )
+                if self.defaultFont.actual()['family'] !=  "Liberation Sans" :
+                    print('Issue with TK fonts, use ', self.defaultFont.actual()['family'] )
 
         
         self.data_loader_class = fetch_data.data_loader
