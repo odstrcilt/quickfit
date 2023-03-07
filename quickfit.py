@@ -334,7 +334,7 @@ class DataFit():
                     except:
                         continue
 
-                if not isinstance(efit_names[0],str):
+                if len(efit_names) and not isinstance(efit_names[0],str):
                     efit_names = [e.decode() for e in efit_names] 
  
                 efit_editions = [n.split('.')[1] for n in efit_names]

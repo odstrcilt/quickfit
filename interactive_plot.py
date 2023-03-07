@@ -837,6 +837,9 @@ class FitPlot():
         if hasattr(self.parent,'BRIEF'):
             self.title = self.ax_main.set_title(self.parent.BRIEF)
 
+        if self.m2g is None:
+            return 
+
         minlim,maxlim = 0,1
         if self.plot_type.get() in [0,1] and self.options['data_loaded']:
             valid = ~self.m2g.Yerr.mask&(self.m2g.Y.data > self.m2g.Yerr.data)

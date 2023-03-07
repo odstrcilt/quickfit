@@ -6786,6 +6786,7 @@ def main():
     shot = 193812
     #shot = 175900
     #shot = 
+    shot = 99470 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
     #shot = 182725
@@ -6848,7 +6849,7 @@ def main():
     print(shot)
     print_line( '  * Fetching EFIT02 data ...')
     eqm = equ_map(MDSconn)
-    eqm.Open(shot, 'EFIT02', exp='D3D')
+    eqm.Open(shot, 'EFIT01', exp='D3D')
 
     #load EFIT data from MDS+ 
     T = time()
@@ -6954,7 +6955,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nC6', settings,tbeg=1., tend=5)
+    data = loader( 'ne', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
