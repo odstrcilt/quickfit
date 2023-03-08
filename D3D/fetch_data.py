@@ -2612,6 +2612,10 @@ class data_loader:
         
         cer_systems = ['tangential']
         
+        #load kinetic data from fit addition, whoch can be different from impurity edition
+        if self.shot in [190652, 190653, 190654]:
+            options['Analysis'] = tk.StringVar(value='fit'), options['Analysis'][1]
+            
         cer = self.load_cer(tbeg,tend, cer_systems,options=options)
         
         #slice and interpolate omega and Ti on the same coordinates as TS
@@ -2740,6 +2744,8 @@ class data_loader:
             vtor = np.outer(omega, nbi_dict['Rtang'])  # m/s
             
             #make sure that there are no crazy values of rotation
+            if np.any(np.abs(vtor)> 2e5) :
+                print('Suspicious high plasma rotation!! max(vtor) = %.2fkm/s  @ %.2fs'%(abs(vtor).max()/1e3, t))
             vtor = np.clip(vtor, -2e5, 2e5)
 
             # see CC notebook VII, pages 50-52, this is just the magnitude of the
@@ -3161,10 +3167,10 @@ class data_loader:
                 ind = label == it
                 n += nt
         
-
                 R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
                 # sum over beam species crossection before interpolation
                 #denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
+               
                 denom_TS_R = np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1)
                 denom_interp = lambda x: np.exp(interp1d(Rmid, np.log(denom_TS_R), copy=False)(x))  # nR x nbeam
 
@@ -3187,9 +3193,7 @@ class data_loader:
                 nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
                 nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
         
-            #interp = NearestNDInterpolator(np.vstack((tvec_ne,rho_ne)).T, np.copy(data_ne))
-            #embed()
-
+ 
             #fill the xarray database with calculated impurity densities
             n = 0 
             for diag in systems:
@@ -3199,6 +3203,7 @@ class data_loader:
                     if line_id != ch['int'].attrs['line']:
                         n+=1
                         continue
+ 
                     #interp.values[:] = np.copy(data_ne) 
                     #ne = interp(np.vstack((ch['time'].values, ch['rho'].values)).T)
                     #interp.values[:] = np.copy(err_ne) 
@@ -3210,7 +3215,8 @@ class data_loader:
                     #ch['nimp_int_err'].values = nz[data_index[n]]/ne*np.hypot(nz_err[data_index[n]]/nz[data_index[n]],ne_err/ne)
                     n += 1
                     
-         
+       
+        
 
         #T = np.linspace(3.4,4.6,1000)
         ##print(T)
@@ -6786,7 +6792,7 @@ def main():
     shot = 193812
     #shot = 175900
     #shot = 
-    shot = 99470 #intensity nc funguje mizerne
+    shot = 190654 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
     #shot = 182725
@@ -6893,8 +6899,8 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('quick'), (S('quick'),'fit','auto','quick'))),
-                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(0),
+                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
+                                ('Correction',{'Relative calibration':I(0),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
     settings.setdefault('Te', {\
@@ -6955,7 +6961,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'ne', settings,tbeg=1., tend=5)
+    data = loader( 'nNe10', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
