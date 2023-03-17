@@ -1938,11 +1938,11 @@ class data_loader:
                 TDI_beam_geo += calib_node+':BEAMGEOMETRY'+','
                 TDI_phi += calib_node+':LENS_PHI'+','
 
-
+        #embed()
         tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST,phi,line_id = [],[],[],[],[],[],[],[],[],[]
         beam_geom = np.zeros((0,8))
   
-        
+        #embed()
 
         #fast fetch of MDS+ data
         order='\\IONS::TOP.CER.CALIBRATION.BEAM_ORDER'
@@ -1989,7 +1989,7 @@ class data_loader:
                             line_id[i] = 'Ne X 11-10'
                          
              
-
+               
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
@@ -2227,7 +2227,7 @@ class data_loader:
         else:
             nbi_pow_sub = None
         
-                
+      
         ########### create xarray dataset with the results ################
         n = 0
         beam_intervals = {}
@@ -2728,7 +2728,7 @@ class data_loader:
 
         energy = np.outer(nbi_dict['volts'], e * qb)  # J
         vinj = np.sqrt(2 * energy / (ab_ * m_p)).T  # m/s
-        beam_profiles.update({'vrel':[],'erel':[], 'dllencm':[]})
+        beam_profiles.update({  'vrel':[],'erel':[], 'dllencm':[]})
         for it,t in enumerate(centroid):
             # Calculate dl along the chord
             Rtang2 = np.square(nbi_dict['Rtang'])
@@ -2757,7 +2757,7 @@ class data_loader:
             beam_profiles['dllencm'].append(dllencm)
             beam_profiles['erel'].append(erel)
             beam_profiles['vrel'].append(vrel)
-
+ 
 
 
         
@@ -2768,8 +2768,8 @@ class data_loader:
         te = beam_prof_merged['te'] #eV
         dens = beam_prof_merged['ne']/1.e6 # cm^-3
         erel = np.vstack(beam_profiles['erel']).T #eV/amu
-        vrel = np.vstack(beam_profiles['vrel']).T*100 #cm/s
-        
+         
+
         beam_prof_merged['erel'] = erel
 
         path = os.path.dirname(os.path.realpath(__file__))+'/openadas/' 
@@ -2809,7 +2809,8 @@ class data_loader:
         bms_mix = np.sum(np.array(bms)* weights[:,None,None],0)
         bmp_mix = np.sum(np.array(bmp)* weights[:,None,None],0)
         
-        sigma_eff = bms_mix / vrel  #cross-section cm^2
+        #Needs to be divided by vinj and not vrel!!  bug in GA fortran code!
+        sigma_eff = bms_mix / (vinj[None].T*100)  #cross-section cm^2
  
 
         #integrate beam attenuation
@@ -2855,7 +2856,7 @@ class data_loader:
         te = beam_prof_merged['te'] #eV
         ti = beam_prof_merged['Ti'] #eV        
         ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
-        v = vrel  # cm/s
+        v =  np.vstack(beam_profiles['vrel']).T*100 #cm/s 
         
     
         #ionisation rate of deuterium
@@ -3021,7 +3022,7 @@ class data_loader:
  
  
                 blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'Ar16':{'14-13':[5,2]},
-                          'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[2,3]}, 'F9':{'10-9':[2,2]},
+                          'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[3,3]}, 'F9':{'10-9':[2,2]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]}, #'O8': {'12-10': [16,16]} special case!
                           'Al13': {'12-11': [2,None]}}
                 
@@ -6899,7 +6900,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('fit'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(0),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -6961,7 +6962,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nNe10', settings,tbeg=1., tend=5)
+    data = loader( 'nC6', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
