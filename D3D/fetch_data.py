@@ -3917,7 +3917,7 @@ class data_loader:
             nodes += [path+n for n in ['REL_CONST','CTRL_CAL','V_CAL','FS_COEFF_I_N']]
             path = '\\TOP.VB.CHORD%.2d:'
             nodes += [path+n for n in ['PHI_START','PHI_END','R_START','R_END','Z_START','Z_END']]
-            downsample = .01#s
+            downsample = .005#s
 
             tdi = '['+ ','.join(sum([[n%ch for n in nodes] for ch in range(1,nchans+1)],[]))+']'
             out = self.MDSconn.get(tdi).data().reshape(-1,len(nodes)).T.astype('single') 
@@ -3947,16 +3947,21 @@ class data_loader:
                     self.MDSconn.closeTree(tree, self.shot)
 
 
-                    nbi_pow = 0
+                    nbi30_pow = 0
+                    nbi33_pow = 0
                     #remove timeslices affected by CX from NBI by some impurities like Ar, Ne, Al,Ca,...
                     if 'VB array w/o CX' == VB_array:
                         self.MDSconn.openTree('NB', self.shot)                      
-                        nbi = self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('30L')).data()
-                        nbi = nbi+self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('30R')).data()
+                        nbi30 = self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('30L')).data()
+                        nbi30 = nbi30+self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('30R')).data()
+                        nbi33 = self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('33L')).data()
+                        nbi33 = nbi33+self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('33R')).data()
                         t = self.MDSconn.get('\\NB::TOP:TIMEBASE').data()
-                        nbi_pow = np.interp(tvec, t/1000,nbi/1e6)
+                        nbi30_pow = np.interp(tvec, t/1000,nbi30/1e6)
+                        nbi33_pow = np.interp(tvec, t/1000,nbi33/1e6)
                         #downsample on resolution used for Zeff analysis
-                        nbi_pow   = np.mean(nbi_pow[:imax//n*n].reshape( -1, n), 1)
+                        nbi30_pow   = np.mean(nbi30_pow[:imax//n*n].reshape( -1, n), 1)
+                        nbi33_pow   = np.mean(nbi33_pow[:imax//n*n].reshape( -1, n), 1)
 
 
                     PHDMID = np.mean(PHDMID[:imax//n*n].reshape( -1,n,nchans), 1)
@@ -3966,11 +3971,17 @@ class data_loader:
                     valid = PHDMID < 9.9
                     valid = np.cumprod(valid, axis=0,dtype='bool')
                     #only for LOSs viewing beams 30L and 30R i.e. 5 to 16
-                    if np.any(nbi_pow > 0.1):
-                        valid[:,5:] &= nbi_pow[:,None] < 0.1
+                    if np.any(nbi30_pow > 0.1):
+                        valid[:,5:-2] &= nbi30_pow[:,None] < 0.1
+                    if np.any(nbi33_pow > 0.1):
+                        #BUG even more HFS channels can be affected
+                        valid[:,-2:] &= nbi33_pow[:,None] < 0.1
+                           
             
                     #do calibration VB data W/cm**2/A
                     VB = REL_CONST*FS_COEFF_I_N*np.exp(np.polyval(calib,CTRL_CAL))/np.exp(np.polyval(calib,CTLMID))*(PHDMID/V_CAL)
+   
+                    
                     
                 except Exception as e:
                     print(e)
@@ -6921,10 +6932,10 @@ def main():
                         }})
         
     settings.setdefault('Zeff', {\
-        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
+        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(1)],                 )),
                                 ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
                                 ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
-                                ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
+                                ( 'SPRED',(['He+B+C+O+N',I(0)],)),                           
                                 )), \
         'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
                         'TS':{'Position error':{'Z shift [cm]':D(0.0)}},
@@ -6962,7 +6973,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nC6', settings,tbeg=1., tend=5)
+    data = loader( 'Zeff', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
