@@ -269,13 +269,15 @@ class map2grid():
         nonzero = weight != 0  #add only nonzero elements to matrix !
         index_p = index_p.ravel()[nonzero]
         index_rt= (index_r.ravel()*self.nt_new+index_t.ravel())[nonzero]
-        #if any(index_rt < 0):
+        if np.any(index_rt < 0):
+            index_rt[index_rt < 0] = 0
         npix = self.nr_new*self.nt_new
         # Now, we'll exploit a sparse csc_matrix to build the 2D histogram...
         try:
             self.M = sp.csc_matrix((weight[nonzero],(index_p,index_rt)),
                                     shape=(self.n_points,npix))
         except:
+            
             traceback.print_exc()
             embed()
 

@@ -800,6 +800,8 @@ def default_settings(MDSconn, shot):
     #exception data from main ion CER
     if shot == 183188:
         imps.append('Li3')
+    if shot == 194311:
+        imps.append('Kr27')
     
  
     #build a large dictionary with all settings
@@ -1985,11 +1987,17 @@ class data_loader:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['C VI 8-7']*len(loaded_chan)
                     if analysis_type == 'cerauto': #neon
-                        for i in range(16): #rest is Ne9+
+                        for i in range(min(15,len(line_id))): #rest is Ne9+ or C6+
                             line_id[i] = 'Ne X 11-10'
-                         
+                        #verticals
+                        for i in range(27,min(32,len(line_id))): #rest is Ne9+ or C6+
+                            line_id[i] = 'Ne X 11-10'
+                if self.shot in [194311]:
+                    if analysis_type == 'cerfit': #carbon
+                        line_id = ['Kr XXVII 21-20']*len(loaded_chan)
+                           
              
-               
+             
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
@@ -2336,8 +2344,8 @@ class data_loader:
                 if np.sum(beam_ind) < 2: #sometimes there is just one slice - remove
                     continue
                 
-                if names[idx[ID]].split()[0] in ['V_330Le','V_330Be']:
-                    INT_ERR[ich][beam_ind] *= -1 #show but datapoints will be disable by defauls 
+                if names[idx[ID]].split()[0] in ['V_330Le','V_330Be'] and self.shot not in [190654, 190653, 190652]:
+                    INT_ERR[ich][beam_ind] *= -1 #show but datapoints will be disabled by default 
 
                 #make sure that the timebase is sorted, in some rare cases with CERFIT it is not unique (different identification of beam phases??)
                 #add random jitter to avoid this issue, important for SPRED 
@@ -2433,8 +2441,11 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16','Ne9','Al13']:
+        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16','Ne9','Al13','Kr25','Kr27']:
             raise Exception('CX cross-sections are not availible for '+imp)
+        
+        if imp  in [ 'Kr25','Kr27']:
+            print('CX cross-sections for Kr are not availible, using Ar18 CX crossections, but absolute density values are wrong' )
         
 
         ########################   Get beam data  ##########################
@@ -3007,9 +3018,11 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13']:
+            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13','Kr25','Kr27']:
 
-                atom_files = { 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
+                atom_files = {'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
+                              'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
+                                'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar16': ('qef07#h_arf#ar16.dat','qef07#h_arf#ar16_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
@@ -3024,7 +3037,8 @@ class data_loader:
                 blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'Ar16':{'14-13':[5,2]},
                           'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[3,3]}, 'F9':{'10-9':[2,2]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]}, #'O8': {'12-10': [16,16]} special case!
-                          'Al13': {'12-11': [2,None]}}
+                          'Al13': {'12-11': [2,None]},
+                          'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
                 
                 tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
@@ -6909,9 +6923,9 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(1)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('fit'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(0),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -6973,7 +6987,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'Zeff', settings,tbeg=1., tend=5)
+    data = loader( 'nNe10', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
