@@ -1856,7 +1856,7 @@ class data_loader:
         #print(spred_tvec.shape, spred_stime.shape, spred_data.shape, spred_err.shape, R.shape, Z.shape, TTSUB.shape, TTSUB_ST.shape, beam_geom.shape, )
    
 
-        return spred_tvec,spred_stime, spred_data, spred_err,np.single(R), np.single(Z),np.single(phi),TTSUB,TTSUB_ST, line_ids[imp], beam_geom
+        return spred_tvec,spred_stime, spred_data, spred_err,np.single(R), np.single(Z),np.mean(phi),TTSUB,TTSUB_ST, line_ids[imp], beam_geom
 
 
 
@@ -3882,10 +3882,12 @@ class data_loader:
                 analysis_type = selected.get()
                 
             cer_analysis_type = self.get_cer_types(analysis_type)
+            if cer_analysis_type == 'cerreal':
+                cer_analysis_type = 'cerquick' #dischares without beams 
             for i,sys in enumerate(systems): 
-                if cer_analysis_type is not None and sys in cer_vb_diags:
-                    systems[i] += '_'+cer_analysis_type
-        
+                    if cer_analysis_type is not None and sys in cer_vb_diags:
+                        systems[i] += '_'+cer_analysis_type
+   
         #when chords affected by CX needs to be removed
         VB_array = 'VB array'
         if 'VB array' in systems and options['VB array']['Corrections']['remove NBI CX'].get():
@@ -4069,7 +4071,7 @@ class data_loader:
         if cer_analysis_type is not None and any(np.in1d([c+'_'+cer_analysis_type for c in cer_vb_diags], systems)):
             tree = 'IONS'
             #list of MDS+ signals for each channel
-            signals = ['VB','VB_ERR', 'TIME','STIME']
+            signals = ['VB','VB_ERR','STIME']
             cal_signals = ['WAVELENGTH','LENS_R', 'LENS_Z','LENS_PHI','PLASMA_R','PLASMA_Z','PLASMA_PHI']
 
             cer_subsys = {'tangential':'CER VB tang'+'_'+cer_analysis_type, 
@@ -4090,9 +4092,15 @@ class data_loader:
 
                 try:
                     lengths = self.MDSconn.get('getnci("'+path+':VB","LENGTH")').data()
+                    stimes = self.MDSconn.get('getnci("'+path+':STIME","LENGTH")').data()
                     nodes = self.MDSconn.get('getnci("'+path+'","fullpath")')
                 except:
-                    nodes = lengths = []
+                    nodes = lengths = stimes = []
+                
+                if not any(stimes):
+                    print('Missing STIME data!')
+                    signals.pop()
+                    
                 for lenght,node in zip(lengths, nodes):
                     if lenght  == 0:#no data
                         continue
@@ -4103,10 +4111,13 @@ class data_loader:
 
                     node = node.strip()
                     channels.append(ss+'.'+node.split('.')[-1])
-                    TDI += ['['+','.join([node+':'+sig for sig in signals])+']']
+                    sigs = [node+':'+sig for sig in signals]
+                    TDI += ['['+','.join(sigs+[f'dim_of({sigs[0]})'])+']']
+                    
                     node_calib = node.replace(cer_analysis_type.upper(),'CALIBRATION')                    
                     TDI_calib += [[node_calib+':'+sig for sig in cal_signals]]
                     diags_.append(ss)
+                #embed()
 
             self.MDSconn.closeTree(tree, self.shot)
 
@@ -4118,7 +4129,10 @@ class data_loader:
                 VB_ = [o[0] if len(o) else np.array([]) for o in out]
                 VB_err_ = [o[1] if len(o) else np.array([]) for o in out]
                 tvec_ = [o[2] if len(o) else np.array([]) for o in out]
-                stime = [o[3] if len(o) else np.array([]) for o in out]
+                if 'STIME' in signals:
+                    stime = [o[3] if len(o) else np.array([]) for o in out]
+                else:
+                    stime = [t*0+5 for t in tvec_]
     
                 #get a time in the center of the signal integration 
                 tvec_ = [(t+s/2.)/1000 for t,s in zip(tvec_, stime)] 
@@ -4278,6 +4292,7 @@ class data_loader:
          
             ind =  np.isfinite(TS[sys]['Te_err'].values)& np.isfinite(TS[sys]['rho'].values)
             ind &= np.isfinite(TS[sys]['ne_err'].values)&(TS[sys]['ne'].values > 0)&(TS[sys]['ne'].values < 1.5e20)
+            ind &= (TS[sys]['ne_err'].values >0 ) & (TS[sys]['Te_err'].values > 0)
            
             
             n_e.append(TS[sys]['ne'].values[ind].flatten())
@@ -6526,15 +6541,20 @@ class data_loader:
                 #laser to laser variation from of the core system
                 data[laser == l_ind] /= c/np.mean(mean_laser_correction)
                 
-                    
+    
+        #return corrected values
+        
         print('\t done in %.1fs'%(time()-T))
         print('\t\tCO2 corrections:\n\t\t', 'lasers: ',(np.round(mean_laser_correction,3)))
         if use_ts_tan:
-            print('\t\t tang vs. core:', np.round(corr[:-1]/np.mean(mean_laser_correction),3))
+            tan_scale = corr[:-1]/np.mean(mean_laser_correction)
+            if 1.3 > tan_scale > 0.7:
+                print('\t\t tang vs. core:', np.round(tan_scale,3))
+            else:
+                print('Unreliable TS tangental data!!  scale is :', np.round(tan_scale,3))
+                TS['tangential']['ne_err'].values[TS['tangential']['ne_err'] > 0] *= -1
               #', core r+0 vs. core r+1:', np.round(corr[-1]/np.mean(mean_laser_correction),3))
  
- 
-        #return corrected values
         TS = deepcopy(TS)
         for sys in TS_systems:
             TS[sys]['ne'] = TS[sys]['ne_corr']
