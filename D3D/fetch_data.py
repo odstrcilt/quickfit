@@ -802,6 +802,8 @@ def default_settings(MDSconn, shot):
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
+    if shot in [190549]:
+        imps.append('O8')
     
  
     #build a large dictionary with all settings
@@ -1328,15 +1330,24 @@ class data_loader:
         return 'cer'+analysis_type
     
  
-    def nbi_info(self,  load_beams, nbi=Tree(), fast=False):
+    def nbi_info(self,  load_beams, nbi=Tree(), fast=False, shot = None):
         #TODO assumes a constant voltage!! do not load NBI gas, it it slow 
         
         _load_beams = list(set(load_beams)-set(nbi.keys()))
         
+
         if len(_load_beams) == 0:
             return nbi
+        
+        if shot is None:
+           shot = self.shot
+   
+        if shot == 190550  and '330L' in _load_beams: #issue with NB data for 330R
+            nbi = self.nbi_info(['330L'], nbi=nbi,  shot = 190549 )
+            _load_beams.remove('330L')
+        
 
-        self.MDSconn.openTree('NB',  self.shot)  
+        self.MDSconn.openTree('NB',  shot)  
 
         
         paths = ['\\NB::TOP.NB{0}:'.format(b[:2]+b[-1]) for b in _load_beams] 
@@ -1350,8 +1361,9 @@ class data_loader:
         for b,f in zip(_load_beams,fired):
             nbi.setdefault(b,{'fired':f})
         
-
+        #embed()
         if not any(fired):
+            
             return nbi
         
         
@@ -1409,7 +1421,7 @@ class data_loader:
             #shortly after discharge these are not avalible 
             volt_data = [80e3+np.zeros(len(tvec)) for  p in paths]
 
-        self.MDSconn.closeTree('NB', self.shot)
+        self.MDSconn.closeTree('NB', shot)
         
 
         b21sign= 1 if self.shot < 124700 else -1 #BUG?? 210 always assumed to be counter current
@@ -1429,12 +1441,14 @@ class data_loader:
             beam['Rtang'] = Rtang[b[:2]+b[-1]]*0.01
             beam['power_timetrace'] = pow_data[i]
             beam['power_trange'] = tvec[[0,-1]]
-            beam['mass'] = {'D2':2.014, 'H2':1.007, 'He': 4.0026 }[gas[i]]
+            common_gas = {'D2':2.014, 'H2':1.007, 'He': 4.0026 }
+        
+            beam['mass'] = common_gas.get(gas[i], 2.014)
             beam['beam_fire_time'] = np.nan
         
         if len(_load_beams) == 0:
             raise Exception('No neutral beams were found!!')
-        
+        #embed()
         return nbi
         
     def load_nimp_spred(self,imp, beam_order = [], cx_line=True, beam_blip_avg=True):
@@ -1995,9 +2009,17 @@ class data_loader:
                 if self.shot in [194311]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Kr XXVII 21-20']*len(loaded_chan)
-                           
-             
-             
+                if self.shot in [190549,190550, 192784, 192785]:
+                    #if analysis_type == 'cerauto': 
+                        #embed()
+                        #for i in range(4):
+                            #line_id[i] = 'C VI 8-7'
+                            #line_id[-i-1] = 'O VIII 9-8' 
+                    if analysis_type == 'cerfit': #carbon
+                        for i in [8,9,10]:
+                            line_id[i] = 'Ca XVIII 16-15'
+                            line_id[i+3] = 'Ca XVIII 15-14'
+                        
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
@@ -2121,8 +2143,16 @@ class data_loader:
                     ich = loaded_chan.index(ch)
                     if beam_geom[ich,3] == 0: #not defined geometry factor
                         beam_geom[ich,3] = g 
+            #edge vertical channels from 330L has lower geom factor
+            V = ['V07', 'V08', 'V09', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15','V16']
+           
+            # hardcoded correction for cere vertical channels
+            if self.shot  > 188000:
+                if 'V17' in loaded_chan:
+                    beam_geom[loaded_chan.index('V17')] /= 1.9
+                if 'V18' in loaded_chan:
+                    beam_geom[loaded_chan.index('V18')] /= 1.9
                     
-  
             
         
         if load_spred:
@@ -2192,6 +2222,7 @@ class data_loader:
         
         if not any(fired):
             printe('No beam fired, probably too soon after discharge')
+            embed()
             return
             
         load_beams = load_beams[fired]
@@ -2441,7 +2472,7 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar16','Ne9','Al13','Kr25','Kr27']:
+        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Kr25','Kr27']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
         if imp  in [ 'Kr25','Kr27']:
@@ -2636,6 +2667,8 @@ class data_loader:
         #extract all data from XARRAYs
         for sys in cer['systems']:
             for ch in cer[sys]:
+                if ch.attrs['imp'] != 'C6':
+                    continue
                 rho = ch['rho'].values
                 tvec = ch['time'].values
                 cer_data['Ti'].append((rho, tvec,ch['Ti'].values, ch['Ti_err'].values))
@@ -2644,6 +2677,7 @@ class data_loader:
 
         #initial guess of carbon density
         if nC_guess is not None:  #if not availible assued Zeff = 2
+            #embed()
             for sys in nC_guess['systems']:
                 for ch in nC_guess[sys]:
                     if ch.attrs['Z'] != 6: continue #only carbon data
@@ -2715,6 +2749,7 @@ class data_loader:
                 beam_profiles[name].append(_data)
  
         beam_prof_merged = {k:np.hstack(p) for k,p in beam_profiles.items()}
+        #embed()
 
         #####################  Calculate relative beam velocity ###############
         print_line( '  * Calculating '+imp+' density ...')
@@ -2770,8 +2805,8 @@ class data_loader:
             beam_profiles['vrel'].append(vrel)
  
 
+ 
 
-        
         #####################  Calculate Beam attenuation ###############33
         # calculate concetration of impurities and main ions as self.frac
 
@@ -2779,7 +2814,12 @@ class data_loader:
         te = beam_prof_merged['te'] #eV
         dens = beam_prof_merged['ne']/1.e6 # cm^-3
         erel = np.vstack(beam_profiles['erel']).T #eV/amu
-         
+        
+        #erel[:] = erel.mean()
+        #beam_prof_merged['Ti'][:]=2e3
+ 
+        #beam_prof_merged['ne'][:] = 4e19   
+        #beam_prof_merged['fC'][:] =0.05
 
         beam_prof_merged['erel'] = erel
 
@@ -2933,6 +2973,8 @@ class data_loader:
         fC = beam_prof_merged['fC'] 
         #assume only carbon impurity and deuterium
         nion = (1-5*fC)*ne
+        
+        #embed()
    
  
         line_ids = []
@@ -3018,25 +3060,28 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13','Kr25','Kr27']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13','Kr25','Kr27']:
 
                 atom_files = {'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                               'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                 'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
-                               'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
+                               'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),                               
+                               'Ar17': ('qef07#h_arf#ar17.dat','qef07#h_arf#ar17_n2.dat'),
                                'Ar16': ('qef07#h_arf#ar16.dat','qef07#h_arf#ar16_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
                                  'Al13': ('qef07#h_arf#al13.dat',None),
                                  'Ne9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
                                  'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
-                                 #'O8': ('qef93#h_o8.dat','qef07tmi#h_en2_int#08.dat'),  #O n=10−9 (606.85 nm)
+                                 'O8': ('qef93#h_o8.dat',None),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat','qef97#h_en2_kvi#li3.dat')}
 
  
  
-                blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'15-14':[5,2]},'Ar16':{'14-13':[5,2]},
+                blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'16-15': [7,3],'15-14':[5,2]},
+                          'Ar17':{'16-15':[7,1]},
+                          'Ar16':{'14-13':[5,2],'15-14':[7,3]},
                           'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[3,3]}, 'F9':{'10-9':[2,2]},
-                          'Li3':{ '3-1':[7,7], '7-5':[11,11]}, #'O8': {'12-10': [16,16]} special case!
+                          'Li3':{ '3-1':[7,7], '7-5':[11,11]}, 'O8': {'12-10': [16,16], '9-8': [5,None]}, 
                           'Al13': {'12-11': [2,None]},
                           'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
@@ -3051,6 +3096,10 @@ class data_loader:
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
                 if file2 is not None:
                     qeff2 = read_adf12(path+file2,block2, erel, nion, ti, zeff)
+                if imp== 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and16-15 line
+                    qeff /= 0.81
+                    qeff2 /= 0.81
+
  
             else:
                 raise Exception('CX data for line %s was not found'%line_id)
@@ -3195,7 +3244,11 @@ class data_loader:
                 #except:
                     #embed()
                 denom = np.sum(beam_fact[:,ind]*denom_interp(R_clip),0)
+                #denom = np.sum(beam_fact[:,ind] ),0)
+
                 denom_err = np.sum(beam_fact[:,ind]*denom_err_interp(R_clip),0)
+                
+                #denom[:] = 1
                 
                 #sometimes is power observed by vertical core system is zero, but intensity is nonzero
                 invalid = (denom == 0)|np.isnan(nimp_data['int_err'][ind])|(nimp_data['int'][ind]==0)
@@ -3205,6 +3258,7 @@ class data_loader:
                     denom_err=denom_err[~invalid]
                     
                 nz[ind] = nimp_data['int'][ind]/denom
+                #nz[ind] =   denom_err_interp(R_clip)[0]
                 nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
                 nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
         
@@ -3232,7 +3286,7 @@ class data_loader:
                     
        
         
-
+        #embed()
         #T = np.linspace(3.4,4.6,1000)
         ##print(T)
         #B = '210'
@@ -3460,7 +3514,7 @@ class data_loader:
                 load_systems_intens.append(sys)
             elif not any([nimp_name in ch for ch in nimp[sys]]): #nz data not loaded
                 load_systems_nz.append(sys)
-  
+        #embed()
         nimp['systems'] = systems
         nimp.setdefault('rel_calib_'+nimp_name, rcalib)
         nimp.setdefault('diag_names',Tree())
@@ -3935,7 +3989,7 @@ class data_loader:
             nodes += [path+n for n in ['PHI_START','PHI_END','R_START','R_END','Z_START','Z_END']]
             downsample = .005#s
 
-            tdi = '['+ ','.join(sum([[n%ch for n in nodes] for ch in range(1,nchans+1)],[]))+']'
+            tdi = '['+ ','.join(sum([[n%(ch+1) for n in nodes] for ch in range(nchans)],[]))+']'
             out = self.MDSconn.get(tdi).data().reshape(-1,len(nodes)).T.astype('single') 
             calib =  out[:5][::-1]
             REL_CONST,CTRL_CAL,V_CAL,FS_COEFF_I_N, phi_start,phi_end,R_start, R_end,z_start,z_end = out[5:]
@@ -3948,50 +4002,48 @@ class data_loader:
                 dt = (tvec[-1]-tvec[0])/(nt-1)
                 n = int(np.ceil(downsample/dt))
                 imax = tvec.searchsorted(tend)
-        
+                
                 try:
                     #load raw voltages - only way how to identify saturated signals!
                     #also it is 2x faster then loading VB
 
-                    CTLMID = [self.MDSconn.get('\CTLMIDVB%.2d'%ch).data()[0] for ch in range(1,nchans+1)]
+                    CTLMID = [self.MDSconn.get('\CTLMIDVB%.2d'%(ch+1)).data()[0] for ch in range(nchans)]
 
                     #This value should be between 1 and 10 V. Signals above 10 V will cause the system to trip off, which will cause signal levels to drop to 0.            
-                    PHDMID = [self.MDSconn.get('\PHDMIDVB%.2d'%ch).data() for ch in range(1,nchans+1)]
+                    PHDMID = [self.MDSconn.get('\PHDMIDVB%.2d'%(ch+1)).data() for ch in range(nchans)]
                     PHDMID = np.array([p if len(p)>1  else np.zeros_like(tvec) for p in PHDMID]).T
                     
                  
                     self.MDSconn.closeTree(tree, self.shot)
 
-
-                    nbi30_pow = 0
-                    nbi33_pow = 0
+                    nbi_pow = {'30':0, '33':0}
                     #remove timeslices affected by CX from NBI by some impurities like Ar, Ne, Al,Ca,...
                     if 'VB array w/o CX' == VB_array:
+                        nbi_tvec = None
                         self.MDSconn.openTree('NB', self.shot)                      
-                        nbi30 = self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('30L')).data()
-                        nbi30 = nbi30+self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('30R')).data()
-                        nbi33 = self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('33L')).data()
-                        nbi33 = nbi33+self.MDSconn.get('\\NB::TOP.NB{0}:PINJ_{0}'.format('33R')).data()
-                        t = self.MDSconn.get('\\NB::TOP:TIMEBASE').data()
-                        nbi30_pow = np.interp(tvec, t/1000,nbi30/1e6)
-                        nbi33_pow = np.interp(tvec, t/1000,nbi33/1e6)
-                        #downsample on resolution used for Zeff analysis
-                        nbi30_pow   = np.mean(nbi30_pow[:imax//n*n].reshape( -1, n), 1)
-                        nbi33_pow   = np.mean(nbi33_pow[:imax//n*n].reshape( -1, n), 1)
+                        for beam in nbi_pow.keys():
+                            nbi = self.MDSconn.get('\\NB::TOP.NB{beam}L:PINJ_{beam}L').data()
+                            nbi = nbi+self.MDSconn.get('\\NB::TOP.NB{beam}R:PINJ_{beam}R').data()
+                            if nbi_tvec is None:
+                                nbi_tvec = self.MDSconn.get('\\NB::TOP:TIMEBASE').data()
+                            nbi = np.interp(tvec, nbi_tvec/1000,nbi/1e6)
+                            #downsample on resolution used for Zeff analysis
+                            nbi_pow[beam] = np.mean(nbi[:imax//n*n].reshape(-1, n), 1)
+                        self.MDSconn.closeTree('NB', self.shot)
 
 
                     PHDMID = np.mean(PHDMID[:imax//n*n].reshape( -1,n,nchans), 1)
                     tvec   = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
                     
                     #all values after PHDMID == 10 will be invalid , it is not always working!!
-                    valid = PHDMID < 9.9
+                    valid = PHDMID < 9.5
                     valid = np.cumprod(valid, axis=0,dtype='bool')
                     #only for LOSs viewing beams 30L and 30R i.e. 5 to 16
-                    if np.any(nbi30_pow > 0.1):
-                        valid[:,5:-2] &= nbi30_pow[:,None] < 0.1
-                    if np.any(nbi33_pow > 0.1):
+                    if np.any(nbi_pow['30'] > 0.1):
+                        valid[:,5:-2] &= nbi_pow['30'][:,None] < 0.1
+                    if np.any(nbi_pow['33'] > 0.1):
                         #BUG even more HFS channels can be affected
-                        valid[:,-2:] &= nbi33_pow[:,None] < 0.1
+                        valid[:,-2:] &= nbi_pow['33'][:,None] < 0.1
                            
             
                     #do calibration VB data W/cm**2/A
@@ -4007,7 +4059,7 @@ class data_loader:
 
                     if len(tvec) > 1:
                         VB = np.mean(VB[:imax//n*n].reshape( -1,n,nchans), 1)
-                        tvec   = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
+                        tvec  = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
                         valid = np.ones_like(VB, dtype='bool')
                     #in the older discharges is the signal negative
                     VB *= np.sign(np.mean(VB))
@@ -4028,18 +4080,25 @@ class data_loader:
             
         
                 #remove offset 
-                if any(tvec < 0):
+                # Jeff H. used t_range=[-1300, -900]ms
+                if np.any(tvec < -0.9):
+                    offset = VB[(tvec<-0.9)&(tvec > -1.3)].mean(0)
+                    baseline_err = np.single(VB[tvec<0].std(0)) 
+                elif np.any(tvec < 0):
                     offset = VB[tvec<0].mean(0)
                     baseline_err = np.single(VB[tvec<0].std(0)) 
-                    VB -= offset
                 else:
                     baseline_err = 0
+                    offset = 0
+
+                VB -= offset             
+
                 imin = tvec.searchsorted(tbeg)
                 VB = np.single(VB[imin:])
                 tvec = tvec[imin:]
                 VB_err = abs(VB)*.1+baseline_err/2 #guess 10%error
                 VB_err[VB == 0] = np.infty
-                VB_err[~valid[imin:]] *= -1 #posibly invalid, can be enabled in the GUI
+                VB_err[~valid[imin:]] *= -1 #possibly invalid, can be enabled in the GUI
 
                 
                 zeff[VB_array] = Dataset('ZeffVB.nc',attrs={'system':VB_array,'wavelength': 5230.0})
@@ -4919,7 +4978,6 @@ class data_loader:
         
         if analysis_type != 'cerreal':
             lineid = output.pop(0)
-            #lineid = output.pop(0)
             geom_data = output.pop(0)
             LENS_R,LENS_Z,LENS_PHI = geom_data.reshape(-1,3).T
             LENS_PHI = np.int_(LENS_PHI)
@@ -5192,7 +5250,8 @@ class data_loader:
                 #BUG time can be sometimes not unique 183504 CERFIT
                 ds['time'] = xarray.DataArray(tvec[tind], dims=['time'], attrs={'units':'s'})
                 cer[diag].append(ds)
-                #embed()
+            else:
+                print('No Ti and omega found for ch: '+ds.attrs['channel'])
         
         
         self.cer_sol_corr = sol_corr
@@ -5506,6 +5565,12 @@ class data_loader:
             ts[sys]['time'] = xarray.DataArray(tvec[isys],dims=['time'], attrs={'units':'s'})
             ts[sys]['channel'] = xarray.DataArray(channel,dims=['channel'], attrs={'units':'-'})
 
+   
+        if self.shot in [190549]:
+            ts['tangential']['ne_err'][:,9] = np.inf
+            ts['core']['ne_err'][:,15] = np.inf
+
+        
  
         print('\t done in %.1fs'%(time()-T))
         ts['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':zshift, 'ed':self.eqm.diag})
@@ -6838,7 +6903,8 @@ def main():
     shot = 193812
     #shot = 175900
     #shot = 
-    shot = 190654 #intensity nc funguje mizerne
+    shot = 190550 #intensity nc funguje mizerne
+    shot = 192784 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
     #shot = 182725
@@ -6943,9 +7009,9 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(1)] )},
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(0),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -6990,6 +7056,7 @@ def main():
     settings['nCa18'] = settings['nimp']
     settings['nLi3'] = settings['nimp']
     settings['nNe10'] = settings['nimp']
+    settings['nO8'] = settings['nimp']
 
     settings['elm_signal'] = S('fs01up')
     settings['elm_signal'] = S('fs04')
@@ -7007,7 +7074,7 @@ def main():
     loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
-    data = loader( 'nNe10', settings,tbeg=1., tend=5)
+    data = loader( 'nC6', settings,tbeg=1., tend=5)
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
