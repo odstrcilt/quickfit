@@ -802,10 +802,7 @@ def default_settings(MDSconn, shot):
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
-    if shot in [190549]:
-        imps.append('O8')
-    
- 
+  
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
@@ -5566,7 +5563,7 @@ class data_loader:
             ts[sys]['channel'] = xarray.DataArray(channel,dims=['channel'], attrs={'units':'-'})
 
    
-        if self.shot in [190549]:
+        if self.shot in [190549, 190550,190551]:
             ts['tangential']['ne_err'][:,9] = np.inf
             ts['core']['ne_err'][:,15] = np.inf
 
