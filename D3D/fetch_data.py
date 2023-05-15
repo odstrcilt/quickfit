@@ -710,6 +710,7 @@ def default_settings(MDSconn, shot):
     #Load revisions of Thompson scattering
     ts_revisions = []
     imps = []
+    imps_sys = {}
     if MDSconn is not None:
         try:
             #load all avalible TS revision
@@ -746,29 +747,31 @@ def default_settings(MDSconn, shot):
             _line_id = MDSconn.get('['+','.join(TDI_lineid)+']').data()
             
             
-            #lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
-            #for ch, l, i in zip(channel, lam, _line_id):
-                #print(ch,i,  l)
+            lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
+            for ch, l, i in zip(channel, lam, _line_id):
+                print(ch,i,  l)
 
             MDSconn.closeTree('IONS', shot)
             
+            ch_system = np.array([ch[0] for ch in channel])
+            
+            
             line_id = []
-            uids = np.unique(_line_id)
+            uids = np.unique(_line_id )
             for l in uids:                
                 if not isinstance(l,str):
                     l = l.split(b'\x00')[0] #sometimes are names quite wierd
                     l = l.decode()
-                #l = l.strip()
-                #if l not in line_id:
                 line_id.append(l.strip())
- 
-            for l in line_id:
+            
+            for l,ll in zip(line_id, uids):
                 try:
                     tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', l)
                     imp, Z = tmp.group(1), tmp.group(2)
                     imps.append(imp+str(roman2int(Z) ))
                 except:
                     imps.append('XX')
+                imps_sys[imps[-1]] = np.unique(ch_system[_line_id == ll]).tolist()
 
             #if there are other impurities than carbon, print their channels
             if len(line_id) > 1:
@@ -787,17 +790,12 @@ def default_settings(MDSconn, shot):
                     print('-'+ch_prew)
                 print('--------------------------------')
 
-                            
-                    
-                    
-                
-                
                     
 
         except Exception as e:
             imps = ['C6']
     
-    #exception data from main ion CER
+    #exception data from impurity ion CER
     if shot == 183188:
         imps.append('Li3')
     if shot == 194311:
@@ -842,15 +840,24 @@ def default_settings(MDSconn, shot):
         
             
     nimp = {\
-        'systems':{'CER system':(['tangential',True], ['vertical',False], ['SPRED',False])},
+        'systems':{'CER system':(['tangential',False], ['vertical',False], ['SPRED',False])},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', ('best', ('best','fit','auto','quick','real'))),
                                 ('Correction',{'Relative calibration':True, 'nz from CER intensity': True,
                                                'remove first data after blip':False}  )))   }}
     #,'Remove first point after blip':False
-    #if there are multiple impurities
+    #if there are multiple impurities, select system with the data,preferably tangential
     for imp in imps:
         default_settings['n'+imp] = deepcopy(nimp)
+        if 't' in imps_sys.get(imp,['t']):
+            default_settings['n'+imp]['systems']['CER system'][0][1] = True
+        elif 'v' in imps_sys.get(imp,['t']):
+            default_settings['n'+imp]['systems']['CER system'][1][1] = True
+        elif imp in ['He2','B5','C6','N7','O8','Ne10']:
+            default_settings['n'+imp]['systems']['CER system'][2][1] = True
+            
+        
+        
 
 
     default_settings['Zeff']= {\
@@ -2006,12 +2013,7 @@ class data_loader:
                 if self.shot in [194311]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Kr XXVII 21-20']*len(loaded_chan)
-                if self.shot in [190549,190550, 192784, 192785]:
-                    #if analysis_type == 'cerauto': 
-                        #embed()
-                        #for i in range(4):
-                            #line_id[i] = 'C VI 8-7'
-                            #line_id[-i-1] = 'O VIII 9-8' 
+                if self.shot in [190549,  192784, 192785]:
                     if analysis_type == 'cerfit': #carbon
                         for i in [8,9,10]:
                             line_id[i] = 'Ca XVIII 16-15'
@@ -2398,7 +2400,7 @@ class data_loader:
                 ds['nimp_err']  = xarray.DataArray(0*utvec-np.inf,dims=['time'])
 
                 ds['int'] = xarray.DataArray(INT[ich][beam_ind], dims=['time'], 
-                                        attrs={'units':'ph / sr m^{3}','line':line_id[ich].strip()})
+                                        attrs={'units':'ph / sr m^{2} s','line':line_id[ich].strip()})
                 ds['int_err']  = xarray.DataArray(INT_ERR[ich][beam_ind],dims=['time'])
                 ds['R'] = xarray.DataArray(R[ich][beam_ind],dims=['time'], attrs={'units':'m'})
                 ds['Z'] = xarray.DataArray(Z[ich][beam_ind],dims=['time'], attrs={'units':'m'})
@@ -2409,10 +2411,10 @@ class data_loader:
                 ds['beam_pow'] = xarray.DataArray(beam_pow[:,beam_ind],dims=['beams','time'], attrs={'units':'W'})
                 #NBI was just turned on
                 ds['beam_swiched_on'] = xarray.DataArray(beam_on[beam_ind],dims=['time'] )
-                ds['beam_frac'] = xarray.DataArray(beam_frac[:,beam_ind],dims=['beams','time'], attrs={'units':'W'})
-                
+                ds['beam_frac'] = xarray.DataArray(beam_frac[:,beam_ind],dims=['beams','time'] )
+
                 ds['beam_geom'] = xarray.DataArray(beam_geom[ich, observed_beams],dims=['beams'])
-                
+
                 ds['beams'] = xarray.DataArray(beams,dims=['beams'])
                 #it is much faster to add "time" the last in the xarray.dataset than as the first one!!
                 ds['time'] = xarray.DataArray(utvec,dims=['time'], attrs={'units':'s'})
@@ -3076,9 +3078,12 @@ class data_loader:
  
                 blocks = {'Ar18':{'15-14':[5,2]}, 'Ca18':{'16-15': [7,3],'15-14':[5,2]},
                           'Ar17':{'16-15':[7,1]},
-                          'Ar16':{'14-13':[5,2],'15-14':[7,3]},
-                          'B5':{'3-2':[1,1]}, 'Ne9':{'11-10':[3,3]}, 'F9':{'10-9':[2,2]},
-                          'Li3':{ '3-1':[7,7], '7-5':[11,11]}, 'O8': {'12-10': [16,16], '9-8': [5,None]}, 
+                          'Ar16':{'14-13':[5,2],'15-14':[7,3],'16-15':[9,4]},
+                          'B5':{'3-2':[1,1]}, 
+                          'Ne9':{'11-10':[3,3]}, 
+                          'F9':{'10-9':[2,2]},
+                          'Li3':{ '3-1':[7,7], '7-5':[11,11]},
+                          'O8': {'12-10': [16,16], '9-8': [5,None],'10-9': [6,None]}, 
                           'Al13': {'12-11': [2,None]},
                           'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
