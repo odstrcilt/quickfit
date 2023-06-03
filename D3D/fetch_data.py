@@ -3908,6 +3908,7 @@ class data_loader:
                 ch[nimp_name+'_corr'].values[valid] /= corr[valid]
                 ch[nimp_name+'_err_corr'] = ch[nimp_name+'_err'].copy()
                 ch[nimp_name+'_err_corr'].values[valid] /= corr[valid]
+                ch.attrs['rescale_median'] = np.median( corr[valid])
             
             
         elif rcalib and len(unique_impurities)>1:
