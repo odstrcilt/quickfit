@@ -3761,8 +3761,9 @@ class data_loader:
                         
             if len(calib['t']) == 0 or len(other['t']) == 0:
                 if len(calib['t']) == 0:
+                    print(NBI)
                     printe('unsuccessful... no calib beam ')
-                    embed()
+                    #embed()
                 else:
                     printe('unsuccessful... no other beams ')
 
@@ -7106,7 +7107,7 @@ def main():
     #loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
-    for shot in range(195000, 196000):
+    for shot in range(195370, 196000):
         #shot = 195055
         print('-------------',shot,'-----------------------------')
         
