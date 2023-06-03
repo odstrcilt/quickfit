@@ -747,9 +747,9 @@ def default_settings(MDSconn, shot):
             _line_id = MDSconn.get('['+','.join(TDI_lineid)+']').data()
             
             
-            lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
-            for ch, l, i in zip(channel, lam, _line_id):
-                print(ch,i,  l)
+            #lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
+            #for ch, l, i in zip(channel, lam, _line_id):
+                #print(ch,i,  l)
 
             MDSconn.closeTree('IONS', shot)
             
@@ -763,7 +763,7 @@ def default_settings(MDSconn, shot):
                     l = l.split(b'\x00')[0] #sometimes are names quite wierd
                     l = l.decode()
                 line_id.append(l.strip())
-            
+                
             for l,ll in zip(line_id, uids):
                 try:
                     tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', l)
@@ -777,7 +777,6 @@ def default_settings(MDSconn, shot):
             if len(line_id) > 1:
                 print('------------ CER setup ---------')
                 for imp, lid, uid in zip(imps,  line_id, uids):
-                    #if imp == 'C6': continue
                     print(imp+': ',end = '')
                     ch_prew = None
                     for ch, _id in zip(channel, _line_id):
@@ -840,7 +839,7 @@ def default_settings(MDSconn, shot):
         
             
     nimp = {\
-        'systems':{'CER system':(['tangential',False], ['vertical',False], ['SPRED',False])},
+        'systems':{'CER system':[['tangential',False], ['vertical',False], ]},
         'load_options':{'CER system':OrderedDict((
                                 ('Analysis', ('best', ('best','fit','auto','quick','real'))),
                                 ('Correction',{'Relative calibration':True, 'nz from CER intensity': True,
@@ -849,12 +848,18 @@ def default_settings(MDSconn, shot):
     #if there are multiple impurities, select system with the data,preferably tangential
     for imp in imps:
         default_settings['n'+imp] = deepcopy(nimp)
+        #show SPRED only for impurities which are supported
+        if imp in ['He2','B5','C6','N7','O8','Ne10']:
+            default_settings['n'+imp]['systems']['CER system'].append(['SPRED',False])
+        
         if 't' in imps_sys.get(imp,['t']):
             default_settings['n'+imp]['systems']['CER system'][0][1] = True
         elif 'v' in imps_sys.get(imp,['t']):
             default_settings['n'+imp]['systems']['CER system'][1][1] = True
         elif imp in ['He2','B5','C6','N7','O8','Ne10']:
             default_settings['n'+imp]['systems']['CER system'][2][1] = True
+            
+        
             
         
         
@@ -2018,6 +2023,7 @@ class data_loader:
                         for i in [8,9,10]:
                             line_id[i] = 'Ca XVIII 16-15'
                             line_id[i+3] = 'Ca XVIII 15-14'
+               
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
@@ -3061,18 +3067,19 @@ class data_loader:
             
             elif imp in ['Ca18','Ar18','Ar17','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13','Kr25','Kr27']:
 
-                atom_files = {'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
-                              'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
-                                'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
+                atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
+                               'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
+                               'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),                               
-                               'Ar17': ('qef07#h_arf#ar17.dat','qef07#h_arf#ar17_n2.dat'),
-                               'Ar16': ('qef07#h_arf#ar16.dat','qef07#h_arf#ar16_n2.dat'),
-                                 'F9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
-                                 'Al13': ('qef07#h_arf#al13.dat',None),
-                                 'Ne9': ('qef07#h_arf#f9.dat','qef07#h_en2_arf#f9.dat'),
-                                 'B5': ('qef93#h_b5.dat','qef97#h_en2_kvi#b5.dat'),
+                               'Ar17': ('qef07#h_arf#ar17.dat', 'qef07#h_arf#ar17_n2.dat'),
+                               'Ar16': ('qef07#h_arf#ar16.dat', 'qef07#h_arf#ar16_n2.dat'),
+                                 'F9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
+                               'Al13': ('qef07#h_arf#al13.dat',None),
+                                'Ne9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
+                                 'B5': ('qef93#h_b5.dat',       'qef97#h_en2_kvi#b5.dat'),
+                                 'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
                                  'O8': ('qef93#h_o8.dat',None),  #O n=10−9 (606.85 nm)
-                                'Li3': ('qef07#h_arf#li3.dat','qef97#h_en2_kvi#li3.dat')}
+                                'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
 
  
  
@@ -3082,6 +3089,7 @@ class data_loader:
                           'B5':{'3-2':[1,1]}, 
                           'Ne9':{'11-10':[3,3]}, 
                           'F9':{'10-9':[2,2]},
+                          'C6':{'8-7':[5,5]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
                           'O8': {'12-10': [16,16], '9-8': [5,None],'10-9': [6,None]}, 
                           'Al13': {'12-11': [2,None]},
@@ -3093,12 +3101,15 @@ class data_loader:
                 
                 #unavailible
                 qeff_th = qeff2_th = qeff2 = 0
+                
+                
                 file1, file2 = atom_files[imp]
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
+   
                 if file2 is not None:
                     qeff2 = read_adf12(path+file2,block2, erel, nion, ti, zeff)
-                if imp== 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and16-15 line
+                if imp== 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and 16-15 line
                     qeff /= 0.81
                     qeff2 /= 0.81
 
@@ -3236,7 +3247,7 @@ class data_loader:
                 R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
                 # sum over beam species crossection before interpolation
                 #denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
-               
+                #print(nb0, beams)
                 denom_TS_R = np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1)
                 denom_interp = lambda x: np.exp(interp1d(Rmid, np.log(denom_TS_R), copy=False)(x))  # nR x nbeam
 
@@ -3673,9 +3684,9 @@ class data_loader:
         unique_impurities = np.unique(impurities)
         T = time()
         all_channels = [ch for s in nimp['systems'] for ch in nimp[s]]
-   
+        
         #reduce discrepancy between different CER systems
-        if rcalib and len(diag_names) > 1 and len(unique_impurities)==1 and 'tangential' in nimp['systems']:
+        if rcalib and len(diag_names) > 1 and len(unique_impurities)==1:
             print( '\t* Relative calibration of beams  ...')
             NBI = self.RAW['nimp']['NBI']
             
@@ -3713,6 +3724,7 @@ class data_loader:
                     calib_beam = calib_beam[0]+'_'+calib_beam[1:]
                 printe('\t\tNo reliable beam for cross calibration, guessing.. using '+calib_beam)
             #calib_beam = 'T_30B'
+            
             #cross-calibrate other profiles
             calib = {'t':[],'r':[],'n':[],'nerr':[],'f':[]}
             other = {'t':[],'r':[],'n':[],'nerr':[],'f':[]}
@@ -3750,6 +3762,7 @@ class data_loader:
             if len(calib['t']) == 0 or len(other['t']) == 0:
                 if len(calib['t']) == 0:
                     printe('unsuccessful... no calib beam ')
+                    embed()
                 else:
                     printe('unsuccessful... no other beams ')
 
@@ -4553,9 +4566,9 @@ class data_loader:
             concentrations = {imp:[] for imp in SPRED_CX_ions}
             charge = {'C6':6,'e': -1}
             correction = []
-            densities = {'time_cx':[], 'rho_cx': [],'n_e': [], 'n_e_err': []}
-            densities.update({'n_'+i+'_cx': [] for i in SPRED_CX_ions})
-            densities.update({'n_'+i+'_cx_err': [] for i in SPRED_CX_ions})
+            #densities = {'time_cx':[], 'rho_cx': [],'n_e': [], 'n_e_err': []}
+            #densities.update({'n_'+i+'_cx': [] for i in SPRED_CX_ions})
+            #densities.update({'n_'+i+'_cx_err': [] for i in SPRED_CX_ions})
 
 
             for ib,nC in enumerate(main_imp['SPRED_C6']):
@@ -4607,14 +4620,22 @@ class data_loader:
                 options = {'Analysis': (S('SPRED'), (cer_type,'fit','auto','quick')),
                         'Correction': {'Relative calibration':I(0),'nz from CER intensity': I(1)}}
                 
-                densities['time_cx'].append(tvec[t_ind])
-                densities['rho_cx'].append(rho[t_ind])
-                densities['n_C6_cx'].append(nC['nimp'].values[t_ind])
-                densities['n_C6_cx_err'].append(nC['nimp_err'].values[t_ind])
-                densities['n_e'].append(1e19*ne[t_ind])
-                densities['n_e_err'].append(1e19*ne_err[t_ind])
+                #densities['time_cx'].append(tvec[t_ind])
+                #densities['rho_cx'].append(rho[t_ind])
+                #densities['n_C6_cx'].append(nC['nimp'].values[t_ind])
+                #densities['n_C6_cx_err'].append(nC['nimp_err'].values[t_ind])
+                #densities['n_e'].append(1e19*ne[t_ind])
+                #densities['n_e_err'].append(1e19*ne_err[t_ind])
+                
+                
 
-                                   
+                ds = Dataset('Zeff_SPRED.nc', attrs={'system':'SPRED', 'channel':channel,
+                                                     'scaled to match C6 CER data by':corr })
+                
+                ds['conc_C6'] = xarray.DataArray(np.single(imp_conc), dims=['time'])
+                ds['conc_C6_err'] = xarray.DataArray(np.single(nC['nimp_err'].values/1e19/ne), dims=['time'])
+
+
                 #load other light impurities from SPRED without cross-calibration
                 for imp in SPRED_CX_ions:
                     
@@ -4654,9 +4675,11 @@ class data_loader:
                     concentrations[imp].append(imp_conc[t_ind])
                     charge[imp] = other_imp.attrs['Z']
                     
-                    densities['n_'+imp+'_cx'].append(imp_conc[t_ind]*1e19*ne[t_ind])
-                    densities['n_'+imp+'_cx_err'].append(imp_conc_err[t_ind]*1e19*ne[t_ind])
-                
+                    #densities['n_'+imp+'_cx'].append(imp_conc[t_ind]*1e19*ne[t_ind])
+                    #densities['n_'+imp+'_cx_err'].append(imp_conc_err[t_ind]*1e19*ne[t_ind])
+                    ds['conc_'+imp] = xarray.DataArray( np.single(imp_conc), dims=['time'])
+
+                    ds['conc_'+imp+'_err'] = xarray.DataArray( np.single(imp_conc_err),  dims=['time'])
 
                 
                 
@@ -4664,7 +4687,6 @@ class data_loader:
                 Zeff_err = Zeff*np.sqrt(Zeff2_err/Zeff**2+(ne_err/ne)**2)
 
                 #create dataset
-                ds = Dataset('Zeff_SPRED.nc', attrs={'system':'SPRED', 'channel':channel, 'scaled to match C6 CER data by':corr })
 
                 ds['R'] = xarray.DataArray(R, dims=['time'], attrs={'units':'m'})
                 ds['Z'] = xarray.DataArray(Z ,dims=['time'], attrs={'units':'m'})
@@ -4674,44 +4696,46 @@ class data_loader:
                                             attrs={'units':'-','label':'Z_\mathrm{eff}'})
 
                 ds['Zeff_err'] = xarray.DataArray( np.single(Zeff_err), dims=['time']) 
+                
+                
                 ds['time'] = xarray.DataArray(tvec ,dims=['time'], attrs={'units':'s'})
                 zeff['SPRED'].append(ds)
             
-            sind = np.argsort(np.hstack(densities['time_cx']))
-            time_cx = np.hstack(densities['time_cx'])[sind] 
+            #sind = np.argsort(np.hstack(densities['time_cx']))
+            #time_cx = np.hstack(densities['time_cx'])[sind] 
             
-            # join the SPRED measurement from the same time but different background substraction side
-            lind, rind = [], []
-            i = 0
-            while i < len(time_cx):
-                lind.append(i)
-                #if they are at nearky the same time (small random jitter was introduced in the timebase)
-                if i +1 < len(time_cx) and  time_cx[i] > time_cx[i+1] - 1e-4:
-                    i+= 1
-                i+= 1
-                rind.append(i-1)
+            ## join the SPRED measurement from the same time but different background substraction side
+            #lind, rind = [], []
+            #i = 0
+            #while i < len(time_cx):
+                #lind.append(i)
+                ##if they are at nearky the same time (small random jitter was introduced in the timebase)
+                #if i +1 < len(time_cx) and  time_cx[i] > time_cx[i+1] - 1e-4:
+                    #i+= 1
+                #i+= 1
+                #rind.append(i-1)
        
-            for k in list(densities.keys()):
-                if len(densities[k]):
-                    densities[k] = np.hstack(densities[k])[sind].astype('single')
-                    densities[k] = (densities[k][lind]+densities[k][rind])/2
-                else:
-                    densities.pop(k)
+            #for k in list(densities.keys()):
+                #if len(densities[k]):
+                    #densities[k] = np.hstack(densities[k])[sind].astype('single')
+                    #densities[k] = (densities[k][lind]+densities[k][rind])/2
+                #else:
+                    #densities.pop(k)
      
                 
-            for highz_imp in ['Cu', 'Mo', 'Fe', 'Ni']:    
-                t,n = self.load_nimp_spred(highz_imp, cx_line=False)
-                n-=n[t<.5].mean()
-                ind = (t > 1.5)&(t < 5)
-                t, n = t[ind], n[ind]
-                ne =  Linterp(np.vstack((t, t*0)).T)
-                #ne  = Linterp.ev(t, t*0) 
+            #for highz_imp in ['Cu', 'Mo', 'Fe', 'Ni']:    
+                #t,n = self.load_nimp_spred(highz_imp, cx_line=False)
+                #n-=n[t<.5].mean()
+                #ind = (t > 1.5)&(t < 5)
+                #t, n = t[ind], n[ind]
+                #ne =  Linterp(np.vstack((t, t*0)).T)
+                ##ne  = Linterp.ev(t, t*0) 
 
-                densities[highz_imp] =  np.single(n/ne)
-                densities['time'] = t
+                #densities[highz_imp] =  np.single(n/ne)
+                #densities['time'] = t
 
             
-            densities['charge'] = charge
+            #densities['charge'] = charge
             #np.savez_compressed('SPRED_data_%d'%self.shot, **densities)
 
 
@@ -5511,8 +5535,11 @@ class data_loader:
         
         #get shot number with calibration data
         TDIcalib = f'\\{tree}::TOP.TS.{revision}.header:calib_nums'
-        calibration_set = mds_load(self.MDSconn, [TDIcalib], tree, self.shot)[0][0]
-        
+        try:
+            calibration_set = mds_load(self.MDSconn, [TDIcalib], tree, self.shot)[0][0]
+        except:
+            raise Exception('No TS data? ')
+       
         try:
             TDIcalib = [f'\\tscal::TOP.{sys}.hwmapints' for sys in systems]
             hw_ints = mds_load(self.MDSconn, TDIcalib, 'tscal', calibration_set)
@@ -5867,6 +5894,8 @@ class data_loader:
         #bttvec = self.MDSconn.get('dim_of(PTDATA("bt", 183503))').data()
         try:
             zipfit = self.load_zipfit()
+            zipfit['Te']
+            zipfit['ne']
         except:
             zipfit = None
             printe('Missing ZIPFIT data')
@@ -6838,7 +6867,6 @@ def main():
         MDSconn = MDSplus.Connection(mdsserver)
     except:
         mdsserver = 'localhost'
-
         MDSconn = MDSplus.Connection(mdsserver)
     TT = time()
 
@@ -6906,7 +6934,7 @@ def main():
     #shot = 175900
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
-    shot = 192784 #intensity nc funguje mizerne
+    shot = 195853 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
     #shot = 182725
@@ -6967,9 +6995,10 @@ def main():
     #TODO H plasmas???
 
     print(shot)
-    print_line( '  * Fetching EFIT02 data ...')
+    EFIT = 'EFIT01'
+    print_line( F'  * Fetching {EFIT} data ...')
     eqm = equ_map(MDSconn)
-    eqm.Open(shot, 'EFIT01', exp='D3D')
+    eqm.Open(shot, EFIT, exp='D3D')
 
     #load EFIT data from MDS+ 
     T = time()
@@ -7011,10 +7040,10 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(1)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
-                                ('Correction',{'Relative calibration':I(0),'nz from CER intensity':I(1),
+                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
+                                ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
     settings.setdefault('Te', {\
@@ -7034,16 +7063,16 @@ def main():
                         }})
         
     settings.setdefault('Zeff', {\
-        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(1)],                 )),
+        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
                                 ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
                                 ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
-                                ( 'SPRED',(['He+B+C+O+N',I(0)],)),                           
+                                ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
                                 )), \
         'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
                         'TS':{'Position error':{'Z shift [cm]':D(0.0)}},
                         'CER VB':{'Analysis':(S('auto'), (S('best'),'fit','auto','quick'))},
                         'CER system':OrderedDict((
-                                ('Analysis', (S('best'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',    {'Relative calibration':I(1), 'nz from CER intensity':I(0)}), #BUG
                                 ('TS position error',{'Z shift [cm]':D(0.0)})))
                         }\
@@ -7072,11 +7101,28 @@ def main():
     #T = time()
 
     #load_zeff(self,tbeg,tend, options=None)
-    #data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
-    loader.load_elms(settings)
+    ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    #loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    
+    for shot in range(195000, 196000):
+        #shot = 195055
+        print('-------------',shot,'-----------------------------')
+        
+        try:
+            eqm = equ_map(MDSconn)
 
-    data = loader( 'nC6', settings,tbeg=1., tend=5)
+            eqm.Open(shot, 'EFIT01', exp='D3D')
+
+            loader = data_loader(MDSconn, shot, eqm, rho_coord, raw = {})
+
+            data = loader( 'Zeff', settings,tbeg=1., tend=eqm.t_eq[-1])
+            
+            for d in data['data']:
+                d.to_netcdf(f'{shot}_'+d.channel+'.cdf')
+        except:
+            #raise
+            continue
     #print(data)
 #settings['nimp']= {\
     #'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
