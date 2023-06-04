@@ -1510,6 +1510,7 @@ class data_loader:
         view_Z = [0.0530, 0.0530]
         view_phi= [13.51, 20.15]
         geomfac = [3.129, 2.848]  # m**-1
+        geomfac = [2.8/1.5, 3.2/1.5/0.9]  # m**-1
 
         nbi_on_frac = np.zeros((len(spred_tvec),len(load_beams)))
         nbi_pow = np.zeros((len(spred_tvec),len(load_beams)))
@@ -1877,6 +1878,11 @@ class data_loader:
         #TTSUB_ST = np.zeros_like(tvec,dtype='single')
         
         #print(spred_tvec.shape, spred_stime.shape, spred_data.shape, spred_err.shape, R.shape, Z.shape, TTSUB.shape, TTSUB_ST.shape, beam_geom.shape, )
+        
+        if imp == 'O8':
+            spred_data*= 11
+            spred_err*=11
+            
    
 
         return spred_tvec,spred_stime, spred_data, spred_err,np.single(R), np.single(Z),np.mean(phi),TTSUB,TTSUB_ST, line_ids[imp], beam_geom
@@ -1934,9 +1940,10 @@ class data_loader:
             
             if load_real:
                 continue
-
+ 
             path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
             nodes = self.MDSconn.get('getnci("'+path+'","fullpath")').data()
+           
             lengths = self.MDSconn.get('getnci("'+path+':R","LENGTH")').data()
 
 
@@ -3633,9 +3640,11 @@ class data_loader:
                         if selected.get() != 'auto':
                             #try to load from AUTO edition
                             selected.set('auto')
-                            nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
+                            nimp0 = self.load_nimp(tbeg,tend,['tangential','vertical'],options) 
                     except:
                         printe('Error in loading of nC from IMPDENS AUTO edition: '+str(e))
+                        embed()
+
                     #finally:
                         #print('selected',analysis_type, analysis_type[3:] )
                 #set back changes made for IMPDENS density fetch
@@ -4632,7 +4641,7 @@ class data_loader:
                 
 
                 ds = Dataset('Zeff_SPRED.nc', attrs={'system':'SPRED', 'channel':channel,
-                                                     'scaled to match C6 CER data by':corr })
+                                                     'scaled to match C6 CER data by':np.mean(corr) })
                 
                 ds['conc_C6'] = xarray.DataArray(np.single(imp_conc), dims=['time'])
                 ds['conc_C6_err'] = xarray.DataArray(np.single(nC['nimp_err'].values/1e19/ne), dims=['time'])
@@ -4933,9 +4942,8 @@ class data_loader:
                     cer['diag_names'][system] = []
                     path = 'CER.%s.%s.CHANNEL*'%(analysis_type,system)
                     
-                
                     nodes = self.MDSconn.get('getnci("'+path+'","fullpath")')
-
+                    
                     #lengths_int = self.MDSconn.get('getnci("'+path+':'+signals_[4]+'","LENGTH")').data()                
                     lengths_Rot = self.MDSconn.get('getnci("'+path+':'+signals_[2]+'","LENGTH")').data()
                     #lengths_Ti  = self.MDSconn.get('getnci("'+path+':'+signals_[0]+'","LENGTH")').data()
@@ -7107,7 +7115,7 @@ def main():
     #loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     
-    for shot in range(195370, 196000):
+    for shot in range(195400, 196000):
         #shot = 195055
         print('-------------',shot,'-----------------------------')
         
