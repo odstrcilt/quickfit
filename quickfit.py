@@ -106,7 +106,7 @@ class DataFit():
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
                  raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False):
-        
+        #settings={'Ti':{'load_options':{'CER system':{'Corrections':{'Wall reflections': True}}}}}
   
         print('Accesing data from %s tokamak'%device)
         
@@ -601,9 +601,9 @@ class DataFit():
 
     def load_default_options(self, reset_settings=True):
  
-     
+        print('reset_settings', reset_settings)
         #dictionary with default settings
-        if reset_settings and self.shot is not None:
+        if self.shot is not None:
 
             self.default_settings = self.default_settings_loader(self.MDSconn,self.shot)
             self.kin_profs = list(self.default_settings.keys())

@@ -707,7 +707,6 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
  
 
 def default_settings(MDSconn, shot):
-    print('default_settings', shot)
     #Load revisions of Thompson scattering
     ts_revisions = []
     imps = []
@@ -4252,10 +4251,15 @@ class data_loader:
                 #sometimes is STIME not availible 
                 if 'STIME' in signals:
                     stime = [o[2] if len(o) else np.array([]) for o in out]
-                
-                    
-                    
-           
+       
+                # hardcoded correction for CER vertical channels
+                if self.shot  > 188000:
+                    if 'vertical.CHANNEL17' in channels:
+                        VB_[channels.index('vertical.CHANNEL17')] *= 1.9
+                    if 'vertical.CHANNEL18' in channels:
+                        VB_[channels.index('vertical.CHANNEL18')] *= 1.9
+            
+                 
                 #get a time in the center of the signal integration 
                 tvec_ = [(t+s/2.)/1000 for t,s in zip(tvec_, stime)] 
                 #get any valid position (for example the one with smallest Z )
@@ -4281,6 +4285,7 @@ class data_loader:
                     #load only channesl for which VB data exists
                     TDI_calib_ = sum([TDI_calib[i] for i in valid_ind],[])
                     
+                    #fast fetch of a marged array of the values from MDS+
                     out = self.MDSconn.get('['+','.join(TDI_calib_)+']').data() 
                     lam,R1,Z1,Phi1 = out.reshape(-1,28)[:,:4].T
                     R2,Z2,Phi2  = out.reshape(-1,28)[:,4:].reshape(-1,3,8).swapaxes(0,1)
@@ -4339,7 +4344,6 @@ class data_loader:
                     ds['time'] = xarray.DataArray(tvec[ind].astype('single'),dims=['time'], attrs={'units':'s'})
                     ds['channel'] = xarray.DataArray([channels[i][0]+channels[i][-2:] for i in valid_ind] ,dims=['channel'])
                     
-                    #embed()
 
                     zeff['diag_names'][cer_subsys[diag]] = np.unique(names).tolist()
                 self.MDSconn.closeTree(tree, self.shot)
@@ -4375,9 +4379,12 @@ class data_loader:
             L = np.linalg.norm(xyz-pos1[...,None],axis=0)
             
                  
-            zeff[sys]['R'] = xarray.DataArray(np.single(R), dims=['channel', 'path'], attrs={'units':'m'})
-            zeff[sys]['Z'] = xarray.DataArray(np.single(Z), dims=['channel', 'path'], attrs={'units':'m'})
-            zeff[sys]['L'] = xarray.DataArray(np.single(L), dims=['channel', 'path'], attrs={'units':'m'})
+            zeff[sys]['R'] = xarray.DataArray(np.single(R),
+                                dims=['channel', 'path'], attrs={'units':'m'})
+            zeff[sys]['Z'] = xarray.DataArray(np.single(Z), 
+                                dims=['channel', 'path'], attrs={'units':'m'})
+            zeff[sys]['L'] = xarray.DataArray(np.single(L),
+                                dims=['channel', 'path'], attrs={'units':'m'})
             zeff[sys]['path'] = xarray.DataArray(t,  dims=['path'])
             
             
