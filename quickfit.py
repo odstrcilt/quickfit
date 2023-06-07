@@ -393,9 +393,8 @@ class DataFit():
                         self.BRIEF = self.BRIEF.decode()
                     print(self.BRIEF)
                 except:
-                    print('Shot commentin MDS+ does not exist')
-                    #return False
-                    #pass
+                    print('Shot comment in MDS+ does not exist')
+                  
                 #load default filterscope for elm identification
                 try:
                     self.MDSconn.openTree('PEDESTAL', shot)
@@ -605,14 +604,15 @@ class DataFit():
         #dictionary with default settings
         if self.shot is not None:
 
-            default_settings = self.default_settings_loader(self.MDSconn,self.shot)
-            self.kin_profs = list(default_settings.keys())
+            self.default_settings = self.default_settings_loader(self.MDSconn,self.shot)
+            self.kin_profs = list(self.default_settings.keys())
   
-            for key, val in  default_settings.items():
-                self.default_settings.setdefault(key, OrderedDict())
+           # for key, val in  default_settings.items():
+           #     self.default_settings.setdefault(key, OrderedDict())
 
-                for k,v in val.items():
-                    self.default_settings[key].setdefault(k,v)
+            #    for k,v in val.items():
+           #         self.default_settings[key].setdefault(k,v)
+          
         else:
             self.kin_profs = ['ne','Te'] #default list 
  
@@ -731,11 +731,10 @@ class DataFit():
                         self.load_options[kin_prof]['load_options'][system][name] = tk_var(options[0]), options[1]
  
         
-        self.tbeg, self.tend = 0, 7
+        self.tbeg, self.tend = 0, 10
         for prof in self.kin_profs:
             self.load_options[prof]['trange'] = self.tbeg,self.tend,None
-        
-        
+   
         #share options with fitPlot object
         self.fitPlot.options = self.options
         self.fitPlot.fit_options = self.fit_options  
@@ -855,6 +854,7 @@ class DataFit():
                                             justify=tk.CENTER).pack(anchor='w',side=tk.RIGHT)
             
                             else:
+                                #if var is None:
                                 tk.Checkbutton(inner_frame2,text=opt,variable=var).pack(anchor='w',side=tk.TOP)
                    
                     

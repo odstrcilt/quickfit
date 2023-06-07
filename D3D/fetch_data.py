@@ -707,11 +707,14 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
  
 
 def default_settings(MDSconn, shot):
+    print('default_settings', shot)
     #Load revisions of Thompson scattering
     ts_revisions = []
     imps = []
     imps_sys = {}
+    imps_flav = {}
     if MDSconn is not None:
+        #load availible editions for TS
         try:
             #load all avalible TS revision
             MDSconn.openTree('ELECTRONS', shot)
@@ -724,28 +727,46 @@ def default_settings(MDSconn, shot):
         except:
             pass
         
-   
+        #load availible editions for CER   
         try:
             TDI_lineid = []
             TDI_lam = []
             channel = []
+            lengths = []
+            cer_flavours = np.array(['fit','auto','quick'])
             MDSconn.openTree('IONS', shot)
             for system in ['tangential','vertical']:
+                t = time()
+
                 path = 'CER.CALIBRATION.%s.CHANNEL*'%(system)
                 #load only existing channels
-                lengths = MDSconn.get('getnci("'+path+':BEAMGEOMETRY","LENGTH")')
                 nodes = MDSconn.get('getnci("'+path+'","PATH")').data()
-                for node, l in zip(nodes, lengths):
+
+                #check if intensity data are availible
+                ampl_len = {}
+                TDI = ['getnci("'+path+':BEAMGEOMETRY","LENGTH")']
+                for analysis_type in cer_flavours:
+                    path = 'CER.CER%s.%s.CHANNEL*'%(analysis_type,system)
+                    TDI.append('getnci("'+path+':INTENSITY","LENGTH")')
+                    
+                lengths +=  [MDSconn.get('['+','.join(TDI)+']').data()]
+                
+            
+
+                for node, l in zip(nodes, lengths[-1][0]):
                     if l > 0:
                         if not isinstance(node,str):
                             node = node.decode()
                         channel.append(system[0]+node.split('.')[-1][7:])
                         TDI_lineid += [node+':LINEID']
                         TDI_lam += [node+':WAVELENGTH']
-
+                        
+            
             #fast fetch of MDS+ data
             _line_id = MDSconn.get('['+','.join(TDI_lineid)+']').data()
             
+            lengths = np.hstack(lengths)
+            fitted_ch_flavours = lengths[1:,lengths[0] > 0] > 0
             
             #lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
             #for ch, l, i in zip(channel, lam, _line_id):
@@ -757,7 +778,7 @@ def default_settings(MDSconn, shot):
             
             
             line_id = []
-            uids = np.unique(_line_id )
+            uids = np.unique(_line_id)
             for l in uids:                
                 if not isinstance(l,str):
                     l = l.split(b'\x00')[0] #sometimes are names quite wierd
@@ -768,11 +789,15 @@ def default_settings(MDSconn, shot):
                 try:
                     tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', l)
                     imp, Z = tmp.group(1), tmp.group(2)
-                    imps.append(imp+str(roman2int(Z) ))
+                    imps.append(imp+str(roman2int(Z)))
                 except:
                     imps.append('XX')
                 imps_sys[imps[-1]] = np.unique(ch_system[_line_id == ll]).tolist()
-
+                imps_flav[imps[-1]] = cer_flavours[np.any(fitted_ch_flavours[:,_line_id == ll],1)].tolist()
+            
+            if 'C6' in imps_flav:
+                imps_flav['C6'].append('real')
+            
             #if there are other impurities than carbon, print their channels
             if len(line_id) > 1:
                 print('------------ CER setup ---------')
@@ -792,6 +817,7 @@ def default_settings(MDSconn, shot):
                     
 
         except Exception as e:
+            raise
             imps = ['C6']
     
     #exception data from impurity ion CER
@@ -841,7 +867,7 @@ def default_settings(MDSconn, shot):
     nimp = {\
         'systems':{'CER system':[['tangential',False], ['vertical',False], ]},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', ('best', ('best','fit','auto','quick','real'))),
+                                ('Analysis', ['best', []]),
                                 ('Correction',{'Relative calibration':True, 'nz from CER intensity': True,
                                                'remove first data after blip':False}  )))   }}
     #,'Remove first point after blip':False
@@ -859,11 +885,12 @@ def default_settings(MDSconn, shot):
         elif imp in ['He2','B5','C6','N7','O8','Ne10']:
             default_settings['n'+imp]['systems']['CER system'][2][1] = True
             
+        cer_flavours = imps_flav.get(imp, cer_ed)
+        default_flavour = 'none' if len(cer_flavours) == 0 else cer_flavours[0]
+        default_settings['n'+imp]['load_options']['CER system']['Analysis'] = (default_flavour, cer_flavours)
         
             
         
-        
-
 
     default_settings['Zeff']= {\
     'systems':OrderedDict(( ( 'CER system',(['tangential',False],['vertical',False],['SPRED',False])),
@@ -893,6 +920,7 @@ def default_settings(MDSconn, shot):
             imps = ['C6']+imps
         default_settings['Zeff']['load_options']['CER system']['Impurity'] = (imps[0], imps)
 
+        
     return default_settings
 
 class data_loader:
@@ -1301,7 +1329,8 @@ class data_loader:
     
     
     
-    def get_cer_types(self,analysis_type,impurity=False):
+    def get_cer_types(self,analysis_type,impurity='none'):
+        #TODO load only of impurity data are there
          
         #path = '.IMPDENS.CER%s:TIME' if impurity else '.CER.CER%s:DATE_LOADED'
         path =  '.CER.CER%s:DATE_LOADED'
@@ -1899,6 +1928,10 @@ class data_loader:
         load_spred = load_real = False
         if 'SPRED_'+imp in load_systems:
             load_spred = True
+            
+        #if analysis_type == 'cernone':
+            #printe('No CER intensity data were saved in the database')
+            #return nimp
             
         if analysis_type == 'cerreal':
             if imp != 'C6':
@@ -3480,27 +3513,28 @@ class data_loader:
         except:
             SOL_reflections = False
             
-        analysis_type = self.get_cer_types(selected.get(),impurity=True)
-        if analysis_type is None:
-            #try at least of CER data exists
-            analysis_type = self.get_cer_types(selected.get(),impurity=False)
-
-        
-        #show the selected best analysis in the GUI??
-        selected.set(analysis_type[3:])
-
-        suffix = ''
+            
         imp = 'C6'
-        
-        #print("'Impurity' in options and options['Impurity'] is not None", 'Impurity' in options , options['Impurity'] is not None)
-   
         if 'Impurity' in options and options['Impurity'] is not None:
             if isinstance(options['Impurity'], tuple):
                 imp = options['Impurity'][0].get()
             else:
                 imp = options['Impurity']
+            
+        analysis_type = self.get_cer_types(selected.get(),impurity=imp)
+        if analysis_type is None:
+            #try at least of CER data exists
+            analysis_type = self.get_cer_types(selected.get(),impurity=False)
+        elif analysis_type == 'cernone':
+            raise Exception('No fitted impurity data!')
+            #return
         
-        suffix += '_'+imp
+        #show the selected best analysis in the GUI??
+        selected.set(analysis_type[3:])
+
+
+        
+        suffix = '_'+imp
         
         if 'SPRED' in systems:
             systems.remove('SPRED')
@@ -4202,7 +4236,6 @@ class data_loader:
                     node_calib = node.replace(cer_analysis_type.upper(),'CALIBRATION')                    
                     TDI_calib += [[node_calib+':'+sig for sig in cal_signals]]
                     diags_.append(ss)
-                #embed()
 
             self.MDSconn.closeTree(tree, self.shot)
 
@@ -4213,12 +4246,16 @@ class data_loader:
                 
                 VB_ = [o[0] if len(o) else np.array([]) for o in out]
                 VB_err_ = [o[1] if len(o) else np.array([]) for o in out]
-                tvec_ = [o[2] if len(o) else np.array([]) for o in out]
+                tvec_ = [o[-1] if len(o) else np.array([]) for o in out]
+                stime = [t*0+5 for t in tvec_]
+                
+                #sometimes is STIME not availible 
                 if 'STIME' in signals:
-                    stime = [o[3] if len(o) else np.array([]) for o in out]
-                else:
-                    stime = [t*0+5 for t in tvec_]
-    
+                    stime = [o[2] if len(o) else np.array([]) for o in out]
+                
+                    
+                    
+           
                 #get a time in the center of the signal integration 
                 tvec_ = [(t+s/2.)/1000 for t,s in zip(tvec_, stime)] 
                 #get any valid position (for example the one with smallest Z )
@@ -4301,6 +4338,8 @@ class data_loader:
                     ds['diags'] = xarray.DataArray(np.tile(names, (len(tvec[ind]),1)),dims=['time', 'channel'])
                     ds['time'] = xarray.DataArray(tvec[ind].astype('single'),dims=['time'], attrs={'units':'s'})
                     ds['channel'] = xarray.DataArray([channels[i][0]+channels[i][-2:] for i in valid_ind] ,dims=['channel'])
+                    
+                    #embed()
 
                     zeff['diag_names'][cer_subsys[diag]] = np.unique(names).tolist()
                 self.MDSconn.closeTree(tree, self.shot)
@@ -6944,9 +6983,10 @@ def main():
     #shot = 175900
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
-    shot = 195853 #intensity nc funguje mizerne
+    shot = 190549 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
+    exit()
     #shot = 182725
     #shot =   180907
     #shot = 122596
@@ -7114,7 +7154,7 @@ def main():
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
     #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
-    
+    return 
     for shot in range(195400, 196000):
         #shot = 195055
         print('-------------',shot,'-----------------------------')
