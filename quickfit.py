@@ -107,7 +107,7 @@ class DataFit():
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
                  raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False):
         
-        #settings={'Ti':{'load_options':{'CER system':{'Corrections':{'Wall reflections': True}}}}}
+  
         print('Accesing data from %s tokamak'%device)
         
         self.main_frame=main_frame
@@ -193,7 +193,8 @@ class DataFit():
         self.spline_fits = {}
 
         self.init_data_frame()
-        self.load_default_options()
+         
+        self.load_default_options(len(settings) == 0)
 
         self.init_eq_frame()
 
@@ -598,11 +599,11 @@ class DataFit():
         if hasattr(self,'eqm') and self.eqm.eq_open:
             self.data_load.config(stat=tk.NORMAL)
 
-    def load_default_options(self):
+    def load_default_options(self, reset_settings=True):
  
      
         #dictionary with default settings
-        if self.shot is not None:
+        if reset_settings and self.shot is not None:
 
             self.default_settings = self.default_settings_loader(self.MDSconn,self.shot)
             self.kin_profs = list(self.default_settings.keys())
