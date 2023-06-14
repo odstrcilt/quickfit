@@ -189,12 +189,16 @@ class DataFit():
 
         #self.MDSconn = None
         self.shot = None
+        
 
         self.spline_fits = {}
 
         self.init_data_frame()
          
-        self.load_default_options(len(settings) == 0)
+        #force turn off loading of default settings
+        self.reload_settings = len(settings) == 0
+
+        self.load_default_options()
 
         self.init_eq_frame()
 
@@ -212,6 +216,10 @@ class DataFit():
         #load given dicharge (if any)
         if shot is not None: 
             self.shot_entry.insert(0,shot)
+
+        self.reload_settings = True
+
+
 
     def __del__(self):        
         try:
@@ -234,7 +242,6 @@ class DataFit():
     def connectMDSplus(self):
         
         if isinstance(self.MDSserver,str):
-            #embed()
             try:
                 self.MDSconn = MDSplus.Connection(self.MDSserver)
             except:
@@ -252,6 +259,7 @@ class DataFit():
         return True
         
     def check_shot_num(self,num):
+      
         if num == '':
             return True
         
@@ -303,9 +311,9 @@ class DataFit():
             if self.device == 'D3D':
                 #BUG is there a better way how to access all EFITS? 
                 try:
-                    self.MDSconn.openTree('MHD', self.shot)
+                    self.MDSconn.openTree('MHD', shot)
                     efit_editions = self.MDSconn.get('getnci(".EFIT**.*","path")').data()
-                    self.MDSconn.closeTree('MHD', self.shot)
+                    self.MDSconn.closeTree('MHD', shot)
                     assert  len(efit_editions) > 0, 'error efitedit '+ efit_editions
                 except:
                     efit_editions = []
@@ -324,14 +332,14 @@ class DataFit():
                 efit_names = []
                 for tree in ['EFIT','LRDFIT']:
                     try:
-                        self.MDSconn.openTree(tree, self.shot)
+                        self.MDSconn.openTree(tree, shot)
                         
                         TDI = rf'_y = getnci("\\{tree}::TOP.*.RESULTS","minpath");'
                         TDI+= rf'_s = getnci("\\{tree}::TOP.*.RESULTS.GEQDSK:GTIME","length") > 0;'
                         TDI+= r'PACK(_y,_s)'
         
                         efit_names += list(self.MDSconn.get(TDI).data())
-                        self.MDSconn.closeTree(tree, self.shot)
+                        self.MDSconn.closeTree(tree, shot)
                     except:
                         continue
 
@@ -352,8 +360,8 @@ class DataFit():
             for efit in efits:
                 if efit in efit_editions: continue
                 try:
-                    self.MDSconn.openTree(efit, self.shot)
-                    self.MDSconn.closeTree(efit, self.shot)
+                    self.MDSconn.openTree(efit, shot)
+                    self.MDSconn.closeTree(efit, shot)
                 except:
                     continue
                 efit_editions+= [efit]                    
@@ -422,8 +430,7 @@ class DataFit():
         return True
     
     def efit_edition_changed(self, event=None):
-        
-        #embed()
+      
         efit = self.efit_combo.get()
         if efit == self.eqm.system:
             return True
@@ -510,7 +517,7 @@ class DataFit():
         self.shot_entry = tk.Entry(self.eq_shot_frame ,
                                    validate="key",width=shot_width,validatecommand=(vcmd, '%P'))
         self.shot_entry.pack(side=tk.RIGHT) 
-        #self.check_shot_num()
+
         edition_lbl = tk.Label( self.eq_reviz_frame,text='Edition:')
         edition_lbl.pack(side=tk.LEFT, anchor='e') 
         
@@ -599,24 +606,24 @@ class DataFit():
         if hasattr(self,'eqm') and self.eqm.eq_open:
             self.data_load.config(stat=tk.NORMAL)
 
-    def load_default_options(self, reset_settings=True):
- 
-        print('reset_settings', reset_settings)
-        #dictionary with default settings
+    def load_default_options(self):
+        #load dictionary with default settings
         if self.shot is not None:
+            default_settings = self.default_settings_loader(self.MDSconn,self.shot)  
+            #if teh shit number has not changed
+            if not self.reload_settings:
+                for key, val in self.default_settings.items():
+                    if key in default_settings:
+                        for k,v in val.items():
+                            default_settings[key][k] =  v 
+            self.kin_profs = list(default_settings.keys())
 
-            self.default_settings = self.default_settings_loader(self.MDSconn,self.shot)
-            self.kin_profs = list(self.default_settings.keys())
-  
-           # for key, val in  default_settings.items():
-           #     self.default_settings.setdefault(key, OrderedDict())
+            self.default_settings = default_settings
+        else :
+            #default list if no shot specified
+            self.kin_profs = []
 
-            #    for k,v in val.items():
-           #         self.default_settings[key].setdefault(k,v)
-          
-        else:
-            self.kin_profs = ['ne','Te'] #default list 
- 
+        
         for kin_prof in self.kin_profs:
             dic = self.default_settings.setdefault(kin_prof,{})
             
@@ -707,10 +714,17 @@ class DataFit():
         
  
         #initial profile shown in GUI after openning
-        kin_prof = self.kin_profs[0]
-        for var,val in self.default_settings[kin_prof]['options'].items():
-            self.options[var] = val
-            
+        if len(self.kin_profs):
+            kin_prof = self.kin_profs[0]
+            for var,val in self.default_settings[kin_prof]['options'].items():
+                self.options[var] = val
+        else:
+            #uninitialised GUI
+            self.options['rho_min'] = 0
+            self.options['rho_max'] = 1
+            self.options['data_loaded'] = False
+            self.options['fitted'] = False
+
         #build dictionary with TK variables keeping the actual values from GUI
         self.load_options = deepcopy(self.default_settings)
 
@@ -823,8 +837,7 @@ class DataFit():
             frames = tk.Frame(panel),tk.Frame(panel) 
             frames[0].pack(side=tk.LEFT , fill=tk.BOTH, expand=tk.Y)
             frames[1].pack(side=tk.RIGHT, fill=tk.BOTH, expand=tk.Y)
-
-            nsys = len(opts['systems'])            
+        
             for i, (sys_name, systems) in enumerate(opts['systems'].items()):
                 iframe = 0 if i == 0 else 1
 
@@ -1156,7 +1169,7 @@ class DataFit():
             data[prof].plot_tvec = self.load_options[prof]['plot_tvec']  
 
         #BUG just temporary 
-        if hasattr(self,'elms'):
+        if hasattr(self,'elms') and len(self.elms):
  
             data['elms_time'] = self.elms['elm_beg'] 
             data['elms_phase'] = self.elms['data'] 

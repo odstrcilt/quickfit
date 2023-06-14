@@ -28,7 +28,7 @@ import tkinter as tk
 try: 
     assert 'omfit.py' in sys.argv[0]
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
-    from omfit_classes.omfit_data import OMFITncDataset
+    from omfit_classes.omfit_data import OMFITdataset
     Dataset = OMFITncDataset
     from omfit_classes.omfit_base import OMFITtree, OMFITlist
     def Tree(init={}): #emulate behavior of dictionary
@@ -816,7 +816,7 @@ def default_settings(MDSconn, shot):
                     
 
         except Exception as e:
-            raise
+            #raise
             imps = ['C6']
     
     #exception data from impurity ion CER
@@ -1028,7 +1028,7 @@ class data_loader:
             for sys, stat in options['systems']['CER VB']:
                 if stat.get(): systems.append('CER VB '+sys[:4])
             if options['systems']['SPRED'][0][1].get():
-                systems.append('SPRED')
+                systems.append('SPRED all')
        
         data = []
         ts = None
@@ -1538,7 +1538,7 @@ class data_loader:
         view_Z = [0.0530, 0.0530]
         view_phi= [13.51, 20.15]
         geomfac = [3.129, 2.848]  # m**-1
-        geomfac = [2.8/1.5, 3.2/1.5/0.9]  # m**-1
+        geomfac = [2.8/1.5 , 3.2/1.5 ]  # m**-1
 
         nbi_on_frac = np.zeros((len(spred_tvec),len(load_beams)))
         nbi_pow = np.zeros((len(spred_tvec),len(load_beams)))
@@ -3117,7 +3117,7 @@ class data_loader:
                                 'Ne9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                  'B5': ('qef93#h_b5.dat',       'qef97#h_en2_kvi#b5.dat'),
                                  'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
-                                 'O8': ('qef93#h_o8.dat',None),  #O n=10−9 (606.85 nm)
+                                 'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
 
  
@@ -3130,7 +3130,7 @@ class data_loader:
                           'F9':{'10-9':[2,2]},
                           'C6':{'8-7':[5,5]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
-                          'O8': {'12-10': [16,16], '9-8': [5,None],'10-9': [6,None]}, 
+                          'O8': {'12-10': [16,16], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None]},
                           'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
@@ -3982,9 +3982,8 @@ class data_loader:
         zeff = self.RAW.setdefault('VB',Tree())
         
         cer_vb_diags = 'CER VB tang', 'CER VB vert'
-        cer_diags = 'vertical', 'tangential'
+        #cer_diags = 'vertical', 'tangential'
         
-
 
         cer_analysis_type = ''
         if any(np.in1d(cer_vb_diags, systems)):
@@ -4007,7 +4006,7 @@ class data_loader:
             VB_array += ' w/o CX'
             systems[systems.index('VB array')] = VB_array
 
- 
+    
         self.RAW['VB']['systems'] = systems
         zeff['systems'] = systems
         systems = list(set(systems)-set(zeff.keys()))  #get only systems which are not loaded yet
@@ -4549,15 +4548,26 @@ class data_loader:
  
             
         print('\t done in %.1fs'%(time()-TT))
-
-        cer_sys = list(set(['tangential', 'vertical'])&set(zeff['systems']))
+    
+    
+        #====================   Add Zeff from CER density ===========================
+        cer_sys = list(set(['tangential', 'vertical','SPRED'])&set(zeff['systems']))
  
         if len(cer_sys) > 0:
-            #BUG
             #options['CER system']['Correction']['remove first data after blip'] = tk.IntVar(value=1)
+    
+                
             NIMP = self.load_nimp(tbeg,tend, cer_sys,options['CER system'])
-            ##print(NIMP)
             for sys in cer_sys:
+                imp = options['CER system']['Impurity'][0]
+                if not isinstance(imp, str):
+                    imp = imp.get()
+                    
+                if sys == 'SPRED_'+imp:
+                    zeff['systems'].remove('SPRED')
+                    zeff['systems'].append(sys)
+                    
+                    
                 zeff['diag_names'][sys] = NIMP['diag_names'][sys]
                 zeff[sys] = deepcopy(NIMP[sys])
                 for ich,ch in enumerate(NIMP[sys]):
@@ -4571,7 +4581,7 @@ class data_loader:
                     lineid = ch['diags'].values[0][::-1].rsplit(' ',1)[0][::-1]
                     Zimp = int(lineid[1:]) if lineid[1].isdigit() else int(lineid[2:])
           
-                    Zmain = 1 # NOTE suppose the bulk ions are D
+                    Zmain = 1 # NOTE assume the bulk ions are D
                     nz = ch['nimp'].values[valid]
                     nz_err = ch['nimp_err'].values[valid]
                     
@@ -4590,9 +4600,10 @@ class data_loader:
                     zeff[sys][ich]['Zeff'] = xarray.DataArray(np.single(Zeff),dims=['time'], attrs={'units':'-','label':'Z_\mathrm{eff}'})
            
                     zeff[sys][ich]['Zeff_err'] = xarray.DataArray(np.single(Zeff_err),  dims=['time'])
+            
         
-    
-        if 'SPRED' in zeff['systems']:
+            #embed()
+        if 'SPRED all' in zeff['systems']:
  
 
             I = lambda x: tk.IntVar(value=x)
@@ -4607,14 +4618,14 @@ class data_loader:
                        'Correction': {'Relative calibration':I(1),'nz from CER intensity': cer_intens}}
             
             
-            zeff['SPRED'] = []
+            zeff['SPRED all'] = []
  
             #first load carbon from CER and SPRED and cross-calibrate
             main_imp = self.load_nimp(tbeg,tend, ['SPRED','tangential'],options)
  
-            zeff['diag_names']['SPRED'] = []
+            zeff['diag_names']['SPRED all'] = []
             if len(main_imp['SPRED_C6']) > 0:
-                zeff['diag_names']['SPRED'].append('SPRED')
+                zeff['diag_names']['SPRED all'].append('SPRED all')
             else:
                 printe('No SPRED data')
                 
@@ -4686,7 +4697,7 @@ class data_loader:
                 
                 
 
-                ds = Dataset('Zeff_SPRED.nc', attrs={'system':'SPRED', 'channel':channel,
+                ds = Dataset('Zeff_SPRED.nc', attrs={'system':'SPRED all', 'channel':channel,
                                                      'scaled to match C6 CER data by':np.mean(corr) })
                 
                 ds['conc_C6'] = xarray.DataArray(np.single(imp_conc), dims=['time'])
@@ -4748,7 +4759,7 @@ class data_loader:
                 ds['R'] = xarray.DataArray(R, dims=['time'], attrs={'units':'m'})
                 ds['Z'] = xarray.DataArray(Z ,dims=['time'], attrs={'units':'m'})
                 ds['rho'] = xarray.DataArray(rho,dims=['time'], attrs={'units':'m'})
-                ds['diags'] = xarray.DataArray(['SPRED']*len(tvec),dims=['time'])
+                ds['diags'] = xarray.DataArray(['SPRED all']*len(tvec),dims=['time'])
                 ds['Zeff'] = xarray.DataArray( np.single(Zeff) ,dims=['time'],
                                             attrs={'units':'-','label':'Z_\mathrm{eff}'})
 
@@ -4756,7 +4767,7 @@ class data_loader:
                 
                 
                 ds['time'] = xarray.DataArray(tvec ,dims=['time'], attrs={'units':'s'})
-                zeff['SPRED'].append(ds)
+                zeff['SPRED all'].append(ds)
             
             #sind = np.argsort(np.hstack(densities['time_cx']))
             #time_cx = np.hstack(densities['time_cx'])[sind] 
@@ -4796,31 +4807,30 @@ class data_loader:
             #np.savez_compressed('SPRED_data_%d'%self.shot, **densities)
 
 
-            if len(zeff['SPRED']) == 0:
-                return zeff
+            if len(zeff['SPRED all']) > 0:
 
-            print('\t'+'-'*40)
-            
-            corr = np.hstack(correction).mean()
-            print('Impurity concentrations from SPRED are rescaled by %.3f to match CER carbon density'%corr.mean())
-            print('\t Mean concentration on axis between %.3f-%.3fs'%(_tbeg,_tend))
-            imp_names = [k for k, c in concentrations.items() if len(c)]
-            try:
-                imp_conce = [max(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
-            except Exception as e:
-                print('Error: SPRED concentration ', e)
-                print([np.hstack(concentrations[k])  for k in imp_names])
-                imp_conce = np.zeros(len(imp_names))
-            #print deuterium concentration
-            charge = np.array([charge[k] for k in imp_names])
-            cD = 1-sum(imp_conce*charge)
-            sind = np.argsort(imp_conce)[::-1]
-            print('\t\tion\t conc.\t dZeff' )
+                print('\t'+'-'*40)
+                
+                corr = np.hstack(correction).mean()
+                print('Impurity concentrations from SPRED are rescaled by %.3f to match CER carbon density'%corr.mean())
+                print('\t Mean concentration on axis between %.3f-%.3fs'%(_tbeg,_tend))
+                imp_names = [k for k, c in concentrations.items() if len(c)]
+                try:
+                    imp_conce = [max(0,np.hstack(concentrations[k]).mean()) for k in imp_names]
+                except Exception as e:
+                    print('Error: SPRED concentration ', e)
+                    print([np.hstack(concentrations[k])  for k in imp_names])
+                    imp_conce = np.zeros(len(imp_names))
+                #print deuterium concentration
+                charge = np.array([charge[k] for k in imp_names])
+                cD = 1-sum(imp_conce*charge)
+                sind = np.argsort(imp_conce)[::-1]
+                print('\t\tion\t conc.\t dZeff' )
 
-            print('\t\tD1\t%.2f%%\t %.2f'%(cD*100, cD))
-            for i in sind:
-                print('\t\t'+imp_names[i],'\t%.2f%%\t %.2f'%(imp_conce[i]*100, imp_conce[i]*charge[i]*(charge[i]-1)))
-            print('\t'+'-'*40)
+                print('\t\tD1\t%.2f%%\t %.2f'%(cD*100, cD))
+                for i in sind:
+                    print('\t\t'+imp_names[i],'\t%.2f%%\t %.2f'%(imp_conce[i]*100, imp_conce[i]*charge[i]*(charge[i]-1)))
+                print('\t'+'-'*40)
         
         return zeff
     
@@ -6612,7 +6622,7 @@ class data_loader:
                 #plt.plot(LOS_ne_int[ind&t_ind ,ilos][valid_])
                 #plt.show()
                 
-                laser_correction[il,ilos] = np.median(ratio[valid_])
+                laser_correction[il,ilos] = np.nanmedian(ratio[valid_])
                 laser_correction_err[il,ilos] = ratio[valid_].std()/np.sqrt(np.sum(valid_))
                 
  
@@ -6993,7 +7003,7 @@ def main():
     shot = 190549 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
-    exit()
+    #exit()
     #shot = 182725
     #shot =   180907
     #shot = 122596
@@ -7122,7 +7132,7 @@ def main():
     settings.setdefault('Zeff', {\
         'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
                                 ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
-                                ( 'CER system',(['tangential',I(0)],['vertical',I(0)])),
+                                ( 'CER system',(['tangential',I(1)],['vertical',I(0)],['SPRED',I(1)])),
                                 ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
                                 )), \
         'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
@@ -7160,7 +7170,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    #data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     return 
     for shot in range(195400, 196000):
         #shot = 195055
