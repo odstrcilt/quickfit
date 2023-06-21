@@ -749,7 +749,7 @@ class map2grid():
         
  
         
-    def Calculate(self,lam,eta, n_noise_vec = 50):
+    def Calculate(self,lam,eta, n_noise_vec = 500):
 
         if not self.corrected:
             self.PreCalculate()
@@ -844,7 +844,7 @@ class map2grid():
 
         
 
-        np.random.seed(0)
+        #np.random.seed(0)
         #noise vector for estimation of uncertainty
         
         #perfecty uncorrelated noise, most optimistic assumption
@@ -863,15 +863,18 @@ class map2grid():
         
         
         if self.nt_new == 1: eta = 0
+        
+        
+        
 
-        AA = self.VV+lam*self.DRDR+eta*self.DTDT
+        AA = self.VV +lam*self.DRDR+eta*self.DTDT
         #t = time.time()
         try:
             self.Factor.cholesky_inplace(AA)
         except:
             self.Factor = sp.linalg.factorized(AA)
 
-        #print('facr0', time.time()-t)
+      
         Y = self.Y[self.valid]/self.norm
 
         Yerr = self.deriv_trans(Y)*self.Yerr.data[self.valid]/self.norm
@@ -879,22 +882,25 @@ class map2grid():
         Y = self.trans(Y)
 
         g = np.squeeze(self.Factor(self.V.T*self.f))
+
         self.chi2 = np.linalg.norm((self.M*g-Y)/Yerr)**2/np.sum(np.isfinite(Yerr))
         self.lam = lam
         
         #estimate uncertainty of the fit
         noise_scale = np.maximum(abs(self.V*g-self.f), 1)
-          
-        t = time.time()
-
-        g_noise = self.Factor((self.V.T)*(noise*noise_scale[:,None]))#SLOW but paraellised 
-        #print('g_noise', time.time()-t)
+        noise*=noise_scale[:,None]
+        g_noise = self.Factor( self.V.T * noise )#SLOW but paraellised 
 
         #correct approach how to generate samples from the posterior, but it is noisy, but in radial and temporal domain!!
+        #n_noise_vec = 200
         #noise = np.random.randn(self.V.shape[1], n_noise_vec)
         #g_noise = self.Factor.apply_Pt(self.Factor.solve_Lt(noise,use_LDLt_decomposition=False))
-
-         
+        ##estimate of systematic errors, assuming that that they are perfectly corrected and of the size of the errorbars
+        #g_sys_err = np.squeeze(self.Factor(self.V.T*np.ones_like(self.f)))
+        #g_noise += g_sys_err[:,None]* np.random.randn(  n_noise_vec)
+        #g_noise*= max(1,np.sqrt(self.chi2))
+        
+       
         g_noise += (g - g_noise.mean(1))[:,None]
         g_noise = g_noise.reshape(self.nr_new,self.nt_new,n_noise_vec).T
         g_noise = self.invtrans(g_noise)*self.norm

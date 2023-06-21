@@ -198,8 +198,11 @@ class FitPlot():
                     name_channels.append(str(n_ch+1))
             else:
                 dch = s[1]
-                name_channels += [diags[-1][0,i]+'_%d'%(i+1) for i in range(dch)]
-      
+                try: #error  if there are no data
+                    name_channels += [diags[-1][0,i]+'_%d'%(i+1) for i in range(dch)]
+                except:
+                    pass
+                
             ind_channels.append(np.tile(np.arange(dch,dtype='uint32')+n_ch,(s[0],1)))
             n_ch+=  dch
             ind_points.append(np.tile(n_points+np.arange(d.size,dtype='uint32').reshape(d.shape).T,

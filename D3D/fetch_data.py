@@ -28,8 +28,11 @@ import tkinter as tk
 try: 
     assert 'omfit.py' in sys.argv[0]
     #preferably use OMFITncDataset class from OMFIT, data will be stored as CDF files
-    from omfit_classes.omfit_data import OMFITdataset
+    from omfit_classes.omfit_data import OMFITncDataset
     Dataset = OMFITncDataset
+    
+    #def Dataset(name,*args, **kwargs):
+        #return xarray.Dataset(*args, **kwargs)
     from omfit_classes.omfit_base import OMFITtree, OMFITlist
     def Tree(init={}): #emulate behavior of dictionary
         tree = OMFITtree()
@@ -4557,15 +4560,15 @@ class data_loader:
             #options['CER system']['Correction']['remove first data after blip'] = tk.IntVar(value=1)
     
                 
-            NIMP = self.load_nimp(tbeg,tend, cer_sys,options['CER system'])
+            NIMP = self.load_nimp(tbeg,tend, list(cer_sys),options['CER system'])
             for sys in cer_sys:
-                imp = options['CER system']['Impurity'][0]
-                if not isinstance(imp, str):
-                    imp = imp.get()
-                    
-                if sys == 'SPRED_'+imp:
+                print(sys)
+                if sys == 'SPRED':
+                    imp = options['CER system'].get('Impurity',['C'])[0]
+                    if not isinstance(imp, str):
+                        imp = imp.get()
                     zeff['systems'].remove('SPRED')
-                    zeff['systems'].append(sys)
+                    zeff['systems'].append('SPRED_'+imp)
                     
                     
                 zeff['diag_names'][sys] = NIMP['diag_names'][sys]
