@@ -2531,6 +2531,7 @@ class data_loader:
         n = 0
         for diag in systems:
             for ch in nimp[diag]:
+                print(ch.attrs['channel'])
                 if ch.attrs.get('imp',imp) == imp:
                     for k in nimp_data.keys():
                         nimp_data[k].append(ch[k].values)
@@ -2580,6 +2581,7 @@ class data_loader:
         int_err =  nimp_data['int_err'][valid]
         nimp_time = nimp_data['time'][valid][int_err > 0]
         nclust = min(100, len(np.unique(nimp_time))//2)
+        nclust = 10
         #embed()
 
         _centroid, _label = kmeans2(nimp_time, nclust,100, minit='points')
@@ -2647,15 +2649,14 @@ class data_loader:
                 beam_profiles['ne_err'][sys].append(np.maximum(ne_err_slice, .05*ne_slice)) #minimum 5% error
                 Te_slice = np.exp(np.average(np.log(T_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
                 beam_profiles['te'][sys].append(Te_slice)
+                
+                
         #BUG is it sorted somewhere??
         #merge data from all TS systems 
         for k, d in beam_profiles.items():
             merged_sys = []
             for i,t in enumerate(centroid):
-                #try:
                 data = np.hstack([d[sys][i] for sys in TS['systems'] if sys in d])
-                #except:
-                    #embed()
                 if len(data) == 0:
                     data = merged_sys[-1] #use last existing value 
                 
@@ -2671,12 +2672,12 @@ class data_loader:
         rho_midplane = self.eqm.rz2rho(R_midplane,R_midplane*0,centroid,self.rho_coord)
         ind_axis = np.argmin(rho_midplane,axis=1)
         Raxis = R_midplane[ind_axis]
-        #embed()
+      
         beam_profiles_ = deepcopy(beam_profiles)
         beam_profiles['Rmid'] = []
         for it, t in enumerate(centroid):   
             rho = beam_profiles['rho'][it]
-            #print(rho)
+        
             ind_axis = np.argmin(rho_midplane[it])
             #map from rho to Rmid for both LFS and HFS channel
             R_lfs = np.interp(rho,rho_midplane[it][ind_axis:],R_midplane[ind_axis:])
@@ -2698,7 +2699,6 @@ class data_loader:
         ########################   From CER     ##########################
         #fetch ion temperature and rotation quickfit\D3D\fetch_beams.py
         cer_systems = [sys for sys in nimp['systems'] if 'SPRED' not in sys]
-        
         cer_systems = ['tangential']
         
         #load kinetic data from fit addition, whoch can be different from impurity edition
@@ -2724,7 +2724,6 @@ class data_loader:
 
         #initial guess of carbon density
         if nC_guess is not None:  #if not availible assued Zeff = 2
-            #embed()
             for sys in nC_guess['systems']:
                 for ch in nC_guess[sys]:
                     if ch.attrs['Z'] != 6: continue #only carbon data
@@ -2774,8 +2773,7 @@ class data_loader:
                     if name == 'fC':  #use carbon concetration - better properties for extrapolation!              
                         ne = np.interp(prof_rho, rho[::-1], beam_profiles['ne'][it][::-1])
                         prof_data = np.clip(prof_data/ne,0.001,1/6.-0.01)
-                        #if np.any(prof_data > 0.1):
-                            #embed()
+                
                     _data = np.interp(rho,prof_rho, prof_data)  #TODO add radial averaging?? 
                     
                     if name == 'Ti':
@@ -2796,8 +2794,7 @@ class data_loader:
                 beam_profiles[name].append(_data)
  
         beam_prof_merged = {k:np.hstack(p) for k,p in beam_profiles.items()}
-        #embed()
-
+   
         #####################  Calculate relative beam velocity ###############
         print_line( '  * Calculating '+imp+' density ...')
         TT = time()
@@ -2877,8 +2874,15 @@ class data_loader:
         
 
         fC_beam = np.copy(beam_prof_merged['fC'])
+        
+        if self.shot in range(190545,190611):
+            print('BUG!!! increased impurity content')
+            fC_beam[:] = 1/6-0.01
+            
         fD_beam = 1-fC_beam*6.  #deuterium concentration
         
+            
+            
         #normalise to calculate ion particle fraction        
         Zion = np.array([1,6])
         ion_frac = np.array([fD_beam,fC_beam])
@@ -2909,13 +2913,15 @@ class data_loader:
         
         #Needs to be divided by vinj and not vrel!!  bug in GA fortran code!
         sigma_eff = bms_mix / (vinj[None].T*100)  #cross-section cm^2
- 
+      
 
         #integrate beam attenuation
         beam_att,beam_att_err,n2frac = [],[],[]
         n = 0
+    
         for it,t in enumerate(centroid):
             nR = beam_profiles['Rmid'][it].size
+   
             
             #split the interpolated atomic data in timeslices
             n2frac.append(bmp_mix[:,:,n:n+nR])
@@ -5087,6 +5093,7 @@ class data_loader:
             data_nbit = np.reshape(data_nbit,(-1,len(signals))).T.flatten()
             Ti,Ti_err,rot,rot_err,int_,int_err, R,Z,PHI,stime,tvec = mds_data.reshape(len(signals), -1)
             
+            
             #index for signal splitting
             split_ind = split_mds_data(np.arange(len(tvec)), data_nbit.reshape(len(signals), -1)[0], 4)
             split_ind = [slice(s[0], s[-1]+1) for s in split_ind]
@@ -5146,7 +5153,7 @@ class data_loader:
             all_nodes = np.array(all_nodes)[valid_ch]
             
 
-        
+        #embed()
         #get a time in the center of the signal integration 
         tvec = (tvec+stime/2)/1e3
         
@@ -5193,15 +5200,18 @@ class data_loader:
 
             ic = np.argmin(c_cost)
             #ic = np.argmin(np.abs(c-.025))
-            W = W[ic]
-            int_err,rot_err, Ti_err = int_err/W,rot_err/W,np.clip(Ti_err/W, Ti_err, Ti)
+            W = np.single(W[ic])
+            int_err, rot_err = int_err/W , rot_err/W
+            Ti_err = np.single(np.clip(Ti_err/W, Ti_err, Ti))
     
             #correction for rotation - how large fraction is blue and red shifted
             r = np.linspace(.2,.5,100)[:,None]
             Rc = (rot-np.interp(tvec, T_avg,rot_avg)*(1-W)*r)/W
             r_cost = np.linalg.norm(Rc[:,i]*W[i],axis=1)**2       #bias towards zero
             ir = np.argmin(r_cost)
-            int_,rot,Ti = np.clip(A[ic], int_*0.01, A[ic]*1.5), np.copy(Rc[ir]), np.clip(T[ic],1,Ti*1.5) 
+            int_ = np.single(np.clip(A[ic], int_*0.01, A[ic]*1.5))
+            rot = np.single(Rc[ir])
+            Ti = np.single(np.clip(T[ic],1,Ti*1.5))
             
             print('\nWall reflection coeff: %.3f  rotation coeff: %.2f'%(c[ic], r[ir]))
  
@@ -5251,7 +5261,8 @@ class data_loader:
                 #options['Corrections']['Zeeman Splitting'].set(False)
         
         
-        
+        #embed()
+
         if not isinstance( lineid[0], str):
             lineid = [l.split(b'\x00')[0].decode('utf-8') for l in lineid]
  
@@ -5267,7 +5278,7 @@ class data_loader:
             name = diags_[ich][0].upper()+'_'+str(LENS_PHI[ich])
             
             #add impurity name, if there are more impurities in the profile
-            unreliable = np.ones(tind.stop-tind.start)
+            unreliable = np.ones(tind.stop-tind.start, dtype='single')
             if len(lineid) > 0:
                 line = lineid[ich]
             else: #old discharge swere missing this information
@@ -5620,22 +5631,26 @@ class data_loader:
             if len(tvec) <= isys or len(tvec[isys]) == 0: 
                 ts['systems'].remove(sys)
                 ts[sys] = []
-                
                 continue
-            tvec[isys]/= 1e3   
-            
-            rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
-
             
             #these points will be ignored and not plotted (negative errobars )
             Te_err[isys][(Te_err[isys]<=0) | (Te[isys] <=0)]  = -np.infty
             ne_err[isys][(ne_err[isys]<=0) | (ne[isys] <=0)]  = -np.infty
-       
+            
+            #remove useless timeslices
+            valid = np.any(np.isfinite(Te_err[isys]) | np.isfinite(ne_err[isys]),0)
+         
+            ne[isys],ne_err[isys] = ne[isys][:,valid],ne_err[isys][:,valid]
+            Te[isys],Te_err[isys] = Te[isys][:,valid],Te_err[isys][:,valid]
+            tvec[isys],laser[isys] = tvec[isys][valid],laser[isys][valid]
+                    
+            tvec[isys]/= 1e3   
+            rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
+
             #guess corrupted channels
             ne_mean = np.average(ne[isys], weights = 1/ne_err[isys]+1e-30,axis=1)
             
             ne_mean_filter = medfilt(np.r_[ne_mean, ne_mean[::-1]], 3)[:len(ne_mean)]
-            #embed()
             corrupted = (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
             #no very cold TS measuremenst with tiny errorbars inside of rho = 0.95
             corrupted |= (Te[isys] < 20.)&( rho.T < 0.95  )
@@ -5664,9 +5679,20 @@ class data_loader:
             ts[sys]['channel'] = xarray.DataArray(channel,dims=['channel'], attrs={'units':'-'})
 
    
-        if self.shot in [190549, 190550,190551]:
-            ts['tangential']['ne_err'][:,9] = np.inf
+        if self.shot in range(190545,190611):
             ts['core']['ne_err'][:,15] = np.inf
+            
+            #cross-calibrate the poor data from tangential system by the reflectometer data
+            refl_opts = {'Position error':{'Align with TS':tk.IntVar(value=0)}}
+            refl = self.load_refl( tbeg,tend,  refl_opts)['VO']
+            T1 = np.tile(refl['time'],(refl['channel'].size,1)).T
+            interp = NearestNDInterpolator(np.vstack((T1.flatten(),refl['rho'].values.flatten())).T, refl['ne'].values.flatten())
+            T2 = np.tile(ts['tangential']['time'].values,(ts['tangential']['R'].size,1)).T
+            ne_refl = interp(np.array((T2, ts['tangential']['rho'].values)).T).T
+            correction = np.median(ts['tangential']['ne'].values / ne_refl, 0)
+            ts['tangential']['ne'] /= correction[None,:]
+            
+            
 
         
  
@@ -7003,7 +7029,7 @@ def main():
     #shot = 175900
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
-    shot = 190549 #intensity nc funguje mizerne
+    shot = 195846 #intensity nc funguje mizerne
 
     default_settings(MDSconn, shot  )
     #exit()
@@ -7095,9 +7121,9 @@ def main():
     ts_revisions = []
 
     settings.setdefault('Ti', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},\
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)])},\
         'load_options':{'CER system':{'Analysis':(S('best'), ('best','fit','auto','quick','real')) ,
-                                    'Corrections':{'Zeeman Splitting':I(1), 'Wall reflections':I(1)}} }})
+                                    'Corrections':{'Zeeman Splitting':I(0), 'Wall reflections':I(1)}} }})
         
     settings.setdefault('omega', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)])},
@@ -7110,9 +7136,9 @@ def main():
         'load_options':{'CER system':{'Analysis':(S('best'), (S('best'),'fit','auto','quick'))}}})            
         
     settings.setdefault('nimp', {\
-        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(1)],['SPRED',I(1)] )},
+        'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('fit'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -7173,7 +7199,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     return 
     for shot in range(195400, 196000):
         #shot = 195055
