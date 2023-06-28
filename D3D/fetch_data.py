@@ -796,7 +796,7 @@ def default_settings(MDSconn, shot):
                     imps.append('XX')
                 imps_sys[imps[-1]] = np.unique(ch_system[_line_id == ll]).tolist()
                 imps_flav[imps[-1]] = cer_flavours[np.any(fitted_ch_flavours[:,_line_id == ll],1)].tolist()
-            
+          
             if 'C6' in imps_flav:
                 imps_flav['C6'].append('real')
             
@@ -806,12 +806,17 @@ def default_settings(MDSconn, shot):
                 for imp, lid, uid in zip(imps,  line_id, uids):
                     print(imp+': ',end = '')
                     ch_prew = None
+                    ch_first = None
                     for ch, _id in zip(channel, _line_id):
                         if _id == uid:
                             if ch_prew is None:
-                                print(ch, end = '') 
+                                print(ch, end = '')
+                                ch_first = ch
                             elif int(ch_prew[1:])!=  int(ch[1:])-1:
-                                print('-'+ch_prew+', '+ch, end = '')                            
+                                if ch_first != ch_prew:
+                                    print('-'+ch_prew, end = '')                            
+                                print(', '+ch, end = '')          
+                                ch_first = ch
                             ch_prew = ch
                     print('-'+ch_prew)
                 print('--------------------------------')
@@ -874,19 +879,20 @@ def default_settings(MDSconn, shot):
                                                'remove first data after blip':False}  )))   }}
     #,'Remove first point after blip':False
     #if there are multiple impurities, select system with the data,preferably tangential
+  
     for imp in imps:
         default_settings['n'+imp] = deepcopy(nimp)
         #show SPRED only for impurities which are supported
         if imp in ['He2','B5','C6','N7','O8','Ne10']:
             default_settings['n'+imp]['systems']['CER system'].append(['SPRED',False])
         
-        if 't' in imps_sys.get(imp,['t']):
+        if 't' in imps_sys.get(imp,['t']) and len(imps_flav.get(imp,[])):
             default_settings['n'+imp]['systems']['CER system'][0][1] = True
-        elif 'v' in imps_sys.get(imp,['t']):
+        elif 'v' in imps_sys.get(imp,['t']) and len(imps_flav.get(imp,[])):
             default_settings['n'+imp]['systems']['CER system'][1][1] = True
         elif imp in ['He2','B5','C6','N7','O8','Ne10']:
             default_settings['n'+imp]['systems']['CER system'][2][1] = True
-            
+             
         cer_flavours = imps_flav.get(imp, cer_ed)
         default_flavour = 'none' if len(cer_flavours) == 0 else cer_flavours[0]
         default_settings['n'+imp]['load_options']['CER system']['Analysis'] = (default_flavour, cer_flavours)
@@ -2257,7 +2263,7 @@ class data_loader:
 
         ########################  Get NBI info ################################
         #which beams needs to be loaded
-
+         
         beam_order = np.array([b.strip()[:-1] for b in beam_order])
         beam_ind = np.any(beam_geom>0,0)
         load_beams = beam_order[beam_ind]
@@ -2351,6 +2357,7 @@ class data_loader:
             try:
                 beam_pow = nbi_pow[observed_beams][:,it]
             except:
+                print('beam_pow = nbi_pow[observed_beams][:,it]')
                 embed()
             #when background substraction was applied
             if nbi_pow_sub is not None and any(TTSUB[ich] > 0):
@@ -2531,7 +2538,6 @@ class data_loader:
         n = 0
         for diag in systems:
             for ch in nimp[diag]:
-                print(ch.attrs['channel'])
                 if ch.attrs.get('imp',imp) == imp:
                     for k in nimp_data.keys():
                         nimp_data[k].append(ch[k].values)
@@ -2875,7 +2881,7 @@ class data_loader:
 
         fC_beam = np.copy(beam_prof_merged['fC'])
         
-        if self.shot in range(190545,190611):
+        if self.shot in range(190545,190611) or self.shot in [195846]:
             print('BUG!!! increased impurity content')
             fC_beam[:] = 1/6-0.01
             
@@ -3113,7 +3119,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'Al13','Kr25','Kr27']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'N7', 'Al13','Kr25','Kr27']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3124,6 +3130,7 @@ class data_loader:
                                  'F9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                'Al13': ('qef07#h_arf#al13.dat',None),
                                 'Ne9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
+                                'N7':  ('qef93#h_n7.dat',  None),
                                  'B5': ('qef93#h_b5.dat',       'qef97#h_en2_kvi#b5.dat'),
                                  'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
                                  'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
@@ -3138,6 +3145,7 @@ class data_loader:
                           'Ne9':{'11-10':[3,3]}, 
                           'F9':{'10-9':[2,2]},
                           'C6':{'8-7':[5,5]},
+                          'N7':{'9-8':[5,None]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
                           'O8': {'12-10': [16,16], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None]},
@@ -3534,7 +3542,12 @@ class data_loader:
             #try at least of CER data exists
             analysis_type = self.get_cer_types(selected.get(),impurity=False)
         elif analysis_type == 'cernone':
-            raise Exception('No fitted impurity data!')
+            #skip other systems
+            if 'SPRED' in systems:
+                systems = ['SPRED']
+            else:
+                #embed()
+                raise Exception('No fitted impurity data!')
             #return
         
         #show the selected best analysis in the GUI??
@@ -3673,6 +3686,7 @@ class data_loader:
    
                 #other cases,  IMPDENS density is used as initial guess
                 nimp0 = None
+                #embed()
 
                 try:
                     nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
@@ -3685,7 +3699,7 @@ class data_loader:
                             nimp0 = self.load_nimp(tbeg,tend,['tangential','vertical'],options) 
                     except:
                         printe('Error in loading of nC from IMPDENS AUTO edition: '+str(e))
-                        embed()
+                        #embed()
 
                     #finally:
                         #print('selected',analysis_type, analysis_type[3:] )
@@ -4568,15 +4582,18 @@ class data_loader:
                 
             NIMP = self.load_nimp(tbeg,tend, list(cer_sys),options['CER system'])
             for sys in cer_sys:
-                print(sys)
+                #rename SPRED to SPRED_imp
                 if sys == 'SPRED':
-                    imp = options['CER system'].get('Impurity',['C'])[0]
+                    imp = options['CER system'].get('Impurity',['C6'])[0]
                     if not isinstance(imp, str):
                         imp = imp.get()
+                    sys += '_'+imp
                     zeff['systems'].remove('SPRED')
-                    zeff['systems'].append('SPRED_'+imp)
-                    
-                    
+                    zeff['systems'].append(sys)
+                
+                if sys not in NIMP['diag_names']:
+                    print("sys not in NIMP['diag_names']")
+                    embed()
                 zeff['diag_names'][sys] = NIMP['diag_names'][sys]
                 zeff[sys] = deepcopy(NIMP[sys])
                 for ich,ch in enumerate(NIMP[sys]):
@@ -5308,9 +5325,37 @@ class data_loader:
             ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
             ds['diags']= xarray.DataArray(np.array((name,)*(tind.stop-tind.start)),dims=['time'])
 
-   
-            if len(rot[tind]) > 0 and ch not in missing_rot:
-                corrupted = ~np.isfinite(rot[tind]) | (R[tind]  == 0)
+                   
+            corrupted = False
+            
+            if len(int_[tind]) > 0 :
+                int_err[tind][np.isnan(int_err[tind])] = np.infty
+
+                corrupted =  corrupted| (int_[tind] <= 0)|(R[tind]  == 0)|(int_err[tind]<=0)|~np.isfinite(int_[tind])
+             
+                int_err[tind][corrupted] = np.infty
+                int_[tind][~np.isfinite(int_[tind])] = 0
+                
+                if not all(corrupted):
+                    ds['int_err'] = xarray.DataArray(int_err[tind],dims=['time'], attrs={'units':'ph/s*sr'})
+                    ds['int'] =  xarray.DataArray(int_[tind],dims=['time'], attrs={'units':'ph/s*sr'})
+            
+            
+            if len(Ti[tind]) > 0 and not all(corrupted):
+                Ti_err[tind][np.isnan(Ti_err[tind])] = np.infty
+                #900eV is probably initial guess, sometimes it does not move from this value
+                corrupted = corrupted| (Ti[tind]==900)|(Ti[tind]>=15e3)|(Ti[tind] <= 1.1)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
+                Ti_err[tind][corrupted] = np.infty
+                Ti[tind][~np.isfinite(Ti[tind])] = 0
+                
+                if not all(corrupted):
+                    ds['Ti'] = xarray.DataArray(Ti[tind],dims=['time'], attrs={'units':'eV','label':'T_i', 'zeeman_split':zeem_split})
+                    ds['Ti_err'] = xarray.DataArray(Ti_err[tind]*unreliable,dims=['time'], attrs={'units':'eV'})
+            #embed()
+            
+            
+            if len(rot[tind]) > 0 and ch not in missing_rot and not all(corrupted):
+                corrupted = ~np.isfinite(rot[tind]) | (R[tind]  == 0) | corrupted
                 rot[tind][corrupted] = 0
                 corrupted |= (rot[tind]<-1e10)|(rot_err[tind]<=0)
                 rot_err[tind][corrupted] = np.infty
@@ -5322,34 +5367,8 @@ class data_loader:
                     ds['omega'] = xarray.DataArray(rot[tind],dims=['time'], attrs={'units':'rad/s','label':r'\omega_\varphi'})
                     ds['omega_err'] = xarray.DataArray(rot_err[tind]*unreliable,dims=['time'], attrs={'units':'rad/s'})
                     
-                    
-                    
-                
-                
-            if len(Ti[tind]) > 0:
-                Ti_err[tind][np.isnan(Ti_err[tind])] = np.infty
-                #900eV is probably initial guess, sometimes it does not move from this value
-                corrupted = (Ti[tind]==900)|(Ti[tind]>=15e3)|(Ti[tind] <= 0)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
-                Ti_err[tind][corrupted] = np.infty
-                Ti[tind][~np.isfinite(Ti[tind])] = 0
-                
-                if not all(corrupted):
-                    ds['Ti'] = xarray.DataArray(Ti[tind],dims=['time'], attrs={'units':'eV','label':'T_i', 'zeeman_split':zeem_split})
-                    ds['Ti_err'] = xarray.DataArray(Ti_err[tind]*unreliable,dims=['time'], attrs={'units':'eV'})
-            
-
-            if len(int_[tind]) > 0:
-                int_err[tind][np.isnan(int_err[tind])] = np.infty
-
-                corrupted =  (int_[tind] <= 0)|(R[tind]  == 0)|(int_err[tind]<=0)|~np.isfinite(int_[tind])
              
-                int_err[tind][corrupted] = np.infty
-                int_[tind][~np.isfinite(int_[tind])] = 0
-                
-                if not all(corrupted):
-                    ds['int_err'] = xarray.DataArray(int_err[tind],dims=['time'], attrs={'units':'ph/s*sr'})
-                    ds['int'] =  xarray.DataArray(int_[tind],dims=['time'], attrs={'units':'ph/s*sr'})
-            
+
   
 
             if 'Ti' in ds or 'omega' in ds:
