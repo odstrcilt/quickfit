@@ -772,7 +772,7 @@ def default_settings(MDSconn, shot):
             
             #lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
             #for ch, l, i in zip(channel, lam, _line_id):
-                #print(ch,i,  l)
+            #    print(ch,i,  l)
 
             MDSconn.closeTree('IONS', shot)
             
@@ -2063,6 +2063,11 @@ class data_loader:
                         #verticals
                         for i in range(27,min(32,len(line_id))): #rest is Ne9+ or C6+
                             line_id[i] = 'Ne X 11-10'
+                
+                if self.shot in [194074]:
+                    if analysis_type == 'cerfit': #carbon
+                        line_id = ['Ne X 11-10']*len(loaded_chan)              
+                
                 if self.shot in [194311]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Kr XXVII 21-20']*len(loaded_chan)
