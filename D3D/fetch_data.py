@@ -832,7 +832,9 @@ def default_settings(MDSconn, shot):
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
-  
+    if shot == 196551:
+        imps.append('Al13')
+    
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
@@ -1916,10 +1918,14 @@ class data_loader:
         
         #print(spred_tvec.shape, spred_stime.shape, spred_data.shape, spred_err.shape, R.shape, Z.shape, TTSUB.shape, TTSUB_ST.shape, beam_geom.shape, )
         
+        #if imp == 'O8':
+            #spred_data*= 11
+            #spred_err*=11
+                 
         if imp == 'O8':
-            spred_data*= 11
-            spred_err*=11
-            
+            spred_data*= 1
+            spred_err*=1
+             
    
 
         return spred_tvec,spred_stime, spred_data, spred_err,np.single(R), np.single(Z),np.mean(phi),TTSUB,TTSUB_ST, line_ids[imp], beam_geom
@@ -2067,6 +2073,9 @@ class data_loader:
                 if self.shot in [194074]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Ne X 11-10']*len(loaded_chan)              
+                if self.shot in [196551]:
+                    if analysis_type == 'cerfit': #carbon
+                        line_id = ['Al XIII 13-12']*len(loaded_chan)              
                 
                 if self.shot in [194311]:
                     if analysis_type == 'cerfit': #carbon
@@ -3153,7 +3162,7 @@ class data_loader:
                           'N7':{'9-8':[5,None]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
                           'O8': {'12-10': [16,16], '9-8': [5,1],'10-9': [6,2]}, 
-                          'Al13': {'12-11': [2,None]},
+                          'Al13': {'12-11': [2,None],'13-12': [3,None]},
                           'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
                 
@@ -3162,8 +3171,7 @@ class data_loader:
                 
                 #unavailible
                 qeff_th = qeff2_th = qeff2 = 0
-                
-                
+           
                 file1, file2 = atom_files[imp]
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)

@@ -887,18 +887,18 @@ class map2grid():
         self.lam = lam
         
         #estimate uncertainty of the fit
-        noise_scale = np.maximum(abs(self.V*g-self.f), 1)
-        noise*=noise_scale[:,None]
-        g_noise = self.Factor( self.V.T * noise )#SLOW but paraellised 
+        #noise_scale = np.maximum(abs(self.V*g-self.f), 1)
+        #noise*=noise_scale[:,None]
+        #g_noise = self.Factor( self.V.T * noise )#SLOW but paraellised 
 
         #correct approach how to generate samples from the posterior, but it is noisy, but in radial and temporal domain!!
-        #n_noise_vec = 200
-        #noise = np.random.randn(self.V.shape[1], n_noise_vec)
-        #g_noise = self.Factor.apply_Pt(self.Factor.solve_Lt(noise,use_LDLt_decomposition=False))
+        n_noise_vec = 200
+        noise = np.random.randn(self.V.shape[1], n_noise_vec)
+        g_noise = self.Factor.apply_Pt(self.Factor.solve_Lt(noise,use_LDLt_decomposition=False))
         ###estimate of systematic errors, assuming that that they are perfectly corrected and of the size of the errorbars
-        #g_sys_err = np.squeeze(self.Factor(self.V.T*np.ones_like(self.f)))
-        #g_noise += g_sys_err[:,None]* np.random.randn(  n_noise_vec)
-        #g_noise*= max(1,np.sqrt(self.chi2))
+        g_sys_err = np.squeeze(self.Factor(self.V.T*np.ones_like(self.f)))
+        g_noise*= max(1,np.sqrt(self.chi2))
+        g_noise += g_sys_err[:,None]* np.random.randn(  n_noise_vec)
         
        
         g_noise += (g - g_noise.mean(1))[:,None]
