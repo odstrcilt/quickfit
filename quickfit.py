@@ -149,7 +149,7 @@ class DataFit():
         self.equ_map = equ_map
 
         from tkinter import   font
-
+        print(font.nametofont("TkDefaultFont").actual()['family'] )
         # Creating a Font object of "TkDefaultFont"
         self.defaultFont = font.nametofont("TkDefaultFont")
         # Overriding default-font with custom settings
@@ -158,8 +158,8 @@ class DataFit():
         if self.defaultFont.actual()['family'] != 'Segoe UI':
             self.defaultFont.configure(family="Helvetica" )
             if self.defaultFont.actual()['family'] !=  "Helvetica" :
-                self.defaultFont.configure(family="Liberation Sans" )
-                if self.defaultFont.actual()['family'] !=  "Liberation Sans" :
+                self.defaultFont.configure(family="Lucida" )
+                if self.defaultFont.actual()['family'] !=  "Lucida" :
                     print('Issue with TK fonts, use ', self.defaultFont.actual()['family'] )
 
         
