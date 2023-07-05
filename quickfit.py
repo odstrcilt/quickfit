@@ -128,7 +128,7 @@ class DataFit():
         self.elmstime = elmstime
         self.elmsphase = elmsphase
         
-        if device == 'DIII-D': self.device = 'D3D'
+        if device in ['DIII-D','D3D']: self.device = 'D3D'
         if self.device == 'D3D':
             from D3D import fetch_data 
             from D3D.map_equ import equ_map

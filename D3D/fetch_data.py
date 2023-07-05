@@ -1390,16 +1390,15 @@ class data_loader:
         if shot is None:
            shot = self.shot
    
-        if shot == 190550  and '330L' in _load_beams: #issue with NB data for 330R
+        #issue with missing NB data for 330R
+        if shot in [190550,190548]  and '330L' in _load_beams: 
             nbi = self.nbi_info(['330L'], nbi=nbi,  shot = 190549 )
             _load_beams.remove('330L')
         
 
+        #fetch NBI data
         self.MDSconn.openTree('NB',  shot)  
-
-        
         paths = ['\\NB::TOP.NB{0}:'.format(b[:2]+b[-1]) for b in _load_beams] 
-
         TDI = [p+'pinj_scalar' for p in paths] 
         pinj_scal = self.MDSconn.get('['+','.join(TDI)+']')
         fired = pinj_scal > 1e3
@@ -5716,14 +5715,16 @@ class data_loader:
             
             #cross-calibrate the poor data from tangential system by the reflectometer data
             refl_opts = {'Position error':{'Align with TS':tk.IntVar(value=0)}}
-            refl = self.load_refl( tbeg,tend,  refl_opts)['VO']
-            T1 = np.tile(refl['time'],(refl['channel'].size,1)).T
-            interp = NearestNDInterpolator(np.vstack((T1.flatten(),refl['rho'].values.flatten())).T, refl['ne'].values.flatten())
-            T2 = np.tile(ts['tangential']['time'].values,(ts['tangential']['R'].size,1)).T
-            ne_refl = interp(np.array((T2, ts['tangential']['rho'].values)).T).T
-            correction = np.median(ts['tangential']['ne'].values / ne_refl, 0)
-            ts['tangential']['ne'] /= correction[None,:]
-            
+            try:
+                refl = self.load_refl( tbeg,tend,  refl_opts)['VO']
+                T1 = np.tile(refl['time'],(refl['channel'].size,1)).T
+                interp = NearestNDInterpolator(np.vstack((T1.flatten(),refl['rho'].values.flatten())).T, refl['ne'].values.flatten())
+                T2 = np.tile(ts['tangential']['time'].values,(ts['tangential']['R'].size,1)).T
+                ne_refl = interp(np.array((T2, ts['tangential']['rho'].values)).T).T
+                correction = np.median(ts['tangential']['ne'].values / ne_refl, 0)
+                ts['tangential']['ne'] /= correction[None,:]
+            except:
+                pass
             
 
         
