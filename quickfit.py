@@ -149,7 +149,6 @@ class DataFit():
         self.equ_map = equ_map
 
         from tkinter import   font
-        print(font.nametofont("TkDefaultFont").actual()['family'] )
         # Creating a Font object of "TkDefaultFont"
         self.defaultFont = font.nametofont("TkDefaultFont")
         # Overriding default-font with custom settings

@@ -178,7 +178,6 @@ def read_adf12_aug(data_dir, line, beam_spec='D', therm=False, n_neut=1):
         # extrapolate by the nearest values, E is in eV/amu!!
 
         grid = fbeam_Zeff, fbeam_Ti, fbeam_ne, fbeam_E
-        #lZeff = np.clip(np.log(Zeff), 0, np.log(6))  # Zeff is just up to 4!!, it will extrapolated
         lZeff = np.clip(np.log(Zeff), 0, np.log(4))  # Zeff is just up to 4!!, it will extrapolated
 
         lTi = np.clip(np.log(Ti), *grid[1][[0, -1]])
@@ -195,7 +194,6 @@ def read_adf12_aug(data_dir, line, beam_spec='D', therm=False, n_neut=1):
         # extrapolate by the nearest values
 
         grid = fbeam_Zeff, fbeam_Ti, fbeam_ne
-        #lZeff = np.clip(np.log(Zeff), 1, np.log(6))  # Zeff is just up to 4!!, it will extrapolate
         lZeff = np.clip(np.log(Zeff), 1, np.log(4))  # Zeff is just up to 4!!, it will extrapolate
 
         lTi = np.clip(np.log(Ti), *grid[1][[0, -1]])
@@ -2662,14 +2660,14 @@ class data_loader:
      
                 beam_profiles['rho'][sys].append(rho_slice)  
                 ne_slice = np.exp(np.average(np.log(n_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
-                
+                #plt.plot(rho_slice,  ne_slice)
                 beam_profiles['ne'][sys].append(ne_slice)
                 ne_err_slice = 1/np.average(1/n_e_err[tslice, ch_valid],0, TS_valid[tslice, ch_valid])
                 beam_profiles['ne_err'][sys].append(np.maximum(ne_err_slice, .05*ne_slice)) #minimum 5% error
                 Te_slice = np.exp(np.average(np.log(T_e[tslice, ch_valid]+1.),0, TS_valid[tslice, ch_valid]))
                 beam_profiles['te'][sys].append(Te_slice)
                 
-                
+        #plt.show()
         #BUG is it sorted somewhere??
         #merge data from all TS systems 
         for k, d in beam_profiles.items():
@@ -2720,9 +2718,12 @@ class data_loader:
         cer_systems = [sys for sys in nimp['systems'] if 'SPRED' not in sys]
         cer_systems = ['tangential']
         
-        #load kinetic data from fit addition, whoch can be different from impurity edition
+        #load kinetic data from fit edition, which can be different from impurity edition
         if self.shot in [190652, 190653, 190654]:
             options['Analysis'] = tk.StringVar(value='fit'), options['Analysis'][1]
+        if self.shot in [196551]:
+            options['Analysis'] = tk.StringVar(value='auto'), options['Analysis'][1]
+            
             
         cer = self.load_cer(tbeg,tend, cer_systems,options=options)
         
@@ -2856,6 +2857,7 @@ class data_loader:
             if np.any(np.abs(vtor)> 2e5) :
                 print('Suspicious high plasma rotation!! max(vtor) = %.2fkm/s  @ %.2fs'%(abs(vtor).max()/1e3, t))
             vtor = np.clip(vtor, -2e5, 2e5)
+ 
 
             # see CC notebook VII, pages 50-52, this is just the magnitude of the
             # velocity vector V_beam-V_plasma, note that the cosine of the angle
@@ -2867,24 +2869,28 @@ class data_loader:
             beam_profiles['erel'].append(erel)
             beam_profiles['vrel'].append(vrel)
  
-
- 
+        beam_prof_merged['vrel'] = np.vstack(beam_profiles['vrel']).T #m/s
+        beam_prof_merged['erel'] = np.vstack(beam_profiles['erel']).T #eV/amu
 
         #####################  Calculate Beam attenuation ###############33
         # calculate concetration of impurities and main ions as self.frac
 
+
+        beam_prof_merged['erel'][:] = beam_prof_merged['erel'].mean()
+        beam_prof_merged['Ti'][:]=2e3
+        beam_prof_merged['ne'][:] = 4e19 
+        beam_prof_merged['te'][:] = 2e3 
+        beam_prof_merged['fC'][:] =0.05
+        beam_prof_merged['vrel'][:] = beam_prof_merged['vrel'].mean()
+        
+        for ne in beam_profiles['ne']:
+            ne[:] = 2e19
+            
+            
         # Change dens to cm-3, temp in eV, energy in eV/amu
         te = beam_prof_merged['te'] #eV
         dens = beam_prof_merged['ne']/1.e6 # cm^-3
-        erel = np.vstack(beam_profiles['erel']).T #eV/amu
-        
-        #erel[:] = erel.mean()
-        #beam_prof_merged['Ti'][:]=2e3
- 
-        #beam_prof_merged['ne'][:] = 4e19   
-        #beam_prof_merged['fC'][:] =0.05
-
-        beam_prof_merged['erel'] = erel
+        erel = beam_prof_merged['erel']
 
         path = os.path.dirname(os.path.realpath(__file__))+'/openadas/' 
 
@@ -2940,8 +2946,7 @@ class data_loader:
     
         for it,t in enumerate(centroid):
             nR = beam_profiles['Rmid'][it].size
-   
-            
+ 
             #split the interpolated atomic data in timeslices
             n2frac.append(bmp_mix[:,:,n:n+nR])
             
@@ -2963,6 +2968,9 @@ class data_loader:
             lnbeam_att_err = np.dstack((np.zeros((nbeam, n_beam_spec)), lnbeam_att_err))
             
             beam_att.append(np.exp(-lnbeam_att))
+            
+            #BUG 
+            #beam_att[-1][:] = 1
         
             # assume correlated error - ne is systematically higher/lower within the uncertainty
             beam_att_err.append(beam_att[-1] * lnbeam_att_err)  # keep in mind, that uncertaintes of all beams and species are correlated
@@ -2979,7 +2987,7 @@ class data_loader:
         te = beam_prof_merged['te'] #eV
         ti = beam_prof_merged['Ti'] #eV        
         ne = beam_prof_merged['ne'] / 1.0e6  # cm^-3
-        v =  np.vstack(beam_profiles['vrel']).T*100 #cm/s 
+        v =  beam_prof_merged['vrel'] *100 #cm/s 
         
     
         #ionisation rate of deuterium
@@ -3276,7 +3284,7 @@ class data_loader:
 
             #plt.show()
             
-            
+            #qeff[:] = 1
 
             #rho_ne,tvec_ne,data_ne,err_ne = [],[],[],[]
             #for sys in TS['systems']:
@@ -3303,6 +3311,8 @@ class data_loader:
             nz_err = np.ones_like(nimp_data['int'])*np.inf
             n = 0
             beam_fact = beam_data['beam_geom']*beam_data['beam_pow']
+            
+            #beam_att[:] = 1
         
             for it,t in enumerate(centroid):
                 
@@ -3314,23 +3324,18 @@ class data_loader:
         
                 R_clip = np.minimum(nimp_data['R'][ind],  Rmid[0])  #extrapolate by a constant on the outboard side
                 # sum over beam species crossection before interpolation
-                #denom_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1))  # nR x nbeam
-                #print(nb0, beams)
+
+                #beam_att[it][:] = 1
                 denom_TS_R = np.sum(nb0.T[:,:,None] * beam_att[it] * qeff[:,:,tind], 1)
                 denom_interp = lambda x: np.exp(interp1d(Rmid, np.log(denom_TS_R), copy=False)(x))  # nR x nbeam
 
-                #try:
                 # uncertainties in beam_att_err between species are 100% correlated, we can sum them
                 denom_err_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att_err[it] * qeff[:,:,tind], 1))  # nR x nbeam
-                #except:
-                    #embed()
+           
                 denom = np.sum(beam_fact[:,ind]*denom_interp(R_clip),0)
-                #denom = np.sum(beam_fact[:,ind] ),0)
 
                 denom_err = np.sum(beam_fact[:,ind]*denom_err_interp(R_clip),0)
-                
-                #denom[:] = 1
-                
+              
                 #sometimes is power observed by vertical core system is zero, but intensity is nonzero
                 invalid = (denom == 0)|np.isnan(nimp_data['int_err'][ind])|(nimp_data['int'][ind]==0)
                 if np.any(invalid):
@@ -3338,8 +3343,7 @@ class data_loader:
                     denom=denom[~invalid] 
                     denom_err=denom_err[~invalid]
                     
-                nz[ind] = nimp_data['int'][ind]/denom
-                #nz[ind] =   denom_err_interp(R_clip)[0]
+                nz[ind] = nimp_data['int'][ind]#/denom
                 nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
                 nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
         
@@ -4115,8 +4119,8 @@ class data_loader:
                         nbi_tvec = None
                         self.MDSconn.openTree('NB', self.shot)                      
                         for beam in nbi_pow.keys():
-                            nbi = self.MDSconn.get('\\NB::TOP.NB{beam}L:PINJ_{beam}L').data()
-                            nbi = nbi+self.MDSconn.get('\\NB::TOP.NB{beam}R:PINJ_{beam}R').data()
+                            nbi = self.MDSconn.get(f'\\NB::TOP.NB{beam}L:PINJ_{beam}L').data()
+                            nbi = nbi+self.MDSconn.get(f'\\NB::TOP.NB{beam}R:PINJ_{beam}R').data()
                             if nbi_tvec is None:
                                 nbi_tvec = self.MDSconn.get('\\NB::TOP:TIMEBASE').data()
                             nbi = np.interp(tvec, nbi_tvec/1000,nbi/1e6)
@@ -4436,6 +4440,10 @@ class data_loader:
    
             zeff[sys]['rho']  = xarray.DataArray(rho,dims=['time','channel', 'path'], attrs={'units':'-'})
             zeff[sys]['rho_tg'] = xarray.DataArray(rho_tg,dims=['time','channel'], attrs={'units':'-'})
+            
+            plt.plot(L.T,R.T);plt.show()
+            
+            embed()
 
         ##########################################  VB calculation ###############################################
         print('\t done in %.1fs'%(time()-TT))
@@ -7062,8 +7070,8 @@ def main():
     #shot = 175900
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
-    shot = 195846 #intensity nc funguje mizerne
-
+    shot = 196551 #intensity nc funguje mizerne
+    #shot = 175860
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7171,7 +7179,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('fit'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -7192,10 +7200,10 @@ def main():
                         }})
         
     settings.setdefault('Zeff', {\
-        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(0)],                 )),
+        'systems':OrderedDict(( ( 'VB array',  (['tangential',I(1)],                 )),
                                 ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
-                                ( 'CER system',(['tangential',I(1)],['vertical',I(0)],['SPRED',I(1)])),
-                                ( 'SPRED',(['He+B+C+O+N',I(1)],)),                           
+                                ( 'CER system',(['tangential',I(1)],['vertical',I(0)],['SPRED',I(0)])),
+                                ( 'SPRED',(['He+B+C+O+N',I(0)],)),                           
                                 )), \
         'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
                         'TS':{'Position error':{'Z shift [cm]':D(0.0)}},
