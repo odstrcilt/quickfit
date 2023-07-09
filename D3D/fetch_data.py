@@ -3345,7 +3345,7 @@ class data_loader:
                     denom=denom[~invalid] 
                     denom_err=denom_err[~invalid]
                     
-                nz[ind] = nimp_data['int'][ind]#/denom
+                nz[ind] = nimp_data['int'][ind]/denom
                 nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
                 nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
         
