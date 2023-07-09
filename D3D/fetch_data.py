@@ -4442,10 +4442,7 @@ class data_loader:
    
             zeff[sys]['rho']  = xarray.DataArray(rho,dims=['time','channel', 'path'], attrs={'units':'-'})
             zeff[sys]['rho_tg'] = xarray.DataArray(rho_tg,dims=['time','channel'], attrs={'units':'-'})
-            
-            plt.plot(L.T,R.T);plt.show()
-            
-            embed()
+        
 
         ##########################################  VB calculation ###############################################
         print('\t done in %.1fs'%(time()-TT))
