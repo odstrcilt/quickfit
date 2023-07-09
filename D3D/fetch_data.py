@@ -105,8 +105,10 @@ def read_adf12(file,block, ein, dens, tion, zeff):
             first_line = '0'
             while(not first_line[0].isalpha()):
                 first_line =  f.readline()
-            
+    
             cer_line['header'] = first_line
+            if first_line.startswith('C'):
+                raise Exception(f'ISEL {block} is not in the atomic data file '+file)
             cer_line['qefref'] = np.float(f.readline()[:63].replace('D', 'e'))
             cer_line['parmref'] = np.float_(f.readline()[:63].replace('D', 'e').split())
             cer_line['nparmsc'] = np.int_(f.readline()[:63].split())
@@ -2876,15 +2878,15 @@ class data_loader:
         # calculate concetration of impurities and main ions as self.frac
 
 
-        beam_prof_merged['erel'][:] = beam_prof_merged['erel'].mean()
-        beam_prof_merged['Ti'][:]=2e3
-        beam_prof_merged['ne'][:] = 4e19 
-        beam_prof_merged['te'][:] = 2e3 
-        beam_prof_merged['fC'][:] =0.05
-        beam_prof_merged['vrel'][:] = beam_prof_merged['vrel'].mean()
+        #beam_prof_merged['erel'][:] = beam_prof_merged['erel'].mean()
+        #beam_prof_merged['Ti'][:]=2e3
+        #beam_prof_merged['ne'][:] = 4e19 
+        #beam_prof_merged['te'][:] = 2e3 
+        #beam_prof_merged['fC'][:] =0.05
+        #beam_prof_merged['vrel'][:] = beam_prof_merged['vrel'].mean()
         
-        for ne in beam_profiles['ne']:
-            ne[:] = 2e19
+        #for ne in beam_profiles['ne']:
+            #ne[:] = 2e19
             
             
         # Change dens to cm-3, temp in eV, energy in eV/amu
@@ -3168,7 +3170,7 @@ class data_loader:
                           'C6':{'8-7':[5,5]},
                           'N7':{'9-8':[5,None]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
-                          'O8': {'12-10': [16,16], '9-8': [5,1],'10-9': [6,2]}, 
+                          'O8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None],'13-12': [3,None]},
                           'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
@@ -3183,7 +3185,7 @@ class data_loader:
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
    
-                if file2 is not None:
+                if file2 is not None and block2 is not None:
                     qeff2 = read_adf12(path+file2,block2, erel, nion, ti, zeff)
                 if imp== 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and 16-15 line
                     qeff /= 0.81
