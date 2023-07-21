@@ -4074,9 +4074,9 @@ class data_loader:
                 return
 
             # Razor viewing dumps for 90 and 315 views
-            razor = [True, False, False, False, True, True, True, True, 
-                     True, False, True, False, False, True, False, True]
-            nchans = 16
+            razor = np.array([True, False, False, False, True, True, True, True, 
+                     True, False, True, False, False, True, False, True])
+            nchans = len(razor)
 
             
             #Fetch data from MDS+, it is much faster to fetch uncalibrated data than calibrated \VBXX signals !!!!!
@@ -4090,12 +4090,14 @@ class data_loader:
 
             tdi = '['+ ','.join(sum([[n%(ch+1) for n in nodes] for ch in range(nchans)],[]))+']'
             out = self.MDSconn.get(tdi).data().reshape(-1,len(nodes)).T.astype('single') 
+            #select only channels with nonzero calibration
+            channels = np.where(out[5]  > 0)[0]
+            out = out[:,channels]
             calib =  out[:5][::-1]
             REL_CONST,CTRL_CAL,V_CAL,FS_COEFF_I_N, phi_start,phi_end,R_start, R_end,z_start,z_end = out[5:]
-            
             tvec = self.MDSconn.get('dim_of(\VB01)').data()/1000 #timebase ms -> s
             nt = len(tvec)
-
+            
             if nt > 1:
                 #downsample data to 10ms
                 dt = (tvec[-1]-tvec[0])/(nt-1)
@@ -4106,10 +4108,10 @@ class data_loader:
                     #load raw voltages - only way how to identify saturated signals!
                     #also it is 2x faster then loading VB
 
-                    CTLMID = [self.MDSconn.get('\CTLMIDVB%.2d'%(ch+1)).data()[0] for ch in range(nchans)]
+                    CTLMID = [self.MDSconn.get('\CTLMIDVB%.2d'%(ch+1)).data()[0] for ch in channels]
 
                     #This value should be between 1 and 10 V. Signals above 10 V will cause the system to trip off, which will cause signal levels to drop to 0.            
-                    PHDMID = [self.MDSconn.get('\PHDMIDVB%.2d'%(ch+1)).data() for ch in range(nchans)]
+                    PHDMID = [self.MDSconn.get('\PHDMIDVB%.2d'%(ch+1)).data() for ch in channels]
                     PHDMID = np.array([p if len(p)>1  else np.zeros_like(tvec) for p in PHDMID]).T
                     
                  
@@ -4131,7 +4133,7 @@ class data_loader:
                         self.MDSconn.closeTree('NB', self.shot)
 
 
-                    PHDMID = np.mean(PHDMID[:imax//n*n].reshape( -1,n,nchans), 1)
+                    PHDMID = np.mean(PHDMID[:imax//n*n].reshape( -1,n,len(channels)), 1)
                     tvec   = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
                     
                     #all values after PHDMID == 10 will be invalid , it is not always working!!
@@ -4143,8 +4145,8 @@ class data_loader:
                     if np.any(nbi_pow['33'] > 0.1):
                         #BUG even more HFS channels can be affected
                         valid[:,-2:] &= nbi_pow['33'][:,None] < 0.1
-                           
-            
+                    
+                    
                     #do calibration VB data W/cm**2/A
                     VB = REL_CONST*FS_COEFF_I_N*np.exp(np.polyval(calib,CTRL_CAL))/np.exp(np.polyval(calib,CTLMID))*(PHDMID/V_CAL)
    
@@ -4153,23 +4155,29 @@ class data_loader:
                 except Exception as e:
                     print(e)
                     #for older discharges
-                    tdi = '['+ ','.join(['\VB%.2d'%ch for ch in range(1,nchans+1)])+']'
+                    tdi = '['+ ','.join(['\VB%.2d'%(ch+1) for ch in channels ])+']'
                     VB = self.MDSconn.get(tdi ).data().T
 
                     if len(tvec) > 1:
-                        VB = np.mean(VB[:imax//n*n].reshape( -1,n,nchans), 1)
+                        VB = np.mean(VB[:imax//n*n].reshape( -1,n,len(channels)), 1)
                         tvec  = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
                         valid = np.ones_like(VB, dtype='bool')
                     #in the older discharges is the signal negative
                     VB *= np.sign(np.mean(VB))
                     self.MDSconn.closeTree(tree, self.shot)
-
+    
+    
+                #save only channels with nonzero signal
+                valid_ch = np.any(VB > 0,axis=0)
+                channels = channels[valid_ch]
                 
-
+                VB = VB[:,valid_ch]
+                valid = valid[:,valid_ch]
+                
         
                 # Toroidal angle in plane polar coordinates (deg)
-                phi_start = np.deg2rad(90.0 - phi_start)
-                phi_end   = np.deg2rad(90.0 - phi_end)
+                phi_start = np.deg2rad(90.0 - phi_start) 
+                phi_end   = np.deg2rad(90.0 - phi_end) 
                 # Radius (mm -> m)
                 R_start /= 1000.
                 R_end /= 1000.
@@ -4206,22 +4214,22 @@ class data_loader:
                 zeff[VB_array]['VB_err'] = xarray.DataArray(VB_err,dims=['time','channel'], attrs={'units':'W/cm**2/A'})
                 zeff[VB_array]['diags']= xarray.DataArray( np.tile((VB_array,), VB.shape),dims=['time','channel'])
                 
-                zeff[VB_array]['R_start'] = xarray.DataArray(R_start, dims=['channel'], attrs={'units':'m'})
-                zeff[VB_array]['R_end'] = xarray.DataArray(R_end, dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['R_start'] = xarray.DataArray(R_start[valid_ch], dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['R_end'] = xarray.DataArray(R_end[valid_ch], dims=['channel'], attrs={'units':'m'})
 
-                zeff[VB_array]['z_start'] = xarray.DataArray(z_start,dims=['channel'], attrs={'units':'m'})
-                zeff[VB_array]['z_end'] = xarray.DataArray(z_end,dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['z_start'] = xarray.DataArray(z_start[valid_ch],dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['z_end'] = xarray.DataArray(z_end[valid_ch],dims=['channel'], attrs={'units':'m'})
                 
-                zeff[VB_array]['phi_start'] = xarray.DataArray(phi_start,dims=['channel'], attrs={'units':'m'})
-                zeff[VB_array]['phi_end'] = xarray.DataArray(phi_end,dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['phi_start'] = xarray.DataArray(phi_start[valid_ch],dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['phi_end'] = xarray.DataArray(phi_end[valid_ch],dims=['channel'], attrs={'units':'m'})
 
-                zeff[VB_array]['razor'] = xarray.DataArray(razor,dims=['channel'] )
+                zeff[VB_array]['razor'] = xarray.DataArray(razor[channels],dims=['channel'] )
                 
-                zeff[VB_array]['channel'] = xarray.DataArray(['VB%.2d'%ich for ich in range(1,nchans+1)],dims=['channel'])
+                zeff[VB_array]['channel'] = xarray.DataArray(['VB%.2d'%(ich+1) for ich in channels],dims=['channel'])
                 zeff[VB_array]['time'] = xarray.DataArray(tvec.astype('single'),dims=['time'], attrs={'units':'s'})
 
                 zeff['diag_names'][VB_array] = [VB_array]
-                
+                 
       
         ######################   CER VB data #############################3
 
@@ -7069,7 +7077,7 @@ def main():
     #shot = 175900
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
-    shot = 196551 #intensity nc funguje mizerne
+    shot = 190430 #intensity nc funguje mizerne
     #shot = 175860
     default_settings(MDSconn, shot  )
     #exit()
@@ -7239,7 +7247,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     return 
     for shot in range(195400, 196000):
         #shot = 195055

@@ -198,10 +198,13 @@ class FitPlot():
                     name_channels.append(str(n_ch+1))
             else:
                 dch = s[1]
-                try: #error  if there are no data
-                    name_channels += [diags[-1][0,i]+'_%d'%(i+1) for i in range(dch)]
-                except:
-                    pass
+                if 'channel' in ch:
+                    name_channels += list(ch['channel'].values)
+                else:
+                    try: #error  if there are no data
+                        name_channels += [diags[-1][0,i]+'_%d'%(i+1) for i in range(dch)]
+                    except:
+                        pass
                 
             ind_channels.append(np.tile(np.arange(dch,dtype='uint32')+n_ch,(s[0],1)))
             n_ch+=  dch
@@ -470,11 +473,42 @@ class FitPlot():
         for nbutt, butt in enumerate(r_buttons):
             button = tk.Radiobutton(fit_frame_up, text=butt, variable=self.plot_type,
                         command=self.changed_fit_slice, value=nbutt)
-            button.pack(anchor='w', side=tk.LEFT,pady=2, padx=2)
+            button.pack(anchor='w', side=tk.LEFT,pady=0, padx=2)
  
+ 
+  
+        self.show_splines = tk.IntVar(master=fit_frame_up,value=0)
+        if self.parent.device in ['D3D','NSTX']:
+
+            def newselection():
+                #update view of zip fit and load data if not availible
+                self.fit_frame.config(cursor="watch")
+                self.fit_frame.update()
+                try:
+                
+                    if self.show_splines.get() == 1:
+                        self.splines = self.parent.data_loader(spline_fits=True)
+
+                    if self.options['data_loaded']:
+                        self.spline_min.set_visible(self.show_splines.get())
+                        self.spline_mean.set_visible(self.show_splines.get())
+                        self.spline_max.set_visible(self.show_splines.get())
+                        self.plot_step()
+                    
+                finally:
+                    self.fit_frame.config(cursor="")
+            
+            label = self.parent.device+' splines'
+            if self.parent.device == 'D3D':
+                label = 'ZIPFIT'
+ 
+            spline_cbx = tk.Checkbutton(fit_frame_up , text='Show '+label,
+                        command=newselection,variable=self.show_splines) 
+
+            spline_cbx.pack(anchor='w', side=tk.RIGHT,pady=0, padx=20)
+            
         
         # canvas frame
-
         self.fig = Figure(figsize=(9.5,9), dpi=75)
         self.fig.patch.set_facecolor((.93,.93,.93))
         self.ax_main = self.fig.add_subplot(111)
@@ -1016,11 +1050,10 @@ class FitPlot():
 
 
         #show also zipfit profiles
-        #BUG how to avoid access of parent class?
-        show_splines = self.parent.show_splines.get() == 1
+        show_splines = self.show_splines.get() == 1
         
-        if show_splines and kinprof in self.parent.splines:
-            splines = self.parent.splines[kinprof]
+        if show_splines and kinprof in self.splines:
+            splines = self.splines[kinprof]
             
             y = splines['time'].values
             x = splines['rho'].values

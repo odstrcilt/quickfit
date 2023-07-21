@@ -415,9 +415,9 @@ class DataFit():
             #use a default setting for a new discharge
             self.load_default_options()
             self.init_fit_opt_frame()
-            if hasattr(self,'splines'):
-                del self.splines
-            self.show_splines.set(0)
+            if hasattr(self.fitPlot,'splines'):
+                del self.fitPlot.splines
+            self.fitPlot.show_splines.set(0)
 
             self.efit_edition_changed()
             self.init_set_prof_load()
@@ -551,35 +551,35 @@ class DataFit():
         if self.kinprof_ind is not None:
             self.diag_nb.select(self.kinprof_ind  )
         
-        self.show_splines = tk.IntVar(master=self.data_frame,value=0)
-        if self.device in ['D3D','NSTX']:
-            spline_frame = tk.LabelFrame(self.data_frame, padx=2, pady=2,relief='groove')
-            spline_frame.pack(side=tk.BOTTOM,fill=tk.BOTH ) 
+        #self.show_splines = tk.IntVar(master=self.data_frame,value=0)
+        #if self.device in ['D3D','NSTX']:
+            #spline_frame = tk.LabelFrame(self.data_frame, padx=2, pady=2,relief='groove')
+            #spline_frame.pack(side=tk.BOTTOM,fill=tk.BOTH ) 
 
-            def newselection():
-                #update view of zip fit and load data if not availible
-                self.main_frame.config(cursor="watch")
-                self.main_frame.update()
-                try:
+            #def newselection():
+                ##update view of zip fit and load data if not availible
+                #self.main_frame.config(cursor="watch")
+                #self.main_frame.update()
+                #try:
                 
-                    if self.show_splines.get()==1:
-                        self.splines = self.data_loader(spline_fits=True)
+                    #if self.show_splines.get()==1:
+                        #self.splines = self.data_loader(spline_fits=True)
 
-                    if self.options['data_loaded']:
-                        self.fitPlot.spline_min.set_visible(self.show_splines.get())
-                        self.fitPlot.spline_mean.set_visible(self.show_splines.get())
-                        self.fitPlot.spline_max.set_visible(self.show_splines.get())
-                        self.fitPlot.plot_step()
+                    #if self.options['data_loaded']:
+                        #self.fitPlot.spline_min.set_visible(self.show_splines.get())
+                        #self.fitPlot.spline_mean.set_visible(self.show_splines.get())
+                        #self.fitPlot.spline_max.set_visible(self.show_splines.get())
+                        #self.fitPlot.plot_step()
                     
-                finally:
-                    self.main_frame.config(cursor="")
+                #finally:
+                    #self.main_frame.config(cursor="")
             
-            label = self.device+' splines'
-            if self.device == 'D3D':
-                label = 'ZIPFIT'
+            #label = self.device+' splines'
+            #if self.device == 'D3D':
+                #label = 'ZIPFIT'
                 
-            tk.Checkbutton(spline_frame, text='Show '+label,
-                        command=newselection,variable=self.show_splines).pack(anchor='w')
+            #tk.Checkbutton(spline_frame, text='Show '+label,
+                        #command=newselection,variable=self.show_splines).pack(anchor='w')
 
    
         vcmd = self.dataload_frame.register(self.isfloat) 
@@ -944,7 +944,7 @@ class DataFit():
         pedestal_rho.pack(side=tk.LEFT, padx=20)
         createToolTip(pedestal_rho, 'set expected position of the pedestal')
 
-        checkbuttons =  (('Robust fit','robustfit','Makes the fit less sensitive to outliers' ),
+        checkbuttons =  (#('Robust fit','robustfit','Makes the fit less sensitive to outliers' ),
                         ('Zero edge','zeroedge','Press edge of profile to zero' ),
                         ('Remove ELMs; elms signal:','elmrem' ,'Remove points affected by elms' ),
                         ('ELMs sync.','elmsync' ,'Incorporate elms in the time smoothing' ),
@@ -1031,7 +1031,7 @@ class DataFit():
                 self.options['data_loaded'] = False
 
                 return
-            if self.show_splines.get():
+            if self.fitPlot.show_splines.get():
                 self.spline_fits = self.data_loader(spline_fits=True)
             assert data_d['data'] is not None, 'No Data!!!'
             assert len(data_d['data']) != 0, 'No Data!!!'
