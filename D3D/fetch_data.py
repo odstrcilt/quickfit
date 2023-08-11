@@ -688,12 +688,14 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #embed()
 
     val = np.ones_like(elm_start)
-    elm_val = np.c_[val, -val,val*0 ].flatten()
+    elm_val = np.c_[val, -val,val*0+2 ].flatten()
 
     t_elm_val = tvec[np.c_[ elm_start, elm_start, elm_end].flatten()]
 
     #elm free regions will be set to 2
     elm_val[:-1][np.diff(t_elm_val) > .2] = 2
+  
+    
 
     #plt.plot(t_elm_val, elm_val*1e21)
     #plt.plot(tvec, filtered)
@@ -701,7 +703,6 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #plt.plot(tvec, threshold_sig)
     #plt.show()
 
-    #embed()
 
 
     #np.savez('/home/tomas/Dropbox (MIT)/LBO_experiment/SXR_data/elms_175901',tvec=t_elm_val,val=elm_val)
@@ -834,7 +835,9 @@ def default_settings(MDSconn, shot):
         imps.append('Kr27')
     if shot == 196551:
         imps.append('Al13')
-    
+    if shot in [190552, 190553]:
+        imps.append('C4')
+        
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
@@ -929,8 +932,8 @@ def default_settings(MDSconn, shot):
             imps.remove('C6')
             imps = ['C6']+imps
         default_settings['Zeff']['load_options']['CER system']['Impurity'] = (imps[0], imps)
-
-        
+    
+    
     return default_settings
 
 class data_loader:
@@ -2084,7 +2087,12 @@ class data_loader:
                         for i in [8,9,10]:
                             line_id[i] = 'Ca XVIII 16-15'
                             line_id[i+3] = 'Ca XVIII 15-14'
-               
+
+                if self.shot in [190552, 190553]:
+                    if analysis_type == 'cerfit' and imp == 'C4': #carbon
+                        for i, d in enumerate(line_id):
+                            if d.startswith('O'):
+                                line_id[i] = 'C IV 6-5'
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
@@ -2539,7 +2547,7 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Kr25','Kr27']:
+        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Kr25','Kr27']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
         if imp  in [ 'Kr25','Kr27']:
@@ -3142,7 +3150,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9',  'B5', 'Li3', 'Ne9', 'O8', 'N7', 'Al13','Kr25','Kr27']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4',  'B5', 'Li3', 'Ne9', 'O8', 'N7', 'Al13','Kr25','Kr27']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3154,10 +3162,12 @@ class data_loader:
                                'Al13': ('qef07#h_arf#al13.dat',None),
                                 'Ne9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                 'N7':  ('qef93#h_n7.dat',  None),
+                                 'C4':('qef93#h_be4.dat',      'qef97#h_en2_kvi#be4.dat'),
                                  'B5': ('qef93#h_b5.dat',       'qef97#h_en2_kvi#b5.dat'),
                                  'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
                                  'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
+                
 
  
  
@@ -3167,6 +3177,7 @@ class data_loader:
                           'B5':{'3-2':[1,1]}, 
                           'Ne9':{'11-10':[3,3]}, 
                           'F9':{'10-9':[2,2]},
+                          'C4':{'6-5':[4,4]},
                           'C6':{'8-7':[5,5]},
                           'N7':{'9-8':[5,None]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
@@ -6280,7 +6291,8 @@ class data_loader:
             tvec_TS_ECE = tvec_TS_ECE[(tvec_TS_ECE > tvec_[0])&(tvec_TS_ECE < tvec_[-1])]
             data_ = interp1d(tvec_, data[high_te_ind], axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE)
             rho_  = interp1d(tvec_, rho[high_te_ind],  axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE)
-            valid_ = np.bool_(interp1d(tvec_, np.isfinite(data_err[high_te_ind]), axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE))
+            valid_ = np.bool_(interp1d(tvec_, np.isfinite(data_err[high_te_ind])&(data_err[high_te_ind] > 0),
+                                        axis=0, copy=False, assume_sorted=True, kind='nearest')(tvec_TS_ECE))
 
             #find ECE measuremets closed in time to TS
             nearest_TS_time = NDinterp(np.tile(tvec_TS_ECE,(nchs,1)).T, rho_)
