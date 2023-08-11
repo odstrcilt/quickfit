@@ -1276,7 +1276,7 @@ class DataFit():
                 
             output[prof] = {'tvec':t_out, 'rho':x_out, 'rho_lbl': self.options['rho_coord'],
                             'data':np.single(d_out), 
-                            'random_samples': np.single(m2g.g_samples),
+                            #'random_samples': np.single(m2g.g_samples),
                             'err': np.single(d_err),
                             'unc_low':np.single(m2g.g_d),
                             'unc_up':np.single(m2g.g_u),
@@ -1340,6 +1340,18 @@ class DataFit():
         np.savez_compressed(path+'kin_data_%d.npz'%self.shot, **output)
         self.saved_profiles = True
         print('saved to: ', path+'kin_data_%d.npz'%self.shot)
+        
+
+        np.savez_compressed(path+'raw_data_%d.npz'%self.shot, **self.raw_data)
+
+        print('Save raw data')
+        
+        
+        
+        
+        
+        
+        
 
           
     def Quit(self):
