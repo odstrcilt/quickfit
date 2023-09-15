@@ -353,7 +353,7 @@ class DataFit():
             if self.device == 'CMOD':#for cmod
                 efits = ['ANALYSIS','EFIT20']+['EFIT%.2d'%i for i in range(1,10)] 
             if self.device == 'D3D':#for D3D
-                efits = ['EFIT02er','EFITS1','EFITS2','EFITS2er']+['EFIT%.2d'%i for i in range(1,10)] 
+                efits = ['EFIT02er','EFITS1','EFITS2','EFITS2er','EFIT_CAKE01','EFIT_CAKE02']+['EFIT%.2d'%i for i in range(1,10)] 
   
             
             for efit in efits:
@@ -379,7 +379,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02',    'EFIT03',  'EFIT04', efit_editions[0] ,'CAKE01','CAKE02' 
+                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02',    'EFIT03',  'EFIT04', efit_editions[0] 
                     if  self.device == 'NSTX':
                         prefered_efit =  'LRDFIT09', 'LRDFIT06', 'EFIT02', 'EFIT01'
                     for pref_ef in prefered_efit:
@@ -1273,10 +1273,10 @@ class DataFit():
                     output['Lx_correction'][ind] =  (self.eqm.ssq['Rmag'][:,None]*np.gradient(x_out)[ind]/np.gradient(r)[1][:,ind]).mean(0)*0.6/1.7
                 except:
                     pass
-                
-            output[prof] = {'tvec':t_out, 'rho':x_out, 'rho_lbl': self.options['rho_coord'],
+            output[prof] = {'tvec':t_out, 'rho':x_out, 
+                            'rho_lbl': self.options['rho_coord'],
                             'data':np.single(d_out), 
-                            #'random_samples': np.single(m2g.g_samples),
+                            'random_samples': np.single(m2g.g_samples),
                             'err': np.single(d_err),
                             'unc_low':np.single(m2g.g_d),
                             'unc_up':np.single(m2g.g_u),

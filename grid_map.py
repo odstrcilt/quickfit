@@ -892,7 +892,7 @@ class map2grid():
         #g_noise = self.Factor( self.V.T * noise )#SLOW but paraellised 
 
         #correct approach how to generate samples from the posterior, but it is noisy, but in radial and temporal domain!!
-        n_noise_vec = 200
+        n_noise_vec = 100
         noise = np.random.randn(self.V.shape[1], n_noise_vec)
         g_noise = self.Factor.apply_Pt(self.Factor.solve_Lt(noise,use_LDLt_decomposition=False))
         ###estimate of systematic errors, assuming that that they are perfectly corrected and of the size of the errorbars

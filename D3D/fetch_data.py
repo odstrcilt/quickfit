@@ -710,6 +710,10 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     return t_elm_val,elm_val, tvec[elm_start], tvec[elm_end]
  
 
+
+
+
+
 def default_settings(MDSconn, shot):
     #Load revisions of Thompson scattering
     ts_revisions = []
@@ -859,6 +863,7 @@ def default_settings(MDSconn, shot):
    
     default_settings['Te']= {\
     'systems':OrderedDict((( 'TS system',(['tangential',True], ['core',True],['divertor',False])),
+                            ( 'Langmuir',(['All probes',False],)),
                             ('ECE system',(['slow',False],['fast',False])))),
     'load_options':{'TS system':{"TS revision":('BLESSED',['BLESSED']+ts_revisions)},
                     'ECE system':OrderedDict((
@@ -870,6 +875,7 @@ def default_settings(MDSconn, shot):
 
     default_settings['ne']= {\
         'systems':OrderedDict((( 'TS system',(['tangential',True], ['core',True],['divertor',False])),
+                                ( 'Langmuir',(['All probes',False],)),
                                 ( 'Reflectometer',(['all bands',False],)),
                                 ( 'CO2 interferometer',(['fit CO2 data',False],['rescale TS',True])) ) ),
         'load_options':{'TS system':{"TS revision":('BLESSED',['BLESSED']+ts_revisions)},
@@ -1063,8 +1069,11 @@ class data_loader:
             data.append(ts) 
         if quantity in ['ne'] and options['systems']['Reflectometer'][0][1].get():
             data.append(self.load_refl(tbeg,tend, options['load_options']['Reflectometer'],TS=ts))
- 
-    
+
+        if quantity in ['ne','Te'] and options['systems']['Langmuir'][0][1].get():
+            data.append(self.load_langmuir(tbeg,tend))
+                        
+             
         if quantity in ['Ti', 'omega','VB'] and len(systems) > 0:
             data.append(self.load_cer(tbeg,tend, systems,options['load_options']['CER system']))
             
@@ -1158,7 +1167,7 @@ class data_loader:
             data.append(Te_Ti)
  
      
-        #embed()
+       
 
         #list of datasets 
         output = {'data':[],'diag_names':[]}
@@ -2606,9 +2615,9 @@ class data_loader:
         from scipy.cluster.vq import kmeans2
         valid = np.isfinite(nimp_data['int_err'])
         int_err =  nimp_data['int_err'][valid]
-        nimp_time = nimp_data['time'][valid][int_err > 0]
-        nclust = min(100, len(np.unique(nimp_time))//2)
-        nclust = 10
+        nimp_time = np.unique(nimp_data['time'][valid][int_err > 0])
+        nclust = min(100, len(nimp_time)//2)
+        #nclust = 10
         #embed()
 
         _centroid, _label = kmeans2(nimp_time, nclust,100, minit='points')
@@ -2901,6 +2910,8 @@ class data_loader:
         te = beam_prof_merged['te'] #eV
         dens = beam_prof_merged['ne']/1.e6 # cm^-3
         erel = beam_prof_merged['erel']
+        
+        
 
         path = os.path.dirname(os.path.realpath(__file__))+'/openadas/' 
 
@@ -2978,6 +2989,7 @@ class data_loader:
             lnbeam_att_err = np.dstack((np.zeros((nbeam, n_beam_spec)), lnbeam_att_err))
             
             beam_att.append(np.exp(-lnbeam_att))
+            #plt.plot(t, np.interp(1.7, beam_profiles['Rmid'][it], lnbeam_att.T[:,0,0]),'o')
             
             #BUG 
             #beam_att[-1][:] = 1
@@ -2988,6 +3000,11 @@ class data_loader:
             beam_att_err[-1] = np.hypot(beam_att_err[-1], 0.05 * beam_att[-1])
             n += nR
             
+        #plt.show()
+        
+        #embed()
+        
+        
 
         n2frac = np.dstack(n2frac)
 
@@ -6324,8 +6341,108 @@ class data_loader:
 
         return Tree({'ECE':ece,'diag_names':{'ECE':['ECE']}, 'systems':['ECE']
                                 ,'EQM':Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})})
+
+
+
+
+    def load_langmuir(self, tbeg,tend):
+
+
     
+        langmuir = self.RAW.setdefault('LANGMUIR',Tree())
+
+        #load from catch if possible
+        langmuir.setdefault('diag_names',Tree())
+        
+        #if availible, only remap and return
+        if len(langmuir['diag_names']):
+            langmuir = self.eq_mapping(langmuir)
+            return langmuir
     
+        
+        
+        langmuir['systems'] = ['LANGMUIR']
+        langmuir.setdefault('diag_names',Tree())
+        langmuir['diag_names']['LANGMUIR'] = []
+        langmuir['LANGMUIR'] = []
+        
+        TT = time()
+        print_line( '  * Fetching Langmuir probes data ...' )
+        try:
+            self.MDSconn.openTree('LANGMUIR', self.shot)                      
+        except:
+            tkinter.messagebox.showerror('Missing data', 'LANGMUIR MDS+ tree is not populated')
+            return 
+        probes = list(self.MDSconn.get('getnci(".*","NODE")').data())
+        probes = probes[:-1] #last one is not initialises
+            
+            
+        if not isinstance(probes,str): 
+            probes = [r.decode() for r in probes]
+        probes = [p.strip() for p in probes]
+
+
+        #fast fetch of MDS+ data
+            
+        TDI_R = [p+':R' for p in probes]
+        R = self.MDSconn.get('['+','.join(TDI_R)+']').data()
+        valid = R > 0
+        R = R[valid]
+        probes = np.array(probes)[valid]
+        TDI_Z = [p+':Z' for p in probes]
+        Z = self.MDSconn.get('['+','.join(TDI_Z)+']').data()
+        TDI_names = [p+':LABEL' for p in probes]
+        labels = self.MDSconn.get('['+','.join(TDI_names)+']').data()
+        if not isinstance(labels,str): 
+            labels = [r.decode() for r in labels]
+        labels = [p.strip() for p in labels]
+            
+        TDI_data = [f'[{p}:TIME,{p}:TEMP,{p}:TEMP_ERR,{p}:DENS,{p}:DENS_ERR]' for p in probes]
+        data = [self.MDSconn.get(tdi).data() for tdi in TDI_data]
+        
+        
+        for ip, p in enumerate(probes):
+            
+            tvec,Te, Te_err, ne, ne_err = data[ip][:,data[ip][0] > 0]
+            valid = (Te > 1)&(Te != 200)&(Te != 300) & (ne > 0) 
+            
+            zero = np.zeros_like(tvec[valid])
+        
+            ds = Dataset(p+'.nc', attrs={'channel':labels[ip]})
+            ds['R'] = xarray.DataArray(R[ip]+zero, attrs={'units':'m'})
+            ds['Z'] = xarray.DataArray(Z[ip]+zero, attrs={'units':'m'})
+            
+            ds['ne'] = xarray.DataArray(ne[valid]*1e6,dims=['time'], attrs={'units':'m^{-3}','label':'n_e'})
+            ds['ne_err'] = xarray.DataArray(ne[valid]*ne_err[valid]*1e6,dims=['time'], attrs={'units':'m^{-3}'})
+
+            ds['Te'] = xarray.DataArray(Te[valid],dims=['time'], attrs={'units':'m^{-3}','label':'T_e'})
+            ds['Te_err'] = xarray.DataArray(Te_err[valid],dims=['time'], attrs={'units':'m^{-3}'})        
+
+            ds['rho'] = xarray.DataArray(zero,dims=['time'], attrs={'units':'s'})        
+            
+            ds['time'] = xarray.DataArray(tvec[valid]/1e3,dims=['time'], attrs={'units':'s'})        
+            
+            group = 'LANG:'
+            group += 'ISP' if R[ip] < 1.2 else 'OSP'
+            group += '_up' if Z[ip] > 0 else '_low'
+            
+            if group not in langmuir['diag_names']['LANGMUIR']:
+                langmuir['diag_names']['LANGMUIR'].append(group)
+            ds['diags']= xarray.DataArray(np.array((group,)*valid.sum()),dims=['time'])
+            langmuir['LANGMUIR'].append(ds)
+            
+
+        langmuir = self.eq_mapping(langmuir)
+        
+        
+
+        print('\t done in %.1fs'%(time()-TT))
+        
+        return langmuir
+
+
+
+
     def load_co2(self, tbeg,tend, calc_weights=True):
         
         T = time()
@@ -7024,6 +7141,13 @@ def main():
         mdsserver = 'localhost'
         MDSconn = MDSplus.Connection(mdsserver)
     TT = time()
+    
+       
+    shot = 190553
+    
+        
+
+
 
     from map_equ import equ_map
     import tkinter as tk
@@ -7090,7 +7214,7 @@ def main():
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
-    #shot = 175860
+    shot = 190367
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7211,8 +7335,9 @@ def main():
                                 ('TS correction',{'rescale':I(0)})))   }})
         
     settings.setdefault('ne', {\
-        'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
-                                ( 'Reflectometer',(['all bands',I(1)],  )),
+        'systems':OrderedDict((( 'TS system',(['tangential',I(0)], ['core',I(0)],['divertor',I(0)])),
+                                                           ( 'Langmuir',(['All probes',I(1)],)),
+                                ( 'Reflectometer',(['all bands',I(0)],  )),
                                 ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
                         'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
@@ -7259,7 +7384,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     return 
     for shot in range(195400, 196000):
         #shot = 195055
