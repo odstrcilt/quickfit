@@ -109,13 +109,7 @@ class map2grid():
         
         self.dt = dt
         self.nr_new = nr_new
-        #self.nt_new0 = int(round((self.t_max-self.t_min)/dt,2))
-        #self.nt_new = self.nt_new0 #actual number of profiles, when the regiosn with missing data are removed
-    
-        #t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0)
-
-
-        #embed()
+  
        
         self.g = np.zeros((self.nt_new0,nr_new))*np.nan
         self.g0 = np.zeros((self.nt_new0,nr_new)) 

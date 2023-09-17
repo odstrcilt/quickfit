@@ -105,12 +105,13 @@ class DataFit():
 
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
-                 raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False):
+                 raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False, n_radial = 101):
         #settings={'Ti':{'load_options':{'CER system':{'Corrections':{'Wall reflections': True}}}}}
   
         print('Accesing data from %s tokamak'%device)
         
         self.main_frame=main_frame
+        self.n_radial= n_radial
  
         #MDS connection or server name used to access data
         self.MDSserver = MDSserver
@@ -641,7 +642,7 @@ class DataFit():
                                   'fitted':False,
                                   'fit_prepared':False,
                                   'zeroed_outer':False,
-                                  'nr_new':101,
+                                  'nr_new':self.n_radial,
                                   }
 
             dic['fit_options'] = {
@@ -836,9 +837,11 @@ class DataFit():
             frames = tk.Frame(panel),tk.Frame(panel) 
             frames[0].pack(side=tk.LEFT , fill=tk.BOTH, expand=tk.Y)
             frames[1].pack(side=tk.RIGHT, fill=tk.BOTH, expand=tk.Y)
-        
+            nsys = len(opts['systems']) 
+           
+            lines = 0
             for i, (sys_name, systems) in enumerate(opts['systems'].items()):
-                iframe = 0 if i == 0 else 1
+                iframe = 0 if lines < 6 else 1
 
                 frame = frames[iframe]
                 diag_frame = tk.LabelFrame(frame, pady=2,padx=2,relief='groove', text=sys_name)
@@ -847,8 +850,10 @@ class DataFit():
                 inner_frame.pack(side=tk.TOP,  fill=tk.BOTH)
                 inner_frame2 = tk.Frame(inner_frame)
                 inner_frame2.pack(side=tk.LEFT)
+                lines += 1
                 for sys,var in systems:
                     tk.Checkbutton(inner_frame2, text=sys, variable=var).pack(anchor='w')
+                    lines += 1
                     
                 if not sys_name in opts['load_options']: continue
                 
@@ -859,6 +864,7 @@ class DataFit():
                     inner_frame2.pack(side=tk.LEFT)
                     if isinstance(options,dict): #Checkbutton or entry
                         for opt,var in options.items():
+                            lines += 1
                             if isinstance(var,tk.DoubleVar):#Checkbutton o
                                 inner_frame3 = tk.Frame(inner_frame2)
                                 inner_frame3.pack()
@@ -1402,6 +1408,7 @@ def main():
     parser.add_argument('--elmsphase', help='Apply ELMs synchronisation - elm fraction',default=False,action='store_true')
     parser.add_argument('--elmstime', help='Apply ELMs synchronisation - elm time',default=False,action='store_true')
     parser.add_argument('--map_coordinate', type=str,help='rho_pol, rho_tor, Psi_N, r_a',default='rho_tor')
+    parser.add_argument('--radial_resolution', type=int,help='Numberof radial grid points',default=101)
 
     
  
@@ -1418,7 +1425,8 @@ def main():
     myroot = tk.Tk(className=' Profiles')
     mlp = DataFit(myroot, mdsserver,shot=args.shot,raw_data = raw,
                   elmsphase=args.elmsphase, elmstime=args.elmstime, 
-                  device=args.device,coordinate= args.map_coordinate)
+                  device=args.device,coordinate= args.map_coordinate,
+                  n_radial=args.radial_resolution)
     myroot.title('QUICKFIT')
     myroot.minsize(width=300, height=400)
     imgicon = tk.PhotoImage(file=icon_dir+'icon.gif',master=myroot)

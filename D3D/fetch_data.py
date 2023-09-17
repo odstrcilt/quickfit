@@ -863,7 +863,7 @@ def default_settings(MDSconn, shot):
    
     default_settings['Te']= {\
     'systems':OrderedDict((( 'TS system',(['tangential',True], ['core',True],['divertor',False])),
-                            ( 'Langmuir',(['All probes',False],)),
+                            ( 'Langmuir',(['OSP low',False],['ISP low',False], ['OSP up',False],['ISP up',False])),
                             ('ECE system',(['slow',False],['fast',False])))),
     'load_options':{'TS system':{"TS revision":('BLESSED',['BLESSED']+ts_revisions)},
                     'ECE system':OrderedDict((
@@ -875,7 +875,7 @@ def default_settings(MDSconn, shot):
 
     default_settings['ne']= {\
         'systems':OrderedDict((( 'TS system',(['tangential',True], ['core',True],['divertor',False])),
-                                ( 'Langmuir',(['All probes',False],)),
+                                ( 'Langmuir',(['OSP low',False],['ISP low',False], ['OSP up',False],['ISP up',False])),
                                 ( 'Reflectometer',(['all bands',False],)),
                                 ( 'CO2 interferometer',(['fit CO2 data',False],['rescale TS',True])) ) ),
         'load_options':{'TS system':{"TS revision":('BLESSED',['BLESSED']+ts_revisions)},
@@ -1042,6 +1042,8 @@ class data_loader:
         if  quantity in ['Te', 'ne']:
             for sys, stat in options['systems']['TS system']:
                 if stat.get(): systems.append(sys)
+
+            
         if  quantity in ['Zeff']:
             if options['systems']['VB array'][0][1].get():
                 systems.append('VB array')
@@ -1070,8 +1072,9 @@ class data_loader:
         if quantity in ['ne'] and options['systems']['Reflectometer'][0][1].get():
             data.append(self.load_refl(tbeg,tend, options['load_options']['Reflectometer'],TS=ts))
 
-        if quantity in ['ne','Te'] and options['systems']['Langmuir'][0][1].get():
-            data.append(self.load_langmuir(tbeg,tend))
+        if quantity in ['ne','Te']:
+            systems = [sys for sys, stat in options['systems']['Langmuir'] if stat.get()] 
+            data.append(self.load_langmuir(tbeg,tend, systems ))
                         
              
         if quantity in ['Ti', 'omega','VB'] and len(systems) > 0:
@@ -5708,8 +5711,8 @@ class data_loader:
                 continue
             
             #these points will be ignored and not plotted (negative errobars )
-            Te_err[isys][(Te_err[isys]<=0) | (Te[isys] <=0)]  = -np.infty
-            ne_err[isys][(ne_err[isys]<=0) | (ne[isys] <=0)]  = -np.infty
+            Te_err[isys][(Te_err[isys]<=0) | (Te[isys] <=5) | ~np.isfinite(Te_err[isys])]  = -np.infty
+            ne_err[isys][(ne_err[isys]<=0) | (ne[isys] <=0) | ~np.isfinite(ne_err[isys])]  = -np.infty
             
             #remove useless timeslices
             valid = np.any(np.isfinite(Te_err[isys]) | np.isfinite(ne_err[isys]),0)
@@ -6345,26 +6348,25 @@ class data_loader:
 
 
 
-    def load_langmuir(self, tbeg,tend):
+    def load_langmuir(self, tbeg,tend, systems):
 
 
     
         langmuir = self.RAW.setdefault('LANGMUIR',Tree())
-
-        #load from catch if possible
-        langmuir.setdefault('diag_names',Tree())
+        
+        load_systems = list(set(systems)-set(langmuir.keys()))
+        
+        langmuir['systems'] = systems
         
         #if availible, only remap and return
-        if len(langmuir['diag_names']):
+        if len(load_systems) == 0:
             langmuir = self.eq_mapping(langmuir)
             return langmuir
     
+    
         
         
-        langmuir['systems'] = ['LANGMUIR']
         langmuir.setdefault('diag_names',Tree())
-        langmuir['diag_names']['LANGMUIR'] = []
-        langmuir['LANGMUIR'] = []
         
         TT = time()
         print_line( '  * Fetching Langmuir probes data ...' )
@@ -6373,6 +6375,8 @@ class data_loader:
         except:
             tkinter.messagebox.showerror('Missing data', 'LANGMUIR MDS+ tree is not populated')
             return 
+
+        #get all probes
         probes = list(self.MDSconn.get('getnci(".*","NODE")').data())
         probes = probes[:-1] #last one is not initialises
             
@@ -6382,15 +6386,31 @@ class data_loader:
         probes = [p.strip() for p in probes]
 
 
-        #fast fetch of MDS+ data
-            
-        TDI_R = [p+':R' for p in probes]
-        R = self.MDSconn.get('['+','.join(TDI_R)+']').data()
-        valid = R > 0
-        R = R[valid]
+        ###fast fetch of MDS+ data
+        
+        #check validity  of probes, load only selected channels
+        TDI_RZ = [p+':R,'+p+':Z' for p in probes]
+        RZ = self.MDSconn.get('['+','.join(TDI_RZ)+']').data()
+        R,Z =  RZ.reshape(-1,2).T
+        
+        selected_systems = {}
+        if 'ISP low' in load_systems:
+            selected_systems['ISP low'] = (R < 1.2)&(Z < 0)
+        if 'OSP low' in load_systems:
+            selected_systems['OSP low'] = (R > 1.2)&(Z < 0)
+        if 'ISP up' in load_systems:
+            selected_systems['ISP up' ] = (R < 1.2)&(Z > 0)
+        if 'OSP up' in load_systems:
+            selected_systems['OSP up' ] = (R > 1.2)&(Z > 0)
+     
+        valid = (R > 0)&(np.any(list(selected_systems.values()),axis=0))
+        
+        R, Z = R[valid], Z[valid]
+        selected_systems = {s:v[valid] for s,v in selected_systems.items()}
+      
+        
         probes = np.array(probes)[valid]
-        TDI_Z = [p+':Z' for p in probes]
-        Z = self.MDSconn.get('['+','.join(TDI_Z)+']').data()
+
         TDI_names = [p+':LABEL' for p in probes]
         labels = self.MDSconn.get('['+','.join(TDI_names)+']').data()
         if not isinstance(labels,str): 
@@ -6404,36 +6424,34 @@ class data_loader:
         for ip, p in enumerate(probes):
             
             tvec,Te, Te_err, ne, ne_err = data[ip][:,data[ip][0] > 0]
-            valid = (Te > 1)&(Te != 200)&(Te != 300) & (ne > 0) 
+            valid = (Te > 1)&(Te != 200)&(Te != 300) & (ne > 0) &(ne_err > 0) &(Te_err > 0)
             
             zero = np.zeros_like(tvec[valid])
         
+            sys = [sys for sys, v in selected_systems.items() if v[ip]][0]
+            group = 'LANG:'+ sys
+
             ds = Dataset(p+'.nc', attrs={'channel':labels[ip]})
             ds['R'] = xarray.DataArray(R[ip]+zero, attrs={'units':'m'})
             ds['Z'] = xarray.DataArray(Z[ip]+zero, attrs={'units':'m'})
-            
             ds['ne'] = xarray.DataArray(ne[valid]*1e6,dims=['time'], attrs={'units':'m^{-3}','label':'n_e'})
             ds['ne_err'] = xarray.DataArray(ne[valid]*ne_err[valid]*1e6,dims=['time'], attrs={'units':'m^{-3}'})
-
-            ds['Te'] = xarray.DataArray(Te[valid],dims=['time'], attrs={'units':'m^{-3}','label':'T_e'})
-            ds['Te_err'] = xarray.DataArray(Te_err[valid],dims=['time'], attrs={'units':'m^{-3}'})        
-
+            ds['Te'] = xarray.DataArray(Te[valid],dims=['time'], attrs={'units':'eV','label':'T_e'})
+            ds['Te_err'] = xarray.DataArray(Te_err[valid],dims=['time'], attrs={'units':'eV'})        
             ds['rho'] = xarray.DataArray(zero,dims=['time'], attrs={'units':'s'})        
-            
+            ds['diags']= xarray.DataArray(np.array((group,)*valid.sum()),dims=['time'])
             ds['time'] = xarray.DataArray(tvec[valid]/1e3,dims=['time'], attrs={'units':'s'})        
             
-            group = 'LANG:'
-            group += 'ISP' if R[ip] < 1.2 else 'OSP'
-            group += '_up' if Z[ip] > 0 else '_low'
             
-            if group not in langmuir['diag_names']['LANGMUIR']:
-                langmuir['diag_names']['LANGMUIR'].append(group)
-            ds['diags']= xarray.DataArray(np.array((group,)*valid.sum()),dims=['time'])
-            langmuir['LANGMUIR'].append(ds)
-            
+            langmuir['diag_names'].setdefault(sys,[group])
+            langmuir.setdefault(sys,[])
+            langmuir[sys].append(ds)
 
+
+
+        langmuir.pop('EQM',None) 
         langmuir = self.eq_mapping(langmuir)
-        
+       
         
 
         print('\t done in %.1fs'%(time()-TT))
@@ -7336,7 +7354,7 @@ def main():
         
     settings.setdefault('ne', {\
         'systems':OrderedDict((( 'TS system',(['tangential',I(0)], ['core',I(0)],['divertor',I(0)])),
-                                                           ( 'Langmuir',(['All probes',I(1)],)),
+                                                           ( 'Langmuir',(['OSP_low',I(0)],)),
                                 ( 'Reflectometer',(['all bands',I(0)],  )),
                                 ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
