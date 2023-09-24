@@ -1072,7 +1072,7 @@ class data_loader:
         if quantity in ['ne'] and options['systems']['Reflectometer'][0][1].get():
             data.append(self.load_refl(tbeg,tend, options['load_options']['Reflectometer'],TS=ts))
 
-        if quantity in ['ne','Te']:
+        if quantity in ['ne','Te'] and 'Langmuir' in options['systems']:
             systems = [sys for sys, stat in options['systems']['Langmuir'] if stat.get()] 
             data.append(self.load_langmuir(tbeg,tend, systems ))
                         
@@ -6413,7 +6413,7 @@ class data_loader:
 
         TDI_names = [p+':LABEL' for p in probes]
         labels = self.MDSconn.get('['+','.join(TDI_names)+']').data()
-        if not isinstance(labels,str): 
+        if not isinstance(labels[0],str): 
             labels = [r.decode() for r in labels]
         labels = [p.strip() for p in labels]
             
