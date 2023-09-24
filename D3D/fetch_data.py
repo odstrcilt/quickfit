@@ -956,7 +956,7 @@ class data_loader:
         #update equilibrium mapping 
 
         if 'EQM' in diag and diag['EQM']['id'] == id(self.eqm) and self.eqm.diag == diag['EQM']['ed']\
-                    and diag['EQM']['dz'] == np.mean(dz) and diag['EQM']['dr'] == np.mean(dr):
+                    and diag['EQM']['dz'] == np.mean(dz) and diag['EQM']['dr'] == np.mean(dr) and diag['EQM']['rho_coord'] == self.rho_coord:
             #skip mapping
             return diag
 
@@ -1000,7 +1000,7 @@ class data_loader:
                 printe(e)
                 embed()
                 
-        diag['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(dr), 'dz':np.mean(dz),'ed':self.eqm.diag})
+        diag['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(dr), 'dz':np.mean(dz),'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
  
 
 
@@ -2535,7 +2535,7 @@ class data_loader:
 
 
 
-        nimp['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
+        nimp['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag, 'rho_coord': ''})
         nimp['loaded_beams'] = np.unique(np.hstack((load_beams,nimp.get('loaded_beams',[]))))
 
         print('\t done in %.1fs'%(time()-TT))
@@ -4432,7 +4432,7 @@ class data_loader:
 
         ##########################################  EQ mapping  ###############################################
 
-        zeff['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
+        zeff['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag,'rho_coord': self.rho_coord})
 
         #calculate LOS coordinates in rho 
         for sys in systems:
@@ -5628,7 +5628,7 @@ class data_loader:
              
         #exit()
         
-        cer['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
+        cer['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
         print('\t done in %.1fs'%(time()-TT))
         #print(cer)
         return cer
@@ -5730,7 +5730,7 @@ class data_loader:
             ne_mean_filter = medfilt(np.r_[ne_mean, ne_mean[::-1]], 3)[:len(ne_mean)]
             corrupted = (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
             #no very cold TS measuremenst with tiny errorbars inside of rho = 0.95
-            corrupted |= (Te[isys] < 20.)&( rho.T < 0.95  )
+            corrupted |= (Te[isys] < 20.)&np.isfinite(Te_err[isys])&( rho.T < 0.95  )
             #remove them, but it can be returned by user
             ne_err[isys][corrupted] *= -1
             Te_err[isys][corrupted] *= -1
@@ -5776,7 +5776,7 @@ class data_loader:
         
  
         print('\t done in %.1fs'%(time()-T))
-        ts['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':zshift, 'ed':self.eqm.diag})
+        ts['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':zshift, 'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
 
         return ts 
         
@@ -5910,7 +5910,7 @@ class data_loader:
             refl[band]['channel'] = xarray.DataArray(channel,dims=['channel'], attrs={'units':'-'})
 
             
-        refl['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(R_shift), 'dz':0,'ed':self.eqm.diag})
+        refl['EQM'] = Tree({'id':id(self.eqm),'dr':np.mean(R_shift), 'dz':0,'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
 
         print('\t done in %.1fs'%(time()-T))
 
@@ -6343,7 +6343,7 @@ class data_loader:
 
 
         return Tree({'ECE':ece,'diag_names':{'ECE':['ECE']}, 'systems':['ECE']
-                                ,'EQM':Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})})
+                                ,'EQM':Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag,'rho_coord': self.rho_coord})})
 
 
 
@@ -6381,7 +6381,7 @@ class data_loader:
         probes = probes[:-1] #last one is not initialises
             
             
-        if not isinstance(probes,str): 
+        if not isinstance(probes[0],str): 
             probes = [r.decode() for r in probes]
         probes = [p.strip() for p in probes]
 
@@ -6667,7 +6667,7 @@ class data_loader:
         CO2['CO2']['rho_tg'] = xarray.DataArray(np.single(rho_tg),dims=['time', 'channel'])
 
 
-        CO2['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag})
+        CO2['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag,'rho_coord': self.rho_coord})
 
         print('\t done in %.1fs'%(time()-T))
 
