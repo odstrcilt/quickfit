@@ -145,6 +145,7 @@ def read_adf12(file,block, ein, dens, tion, zeff):
     
 def read_adf12_aug(data_dir, line, beam_spec='D', therm=False, n_neut=1):
     #data_dir = '/fusion/projects/toolbox/sciortinof/atomlib/atomdat_master/adf12_aug/data/'
+    #all radiation data!! /fusion/projects/toolbox/sciortinof/atomlib/atomdat_master/pue2021_data
     from netCDF4 import Dataset
 
     imp, Z, transition = line.strip().split(' ')
@@ -688,9 +689,10 @@ def detect_elms(tvec, signal,threshold=8,min_elm_dist=5e-4, min_elm_len=5e-4):
     #embed()
 
     val = np.ones_like(elm_start)
-    elm_val = np.c_[val, -val,val*0+2 ].flatten()
+    elm_val = np.c_[val, -val,val*0 ].flatten()
 
     t_elm_val = tvec[np.c_[ elm_start, elm_start, elm_end].flatten()]
+    #embed()
 
     #elm free regions will be set to 2
     elm_val[:-1][np.diff(t_elm_val) > .2] = 2
@@ -777,7 +779,7 @@ def default_settings(MDSconn, shot):
             
             #lam = MDSconn.get('['+','.join(TDI_lam)+']').data()
             #for ch, l, i in zip(channel, lam, _line_id):
-            #    print(ch,i,  l)
+               #print(ch,i,  l)
 
             MDSconn.closeTree('IONS', shot)
             
@@ -1077,14 +1079,21 @@ class data_loader:
             data.append(self.load_langmuir(tbeg,tend, systems ))
                         
              
-        if quantity in ['Ti', 'omega','VB'] and len(systems) > 0:
-            data.append(self.load_cer(tbeg,tend, systems,options['load_options']['CER system']))
-            
-        if quantity in ['nimp'] and len(systems) > 0:
-            cer = dict(options['load_options']['CER system'])
-            cer['Impurity'] = imp
-            data.append(self.load_nimp(tbeg,tend, systems, cer))
-            
+        if quantity in ['Ti', 'omega','VB']:
+            if len(systems) > 0:
+                data.append(self.load_cer(tbeg,tend, systems,options['load_options']['CER system']))
+            else:
+                tkinter.messagebox.showerror('No CER system', 'Select at least one CER system')
+                return
+
+        if quantity in ['nimp']:
+            if len(systems) > 0:
+                cer = dict(options['load_options']['CER system'])
+                cer['Impurity'] = imp
+                data.append(self.load_nimp(tbeg,tend, systems, cer))
+            else:
+                tkinter.messagebox.showerror('No CER system', 'Select at least one CER system or SPRED')
+                return
 
         if quantity in ['Te'] and (options['systems']['ECE system'][0][1].get() or options['systems']['ECE system'][1][1].get()):
             data.append(self.load_ece(tbeg,tend,options,ts))
@@ -1212,6 +1221,37 @@ class data_loader:
 
 
 
+    def load_OMFITPROFS(self):
+                 
+        if 'OMFITPROFS' in self.RAW:
+            return self.RAW['OMFITPROFS']
+ 
+        #cake = Tree()
+        tree = 'OMFIT_PROFS'
+        try:
+            self.MDSconn.openTree(tree  , self.shot*1000+1)
+        except:
+            tkinter.messagebox.showerror('No CAKE tree',
+                'OMFIT_PROFS tree does not exists for shot%f'%(self.shot*1000+1))
+            
+            
+        ds = Dataset('omfit_profs.nc')
+        profs = {'Ti': 'T_C', 'Te': 'T_E', 'ne': 'N_E', 'nC6': 'N_C','rho':'RHO', 'Zeff':'ZEFF', 
+                 'vtor': 'V_TOR_C', 'Rmid': 'R_MID', 'Te/Ti': 'TITE_RATIO'}
+        
+        for prof, name in profs.items():
+            data = np.single(self.MDSconn.get(f'\\{tree}::TOP.{name}').data())
+            ds[prof] = xarray.DataArray(data, dims=['time','x'])
+
+        ds['time'] = xarray.DataArray(self.MDSconn.get(f'\\{tree}::TOP.TIME').data()/1000, dims=['time'])            
+        ds['omega'] = ds['vtor']/ds['Rmid']
+        ds['Te/Ti'] = 1/ds['Te/Ti']
+        ds.drop('vtor')
+        ds.drop('Rmid')
+    
+        
+        self.RAW['OMFITPROFS'] = ds
+        return ds
 
 
     def load_zipfit(self):
@@ -1219,7 +1259,7 @@ class data_loader:
         if 'ZIPFIT' in self.RAW:
             return self.RAW['ZIPFIT']
 
-            
+
      
         #               name     scale  node    tree
         loading_dict = {'Ti'   :(1e3,  'ITEMP', 'IONS'),
@@ -2035,7 +2075,6 @@ class data_loader:
         tvec, stime, R, Z, INT, INT_ERR,TTSUB,TTSUB_ST,phi,line_id = [],[],[],[],[],[],[],[],[],[]
         beam_geom = np.zeros((0,8))
   
-        #embed()
 
         #fast fetch of MDS+ data
         order='\\IONS::TOP.CER.CALIBRATION.BEAM_ORDER'
@@ -2105,11 +2144,21 @@ class data_loader:
                         for i, d in enumerate(line_id):
                             if d.startswith('O'):
                                 line_id[i] = 'C IV 6-5'
+                                
+                #if self.shot in [194311]:
+                    #if analysis_type == 'cerfit' and imp == 'Kr27': #Kr27
+                        #embed()
+                        #for i, d in enumerate(line_id):
+                            #if d.startswith('O'):
+                                #line_id[i] = 'C IV 6-5'
+                                                                
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
                 selected_imp = np.array([l.startswith(imp_name) and r_charge in l for l in line_id])
+                #embed()
+
                                 
                 selected_imp &= np.any(beam_geom > 0,1) #rarely some channel has all zeros!
                 if not any(selected_imp):
@@ -2408,8 +2457,8 @@ class data_loader:
             #how each beam contributes to this channel
             beam_frac = np.ones((len(beams),nt),dtype='single')
             if len(beams) == 0:
-                printe(ch+' missing beam power data')
-                continue
+                printe(ch+' missing beam power data, assume a passive emission was measured')
+                beamid[:] = 'None'
             elif len(beams) == 1: #only one beam observed
                 beamid[:] = beams
             else: #L and R beam
@@ -2442,7 +2491,6 @@ class data_loader:
                     nimp['diag_names'][diag].append(name)
 
             tvec_ = (tvec[ich]+stime[ich]/2)
-            
             #split channels by beams
             for ID in np.unique(inv_idx):
                 beam_ind = inv_idx == ID
@@ -2508,7 +2556,7 @@ class data_loader:
                 ds['time'] = xarray.DataArray(utvec,dims=['time'], attrs={'units':'s'})
 
                 nimp[diag].append(ds)
-              
+
             n += nt
             
             
@@ -2559,11 +2607,11 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Kr25','Kr27']:
+        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
         if imp  in [ 'Kr25','Kr27']:
-            print('CX cross-sections for Kr are not availible, using Ar18 CX crossections, but absolute density values are wrong' )
+            print('CX cross-sections for Kr are not availible, using Ar18 CX cross-sections, but absolute density values are wrong' )
         
 
         ########################   Get beam data  ##########################
@@ -3097,7 +3145,10 @@ class data_loader:
         for line_id in line_ids:
             #BUG it is not very efficient way, everything will be calculated for every channel and at the end
             #I will pick up just the channels with the right line_id
-                
+            
+            #by defalt unavailible
+            qeff_th = qeff2_th = qeff2 = 0
+            qeff = None
           
             if line_id  in ['B V 7-6','C VI 8-7','He II 4-3','Ne X 11-10','N VII 9-8']:
                 #CX data from AUG
@@ -3144,7 +3195,7 @@ class data_loader:
                 
 
                 
-            elif line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2','Ne X 4-3']:
+            if line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2','Ne X 4-3']:
                 #SPRED lines
                 
                 
@@ -3161,8 +3212,7 @@ class data_loader:
                 tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
                 transition = tmp.group(3)             
                 
-                #unavailible
-                qeff_th = qeff2_th = qeff2 = 0
+
                 file1, file2 = atom_files[imp]
                 qeff  = read_adf12(path+file1,1, erel, nion, ti, zeff)
                 if file2 is not None:
@@ -3170,7 +3220,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4',  'B5', 'Li3', 'Ne9', 'O8', 'N7', 'Al13','Kr25','Kr27']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3180,11 +3230,13 @@ class data_loader:
                                'Ar16': ('qef07#h_arf#ar16.dat', 'qef07#h_arf#ar16_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                'Al13': ('qef07#h_arf#al13.dat',None),
+                               'Si14': ('qef93#h_si14.dat',None),
                                 'Ne9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                 'N7':  ('qef93#h_n7.dat',  None),
                                  'C4':('qef93#h_be4.dat',      'qef97#h_en2_kvi#be4.dat'),
                                  'B5': ('qef93#h_b5.dat',       'qef97#h_en2_kvi#b5.dat'),
-                                 'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
+                                 #'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
+                                 'C6': ('qef12#h_c6.dat',      'qef12#h_c6_n2.dat'),        #From Igenbergs
                                  'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
                 
@@ -3198,19 +3250,18 @@ class data_loader:
                           'Ne9':{'11-10':[3,3]}, 
                           'F9':{'10-9':[2,2]},
                           'C4':{'6-5':[4,4]},
-                          'C6':{'8-7':[5,5]},
+                          #'C6':{'8-7':[5,5]},
+                          'C6':{'8-7':[1,1]},
                           'N7':{'9-8':[5,None]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
                           'O8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None],'13-12': [3,None]},
+                          'Si14': {'12-11': [6,None],'13-12': [7,None]},
                           'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
                 
                 
                 tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
                 transition = tmp.group(3)             
-                
-                #unavailible
-                qeff_th = qeff2_th = qeff2 = 0
            
                 file1, file2 = atom_files[imp]
                 block1, block2 = blocks[imp][transition]
@@ -3218,13 +3269,14 @@ class data_loader:
    
                 if file2 is not None and block2 is not None:
                     qeff2 = read_adf12(path+file2,block2, erel, nion, ti, zeff)
-                if imp== 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and 16-15 line
+                
+                if imp == 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and 16-15 line
                     qeff /= 0.81
                     qeff2 /= 0.81
 
  
-            else:
-                raise Exception('CX data for line %s was not found'%line_id)
+            if qeff is None:
+                raise Exception(f'CX data for line {line_id} was not found')
 
             
                 
@@ -3568,7 +3620,7 @@ class data_loader:
        
  
     def load_nimp(self,tbeg,tend,systems, options):        
-
+     
         selected,analysis_types = options['Analysis']
    
         rcalib = options['Correction']['Relative calibration'].get()
@@ -3577,7 +3629,7 @@ class data_loader:
             SOL_reflections = options['Correction']['Wall reflections'].get()
         except:
             SOL_reflections = False
-            
+        print(systems)
             
         imp = 'C6'
         if 'Impurity' in options and options['Impurity'] is not None:
@@ -5168,11 +5220,61 @@ class data_loader:
             data_nbit = np.reshape(data_nbit,(-1,len(signals))).T.flatten()
             Ti,Ti_err,rot,rot_err,int_,int_err, R,Z,PHI,stime,tvec = mds_data.reshape(len(signals), -1)
             
-            
             #index for signal splitting
             split_ind = split_mds_data(np.arange(len(tvec)), data_nbit.reshape(len(signals), -1)[0], 4)
             split_ind = [slice(s[0], s[-1]+1) for s in split_ind]
             
+            
+     
+            #some measurement were done when the beam was off
+            if any(R == 0):
+                print('Some R location are zero, assume that passive emission was measured')
+                TDI_plasma = []
+                for ich, node in enumerate(all_nodes):
+                    if np.any(R[split_ind[ich]] == 0):
+                        node_calib = node.replace(analysis_type.upper(),'CALIBRATION')
+                        for node in ['PLASMA_R','PLASMA_Z','PLASMA_PHI']:
+                                TDI_plasma.append(node_calib+':'+node)
+        
+            
+
+                self.MDSconn.openTree('IONS', self.shot)
+
+                PLASMA = self.MDSconn.get('['+','.join(TDI_plasma)+']').data().reshape(-1,3,8)
+                self.MDSconn.closeTree(tree, self.shot)
+
+                ibeam = np.argmin(PLASMA[:,0],axis=1)
+                R1,Z1,PHI1 = PLASMA.swapaxes(0,1)
+
+                R1 = R1[range(len(R1)), ibeam]
+                Z1 = Z1[range(len(Z1)), ibeam]
+                PHI1 = PHI1[range(len(PHI1)), ibeam]
+
+                X0 = LENS_R*np.cos(np.deg2rad(LENS_PHI)) 
+                Y0 = LENS_R*np.sin(np.deg2rad(LENS_PHI)) 
+                LENS = np.array((X0,Y0,LENS_Z))
+
+                X1 = R1*np.cos(np.deg2rad(PHI1)) 
+                Y1 = R1*np.sin(np.deg2rad(PHI1)) 
+                PLASMA = np.array((X1,Y1,Z1))
+
+                
+                t_tg = -((PLASMA-LENS)*LENS)[:2].sum(0)/((PLASMA-LENS)**2)[:2].sum(0)
+
+                
+                LOS_tg = LENS + t_tg*(PLASMA-LENS)
+
+                R_tg = np.hypot(LOS_tg[0],LOS_tg[1])
+                Z_tg = LOS_tg[2]
+                
+                for ich, node in enumerate(all_nodes):
+                    sind = split_ind[ich]
+                    if np.any(R[sind] == 0):
+                        R[sind][R[sind] == 0], R_tg = R_tg[0], R_tg[1:]                 
+                        Z[sind][Z[sind] == 0], Z_tg = Z_tg[0], Z_tg[1:] 
+                
+
+                
         else: #CERREAL
             #R,Z for channels 5-24, averaged over beam L and R
             R_plasma = np.array([2043,2127,2194,2186,2194,2217,2232,2247,2262,\
@@ -5383,7 +5485,8 @@ class data_loader:
             ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
             ds['diags']= xarray.DataArray(np.array((name,)*(tind.stop-tind.start)),dims=['time'])
 
-                   
+             #embed()
+
             corrupted = False
             
             if len(int_[tind]) > 0 :
@@ -5399,7 +5502,7 @@ class data_loader:
                     ds['int'] =  xarray.DataArray(int_[tind],dims=['time'], attrs={'units':'ph/s*sr'})
             
             
-            if len(Ti[tind]) > 0 and not all(corrupted):
+            if len(Ti[tind]) > 0 and np.any(np.isfinite(Ti[tind]))  and not all(corrupted):
                 Ti_err[tind][np.isnan(Ti_err[tind])] = np.infty
                 #900eV is probably initial guess, sometimes it does not move from this value
                 corrupted = corrupted| (Ti[tind]==900)|(Ti[tind]>=15e3)|(Ti[tind] <= 1.1)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
@@ -5409,7 +5512,6 @@ class data_loader:
                 if not all(corrupted):
                     ds['Ti'] = xarray.DataArray(Ti[tind],dims=['time'], attrs={'units':'eV','label':'T_i', 'zeeman_split':zeem_split})
                     ds['Ti_err'] = xarray.DataArray(Ti_err[tind]*unreliable,dims=['time'], attrs={'units':'eV'})
-            #embed()
             
             
             if len(rot[tind]) > 0 and ch not in missing_rot and not all(corrupted):
@@ -5976,7 +6078,8 @@ class data_loader:
                     nchs = self.MDSconn.get(subnodes_nch).data()
             
             except Exception as e:
-                printe( 'MDS error: '+ str(e))
+                #printe( 'MDS error: '+ str(e))
+                raise(( 'MDS error: '+ str(e)))
             finally:
                 self.MDSconn.closeTree(tree, self.shot)
             
@@ -7232,7 +7335,7 @@ def main():
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
-    shot = 190367
+    shot = 194311
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7340,7 +7443,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('fit'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -7387,6 +7490,7 @@ def main():
     settings['nLi3'] = settings['nimp']
     settings['nNe10'] = settings['nimp']
     settings['nO8'] = settings['nimp']
+    settings['nKr27'] = settings['nimp']
 
     settings['elm_signal'] = S('fs01up')
     settings['elm_signal'] = S('fs04')
@@ -7402,7 +7506,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nKr27', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     return 
     for shot in range(195400, 196000):
         #shot = 195055
