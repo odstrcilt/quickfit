@@ -176,6 +176,7 @@ class map2grid():
 
     
         self.robust_fit = robust_fit
+        self.even_fun= even_fun
         #embed()
         if len(self.P) > self.n_points and transformation[2](100) != 1:
             print('Only linear transformation can be used with line integrated measurements')
@@ -529,22 +530,17 @@ class map2grid():
         dt_diag = self.DTDT.diagonal().sum()
         if dt_diag == 0: dt_diag = 1
         eta = np.exp(11)/dt_diag*vvtrace
-        
-        #/(self.dt/0.01)
-    
+            
         if self.nt_new == 1: eta = 0
         #DRDR -s 5-diagonal, DTDT is also 5 diagonal, VV 7 diagonal, AA is 9 diagonal
         AA = self.VV+lam*self.DRDR+eta*self.DTDT
 
         if chol_inst:
             #TODO use METIS only for line interated data and elm sync??
-            if self.elm_phase:
-                method='metis' #colamd and amd has troubles with large lower sparsity matrices
-            else:
-                method='colamd'
+            #colamd and amd has troubles with large lower sparsity matrices
+            method = 'metis' if self.elm_phase else 'colamd'
             self.Factor = analyze(AA, ordering_method=method) #colamd and amd has troubles with large lower sparsity matrices
-            #print(method)
-            #self.Factor.cholesky_inplace(AA)#BUG
+        
  
         self.corrected=True
 
@@ -920,6 +916,9 @@ class map2grid():
         #find lower and upper uncertainty level, much faster then using mquantiles..
         rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
         rvec_ = (rvec[1:]+rvec[:-1])/2
+        if not self.even_fun:
+            rvec_ = 1
+            
         K       = -np.diff(self.g )/(self.g[:,1:]+self.g[:,:-1]      )/(rvec_*np.diff(rvec*a0))*R0*2
         K_noise = -np.diff(g_noise)/(g_noise[...,1:]+g_noise[...,:-1])/(rvec_*np.diff(rvec*a0))*R0*2 #slow
         

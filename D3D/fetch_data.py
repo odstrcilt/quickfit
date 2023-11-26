@@ -2144,14 +2144,13 @@ class data_loader:
                         for i, d in enumerate(line_id):
                             if d.startswith('O'):
                                 line_id[i] = 'C IV 6-5'
-                                
-                #if self.shot in [194311]:
-                    #if analysis_type == 'cerfit' and imp == 'Kr27': #Kr27
-                        #embed()
-                        #for i, d in enumerate(line_id):
-                            #if d.startswith('O'):
-                                #line_id[i] = 'C IV 6-5'
-                                                                
+                
+                if self.shot in [175674]:
+                    if analysis_type == 'cerfit' and imp == 'Al13':
+                        for i, d in enumerate(line_id):
+                            if d.startswith('C'):
+                                line_id[i] = 'Al XIII 13-12'
+                                             
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
@@ -3303,6 +3302,8 @@ class data_loader:
             pwrfrc = nbi_dict['pow_frac'].T[0]
             vinj = np.sqrt(2.0 * einj * eV_to_J /(ab_.T * mp))  # m/s
             nb0 = pwrfrc / (einj * eV_to_J * vinj / isp[:, None])  # 1/m/W must be multipled by power
+            
+
             qeff = qeff * (1 - n2frac) + n2frac * qeff2 #  qeff from n=1 and n=2
 
             #BUG inaccurate any geometry correction for spatial distribution of halo
@@ -3629,7 +3630,6 @@ class data_loader:
             SOL_reflections = options['Correction']['Wall reflections'].get()
         except:
             SOL_reflections = False
-        print(systems)
             
         imp = 'C6'
         if 'Impurity' in options and options['Impurity'] is not None:
@@ -4383,7 +4383,7 @@ class data_loader:
                 if 'STIME' in signals:
                     stime = [o[2] if len(o) else np.array([]) for o in out]
        
-                # hardcoded correction for CER vertical channels
+                #NOTE hardcoded correction for CER vertical channels
                 if self.shot  > 188000:
                     if 'vertical.CHANNEL17' in channels:
                         VB_[channels.index('vertical.CHANNEL17')] *= 1.9
@@ -4413,7 +4413,7 @@ class data_loader:
                     if len(valid_ind) == 0:
                         continue
                     
-                    #load only channesl for which VB data exists
+                    #load only channels for which VB data exists
                     TDI_calib_ = sum([TDI_calib[i] for i in valid_ind],[])
                     
                     #fast fetch of a marged array of the values from MDS+
@@ -4599,7 +4599,7 @@ class data_loader:
         # hc for the quantity [hc/(Te*lambda)] for T_e in (eV) and lambda in (A)
         hc = 1.24e4
 
-        vb_coeff = 1.89e-28 * ((n_e*1e-6)**2)  * gff / np.sqrt(T_e)
+        vb_coeff = 1.89 * (n_e*1e-20)**2  * gff / np.sqrt(T_e)
         wl_resp = np.exp(-hc / (T_e  * lambda0))/lambda0**2 #this ter is close to 1/lambda0**2
         vb_coeff *= wl_resp
         
@@ -4618,7 +4618,7 @@ class data_loader:
             
             dL = np.gradient(zeff[sys]['L'].values)[1]*100 #(m->cm) should be constant for each LOS 
             VB_Zeff1 = np.sum(vb_coeff_interp*dL,2) #VB for Zeff == 1, use for normalization
-
+            embed()
                   
             #remove radiative mantle from VB array
             VB = np.copy(zeff[sys]['VB'].values)

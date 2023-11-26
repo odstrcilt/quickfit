@@ -1053,12 +1053,17 @@ class FitPlot():
         show_splines = self.show_splines.get() == 1
         
         if show_splines and kinprof in self.splines:
-            splines = self.splines[kinprof]
             
+            splines = self.splines
+            if not 'time' in splines:
+                splines = splines[kinprof]
+        
+      
             y = splines['time'].values
             x = splines['rho'].values
             z = splines[kinprof].values 
             ze = z*0
+            #embed()
 
             if kinprof + '_err' in splines:
                 ze = splines[kinprof+'_err'].values
