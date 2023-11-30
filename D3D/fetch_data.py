@@ -843,7 +843,7 @@ def default_settings(MDSconn, shot):
         imps.append('Al13')
     if shot in [190552, 190553]:
         imps.append('C4')
-        
+ 
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
@@ -2125,7 +2125,12 @@ class data_loader:
                 
                 if self.shot in [194074]:
                     if analysis_type == 'cerfit': #carbon
-                        line_id = ['Ne X 11-10']*len(loaded_chan)              
+                        line_id = ['Ne X 11-10']*len(loaded_chan)      
+                        
+                if self.shot in [194073]:
+                    if analysis_type == 'cerfit': #carbon
+                        line_id = ['C VI 8-7']*len(loaded_chan)    
+                        
                 if self.shot in [196551]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Al XIII 13-12']*len(loaded_chan)              
@@ -2150,7 +2155,11 @@ class data_loader:
                         for i, d in enumerate(line_id):
                             if d.startswith('C'):
                                 line_id[i] = 'Al XIII 13-12'
-                                             
+                    if analysis_type == 'cerfit' and imp == 'Al13':
+                        for i, d in enumerate(line_id):
+                            if d.startswith('C'):
+                                line_id[i] = 'Al XIII 13-12'
+                                                            
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
@@ -2788,7 +2797,7 @@ class data_loader:
         cer_systems = ['tangential']
         
         #load kinetic data from fit edition, which can be different from impurity edition
-        if self.shot in [190652, 190653, 190654]:
+        if self.shot in [190652, 190653, 190654, 194073]:
             options['Analysis'] = tk.StringVar(value='fit'), options['Analysis'][1]
         if self.shot in [196551]:
             options['Analysis'] = tk.StringVar(value='auto'), options['Analysis'][1]
@@ -2832,7 +2841,7 @@ class data_loader:
                         #HFS data have usually lower quality
                         lfs = ch['R'].values > np.interp(ch['time'].values, centroid, Raxis)
                         cer_data['fC'].append((ch['rho'].values[lfs], ch['time'].values[lfs],nz[lfs],nz_err[lfs]))
-
+        #embed()
         #slice all data in the clusters
         for it, _t in enumerate(centroid):
             lind = label == it
@@ -2870,6 +2879,7 @@ class data_loader:
                         _data[edge] = beam_profiles['te'][it][edge] #replace edge ion temperature by electron temperature
                 else:
                     if name == 'Ti':
+                        #print('te', _t)
                         _data = beam_profiles['te'][it] #use Te if Ti is not availible
                     elif name == 'omega':
                         _data = 0* rho #assume zero if unknown
@@ -3315,8 +3325,8 @@ class data_loader:
             qeff+= (nD* qeff_th)*f0halo1 #small, negligible
             qeff+= (nD*qeff2_th)*f0halo2 #comparable with qeff2
 
-
-
+            #qeff[:] = ti  
+            # erel, nion, ti, zeff
             #embed()
             #printe('BUGGGG')
             #qeff[:] = qeff.mean((0,2))[None,:,None]        
@@ -3430,6 +3440,8 @@ class data_loader:
                     denom_err=denom_err[~invalid]
                     
                 nz[ind] = nimp_data['int'][ind]/denom
+               
+                #nz[ind] =  denom
                 nz_err[ind] = nz[ind] * np.hypot(nimp_data['int_err'][ind] / (1+nimp_data['int'][ind]), denom_err / denom)
                 nz_err[ind] *= np.sign(nimp_data['int_err'][ind])  #suspicious channels have err < 0 
         
@@ -5438,16 +5450,19 @@ class data_loader:
                 #options['Corrections']['Zeeman Splitting'].set(False)
         
         
-        #embed()
+        
 
         if not isinstance( lineid[0], str):
             lineid = [l.split(b'\x00')[0].decode('utf-8') for l in lineid]
  
         lineid = [l.strip() for l in lineid]
-            
+        
+        if self.shot == 194073 and analysis_type == 'cerfit':
+            lineid = ['C VI 8-7'] * len(lineid)
+            #embed()
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0
- 
+    
         
         for ich,(ch,tind) in enumerate(zip(all_nodes,split_ind)):
             diag = ch.split('.')[-2].lower()
@@ -5513,7 +5528,7 @@ class data_loader:
                     ds['Ti'] = xarray.DataArray(Ti[tind],dims=['time'], attrs={'units':'eV','label':'T_i', 'zeeman_split':zeem_split})
                     ds['Ti_err'] = xarray.DataArray(Ti_err[tind]*unreliable,dims=['time'], attrs={'units':'eV'})
             
-            
+      
             if len(rot[tind]) > 0 and ch not in missing_rot and not all(corrupted):
                 corrupted = ~np.isfinite(rot[tind]) | (R[tind]  == 0) | corrupted
                 rot[tind][corrupted] = 0
