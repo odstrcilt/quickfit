@@ -4630,7 +4630,7 @@ class data_loader:
             
             dL = np.gradient(zeff[sys]['L'].values)[1]*100 #(m->cm) should be constant for each LOS 
             VB_Zeff1 = np.sum(vb_coeff_interp*dL,2) #VB for Zeff == 1, use for normalization
-            embed()
+            #embed()
                   
             #remove radiative mantle from VB array
             VB = np.copy(zeff[sys]['VB'].values)
@@ -4715,7 +4715,7 @@ class data_loader:
                 
                 if sys not in NIMP['diag_names']:
                     print("sys not in NIMP['diag_names']")
-                    embed()
+                    #embed()
                 zeff['diag_names'][sys] = NIMP['diag_names'][sys]
                 zeff[sys] = deepcopy(NIMP[sys])
                 for ich,ch in enumerate(NIMP[sys]):
