@@ -2150,7 +2150,7 @@ class data_loader:
                             if d.startswith('O'):
                                 line_id[i] = 'C IV 6-5'
                 
-                if self.shot in [175674]:
+                if self.shot in [175674, 175677,175679 ]:
                     if analysis_type == 'cerfit' and imp == 'Al13':
                         for i, d in enumerate(line_id):
                             if d.startswith('C'):
@@ -4192,8 +4192,9 @@ class data_loader:
             REL_CONST,CTRL_CAL,V_CAL,FS_COEFF_I_N, phi_start,phi_end,R_start, R_end,z_start,z_end = out[5:]
             tvec = self.MDSconn.get('dim_of(\VB01)').data()/1000 #timebase ms -> s
             nt = len(tvec)
+        
             
-            if nt > 1:
+            if nt > 1 and len(channels):
                 #downsample data to 10ms
                 dt = (tvec[-1]-tvec[0])/(nt-1)
                 n = int(np.ceil(downsample/dt))
@@ -4324,7 +4325,8 @@ class data_loader:
                 zeff[VB_array]['time'] = xarray.DataArray(tvec.astype('single'),dims=['time'], attrs={'units':'s'})
 
                 zeff['diag_names'][VB_array] = [VB_array]
-                 
+            else:
+                printe('VB data are not availible!!')
       
         ######################   CER VB data #############################3
 
