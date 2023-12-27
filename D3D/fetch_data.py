@@ -2152,16 +2152,13 @@ class data_loader:
                         for i, d in enumerate(line_id):
                             if d.startswith('O'):
                                 line_id[i] = 'C IV 6-5'
-                
+                #Old Al LBO experiments
                 if self.shot in [175674, 175677,175679, 175671 ]:
                     if analysis_type == 'cerfit' and imp == 'Al13':
-                        for i, d in enumerate(line_id):
-                            if d.startswith('C'):
+                        for i, ch in enumerate(loaded_chan):
+                            if ch in ['T42','T44', 'T46', 'T48']:
                                 line_id[i] = 'Al XIII 13-12'
-                    if analysis_type == 'cerfit' and imp == 'Al13':
-                        for i, d in enumerate(line_id):
-                            if d.startswith('C'):
-                                line_id[i] = 'Al XIII 13-12'
+           
                                                             
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
