@@ -1067,7 +1067,6 @@ class data_loader:
                 try:
                     ts = self.co2_correction(ts, tbeg, tend)
                 except:
-                    raise
                     printe('CO2 correction failed')
                     
             data.append(ts) 
@@ -1318,7 +1317,9 @@ class data_loader:
             ind_omg = np.in1d( zipfit['omega']['time'].values,tvec, assume_unique=True) 
 
             from scipy.constants import e,m_u
-            rho = np.mean(zipfit['Ti']['rho'].values,0)
+            rho = zipfit['Ti']['rho'].values
+            if rho.ndim > 1:
+                rho = np.mean(rho, 0)
             Rho,Tvec = np.meshgrid(rho,tvec)
             R = self.eqm.rhoTheta2rz(Rho,0, t_in=tvec,coord_in=self.rho_coord)[0][:,0]
             
@@ -1332,7 +1333,9 @@ class data_loader:
             zipfit['Mach']['Mach_err'] = xarray.DataArray(zipfit['Mach']['Mach'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','rho'])
             zipfit['Mach']['rho']  = xarray.DataArray(rho, dims=['rho'])
             zipfit['Mach']['time'] = xarray.DataArray(np.array(tvec), dims=['time'])
+            print(zipfit['Mach']['time'])
         except:
+            #embed()
             pass
              
 
@@ -2150,7 +2153,7 @@ class data_loader:
                             if d.startswith('O'):
                                 line_id[i] = 'C IV 6-5'
                 
-                if self.shot in [175674, 175677,175679 ]:
+                if self.shot in [175674, 175677,175679, 175671 ]:
                     if analysis_type == 'cerfit' and imp == 'Al13':
                         for i, d in enumerate(line_id):
                             if d.startswith('C'):
@@ -4677,6 +4680,9 @@ class data_loader:
             #normalized Zeff values will be plotted, rescaling should not affect anything except of the plotting.
             VB_Zeff1 = VB_Zeff1.astype('single')
             
+            #print('BUG')
+            #VB_Zeff1[:] = 1e-4
+            
             zeff[sys]['Zeff'] = zeff[sys]['VB'].copy()
             zeff[sys]['Zeff_err'] = zeff[sys]['VB_err'].copy()
             zeff[sys]['Zeff'].values = VB/VB_Zeff1
@@ -4685,6 +4691,7 @@ class data_loader:
             zeff[sys]['Zeff'].attrs = {'units':'-','label':'Z_\mathrm{eff}'}
 
             #remove too high or too small values
+            #print('BUG')
             Zeff_min,Zeff_max = .5, 8
             zeff[sys]['Zeff_err'].values[(zeff[sys]['Zeff'].values > Zeff_max)] = np.inf 
             zeff[sys]['Zeff_err'].values[(zeff[sys]['Zeff'].values < Zeff_min)] = -np.inf  #do not show these values
@@ -5239,13 +5246,14 @@ class data_loader:
             split_ind = [slice(s[0], s[-1]+1) for s in split_ind]
             
             
-     
             #some measurement were done when the beam was off
             if any(R == 0):
                 print('Some R location are zero, assume that passive emission was measured')
                 TDI_plasma = []
+                passive = []
                 for ich, node in enumerate(all_nodes):
                     if np.any(R[split_ind[ich]] == 0):
+                        passive.append(ich)
                         node_calib = node.replace(analysis_type.upper(),'CALIBRATION')
                         for node in ['PLASMA_R','PLASMA_Z','PLASMA_PHI']:
                                 TDI_plasma.append(node_calib+':'+node)
@@ -5266,7 +5274,7 @@ class data_loader:
 
                 X0 = LENS_R*np.cos(np.deg2rad(LENS_PHI)) 
                 Y0 = LENS_R*np.sin(np.deg2rad(LENS_PHI)) 
-                LENS = np.array((X0,Y0,LENS_Z))
+                LENS = np.array((X0,Y0,LENS_Z))[:,passive]
 
                 X1 = R1*np.cos(np.deg2rad(PHI1)) 
                 Y1 = R1*np.sin(np.deg2rad(PHI1)) 
@@ -5850,6 +5858,8 @@ class data_loader:
             corrupted = (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
             #no very cold TS measuremenst with tiny errorbars inside of rho = 0.95
             corrupted |= (Te[isys] < 20.)&np.isfinite(Te_err[isys])&( rho.T < 0.95  )
+            corrupted |= (ne[isys] == 1e19)|(  Te[isys] == 100   ) #it has not moved from the initial guess 
+
             #remove them, but it can be returned by user
             ne_err[isys][corrupted] *= -1
             Te_err[isys][corrupted] *= -1

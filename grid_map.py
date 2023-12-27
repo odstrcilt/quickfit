@@ -834,7 +834,7 @@ class map2grid():
 
         
 
-        #np.random.seed(0)
+        np.random.seed(0)
         #noise vector for estimation of uncertainty
         
         #perfecty uncorrelated noise, most optimistic assumption
