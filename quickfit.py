@@ -1172,6 +1172,8 @@ class DataFit():
             #raw values for plotting             
             data[prof].plot_rho  = self.load_options[prof]['plot_rho']  
             data[prof].plot_tvec = self.load_options[prof]['plot_tvec']  
+            data[prof].diags = self.load_options[prof]['diags']  
+            data[prof].ind_diag = self.load_options[prof]['ind_diag']  
 
         #BUG just temporary 
         if hasattr(self,'elms') and len(self.elms):
