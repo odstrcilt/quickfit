@@ -732,9 +732,12 @@ class equ_map:
                  coord_in=coord_in, coord_out='Psi', extrapolate=True )
         
         try:
-            import matplotlib._cntr as cntr
-        except: #slower option        
+#            import matplotlib._cntr as cntr
             import matplotlib._contour as _contour
+
+        except: #slower option        
+            #import matplotlib._contour as _contour
+            from contourpy import contour_generator
  
         nr = len(self.Rmesh)
         nz = len(self.Zmesh)
@@ -752,9 +755,10 @@ class equ_map:
 # matplotlib's contour creation
  
             try: 
-                c = cntr.Cntr(R, Z, self.pfm[:nr, :nz, i].T)
-            except: #slower option  
+                #c = cntr.Cntr(R, Z, self.pfm[:nr, :nz, i].T)
                 gen = _contour.QuadContourGenerator(R, Z, self.pfm[:nr, :nz, i].T,np.bool_(Z*0), False, 0)
+            except: #slower option  
+                gen = contour_generator(R, Z, self.pfm[:nr, :nz, i].T)
  
             Rs_t = []
             zs_t = []

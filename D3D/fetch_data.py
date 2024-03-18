@@ -109,7 +109,7 @@ def read_adf12(file,block, ein, dens, tion, zeff):
             cer_line['header'] = first_line
             if first_line.startswith('C'):
                 raise Exception(f'ISEL {block} is not in the atomic data file '+file)
-            cer_line['qefref'] = np.float(f.readline()[:63].replace('D', 'e'))
+            cer_line['qefref'] = np.float_(f.readline()[:63].replace('D', 'e'))
             cer_line['parmref'] = np.float_(f.readline()[:63].replace('D', 'e').split())
             cer_line['nparmsc'] = np.int_(f.readline()[:63].split())
             
@@ -3967,7 +3967,7 @@ class data_loader:
 
             #get indexes of nearest points
             interpn = NearestNDInterpolator(np.c_[calib['t'],calib['r']],np.arange(len(calib['t'])))
-            near_ind = interpn(np.c_[other['t'],other['r']])
+            near_ind = np.int_(interpn(np.c_[other['t'],other['r']]))
             dist = np.hypot(calib['t'][near_ind]-other['t'],calib['r'][near_ind]**2-other['r']**2)
             nearest_ind = dist < .1 #use only a really close points 
             #weight = np.exp(-dist**2/.1**2)
@@ -5812,7 +5812,8 @@ class data_loader:
                 TDI.append(tdi+sig)
         
         out = mds_load(self.MDSconn, TDI, tree, self.shot)
-        ne,ne_err,Te,Te_err,tvec,R,Z,laser = np.asarray(out).reshape(-1, len(signals)).T
+
+        ne,ne_err,Te,Te_err,tvec,R,Z,laser = np.array(out,dtype=object).reshape(-1, len(signals)).T
         
         #get shot number with calibration data
         TDIcalib = f'\\{tree}::TOP.TS.{revision}.header:calib_nums'

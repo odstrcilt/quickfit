@@ -393,24 +393,28 @@ class FitPlot():
  
             self.RS_delete.set_visible(False)
             self.RS_undelete.set_visible(False)
-            self.RS_delete.visible = True
-            self.RS_undelete.visible = True
+            #self.RS_delete.visible = True
+            #self.RS_undelete.visible = True
             
                         
         rectprops = dict(facecolor='red', edgecolor = 'red',alpha=0.5, fill=True,zorder=99)
 
         self.RS_delete = RectangleSelector(self.ax_main, line_select_callback,
-                                       drawtype='box', useblit=True,
+                                       #drawtype='box',
+                                       useblit=True,
                                        button=[1],  # don't use middle button
-                                       minspanx=5, minspany=5,rectprops=rectprops,
+                                       minspanx=5, minspany=5,
+                                       props=rectprops,
                                        spancoords='pixels',
                                        interactive=True)
         rectprops = dict(facecolor='blue', edgecolor = 'blue',alpha=0.5, fill=True,zorder=99)
 
         self.RS_undelete = RectangleSelector(self.ax_main, line_select_callback,
-                                       drawtype='box', useblit=True,
+                                       #drawtype='box'
+                                       useblit=True,
                                        button=[ 3],  # don't use middle button
-                                       minspanx=5, minspany=5,rectprops=rectprops,
+                                       minspanx=5, minspany=5,
+                                       props=rectprops,
                                        spancoords='pixels',
                                        interactive=True)
         
@@ -1272,10 +1276,10 @@ class FitPlot():
     def on_key(self,event):
         if 'control' == event.key and hasattr(self,'RS_delete'):
             self.ctrl=True
-            if self.RS_delete.eventpress is not None:
-                self.RS_delete.eventpress.key=None
-            if self.RS_undelete.eventpress is not None:
-                self.RS_undelete.eventpress.key=None
+            if self.RS_delete._eventpress is not None:
+                self.RS_delete._eventpress.key=None
+            if self.RS_undelete._eventpress is not None:
+                self.RS_undelete._eventpress.key=None
 
             
         if 'shift' == event.key:
