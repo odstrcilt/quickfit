@@ -3568,20 +3568,20 @@ class data_loader:
         except:
             pass
         array_order = [a[0]+('0'+a[4:].strip())[-2:] for a in array_order]
-        
+        lenght = 0
         for sys in load_systems:
             for ch in nimp[sys]:
                 ch_name = ch.attrs['channel'].split('_')[0] 
                 ich = array_order.index(ch_name)
                 ind = slice(ch_ind[ich],ch_ind[ich+1])
                 
-                if ch_ind[ich]==ch_ind[ich+1]:
+                if ind.start == ind.stop:
                     continue
                 
                 
                 #merge impdens and CER timebases
-                tch = np.round((ch['time'].values-ch['stime'].values/2)*1e3,2)
-                timp = np.round(tvec[ind],2)#round to componsate for small rounding numerical errors
+                tch = np.round((ch['time'].values-ch['stime'].values/2)*1e3,1)
+                timp = np.round(tvec[ind],1)#round to componsate for small rounding numerical errors
                 #sometimes there are two measuremenst with the same time (175602, AL, T25)
 
                 jt = 0
@@ -3600,7 +3600,7 @@ class data_loader:
                         if jt < timp.size:
                             t2 = timp[jt]
                     #else - point is missing in IMPDENS
-                
+
  
                 #channel was not included in IMPDENS analysis
                 if not any(nz_ > 0):
@@ -3624,8 +3624,9 @@ class data_loader:
                 ch['nimp_impdens'].values = nz_  
                 ch['nimp_impdens_err'] = ch['nimp_err'].copy()
                 ch['nimp_impdens_err'].values = nzerr_
-         
+                lenght += len(nz_)
 
+         
 
         print('\t done in %.1fs'%(time()-T))
         return nimp
@@ -7360,7 +7361,7 @@ def main():
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
-    shot = 194311
+    shot = 163303
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7468,7 +7469,7 @@ def main():
     settings.setdefault('nimp', {\
         'systems':{'CER system':(['tangential',I(1)], ['vertical',I(0)],['SPRED',I(0)] )},
         'load_options':{'CER system':OrderedDict((
-                                ('Analysis', (S('fit'), (S('best'),'fit','auto','quick'))),
+                                ('Analysis', (S('auto'), (S('best'),'fit','auto','quick'))),
                                 ('Correction',{'Relative calibration':I(1),'nz from CER intensity':I(1),
                                             'remove first data after blip':I(0)}  )))   }})
 
@@ -7531,7 +7532,7 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    data = loader( 'nKr27', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     return 
     for shot in range(195400, 196000):
         #shot = 195055
