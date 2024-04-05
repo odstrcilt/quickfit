@@ -14,7 +14,7 @@ params = {'legend.fontsize': 'large',
         'axes.titlesize': 'large',
         'xtick.labelsize' :'medium',
         'ytick.labelsize': 'medium',
-        'font.size':12,
+        'font.size':13,
         'mathtext.fontset': 'cm',
         'mathtext.rm': 'serif',
         'grid.color': 'k',
@@ -154,15 +154,13 @@ class DataFit():
         self.defaultFont = font.nametofont("TkDefaultFont")
         # Overriding default-font with custom settings
         # i.e changing font-family, size and weight
-        self.defaultFont.configure(family="Segoe UI" )
-        if self.defaultFont.actual()['family'] != 'Segoe UI':
-            self.defaultFont.configure(family="Helvetica" )
-            if self.defaultFont.actual()['family'] !=  "Helvetica" :
-                self.defaultFont.configure(family="Lucida" )
-                if self.defaultFont.actual()['family'] !=  "Lucida" :
-                    print('Issue with TK fonts, use ', self.defaultFont.actual()['family'] )
-
-        
+        fonts = ["Segoe UI","Helvetica", "Lucida",]
+        for font in fonts:
+            self.defaultFont.configure(family=font,size=self.fsize )
+            if self.defaultFont.actual()['family'].lower() == font.lower():
+                break
+                
+       
         self.data_loader_class = fetch_data.data_loader
         self.default_settings_loader = fetch_data.default_settings
             
