@@ -144,6 +144,7 @@ class FitPlot():
             return 
         self.main_slider.valmin = tbeg 
         self.main_slider.valmax = tend 
+
         self.sl_ax_main.set_xlim(tbeg, tend )
         self.ax_main.set_xlim(self.options['rho_min'], self.options['rho_max'])
         self.tbeg = tbeg
@@ -400,21 +401,21 @@ class FitPlot():
         rectprops = dict(facecolor='red', edgecolor = 'red',alpha=0.5, fill=True,zorder=99)
 
         self.RS_delete = RectangleSelector(self.ax_main, line_select_callback,
-                                       #drawtype='box',
+                                       drawtype='box',
                                        useblit=True,
                                        button=[1],  # don't use middle button
                                        minspanx=5, minspany=5,
-                                       props=rectprops,
+                                       rectprops=rectprops,
                                        spancoords='pixels',
                                        interactive=True)
         rectprops = dict(facecolor='blue', edgecolor = 'blue',alpha=0.5, fill=True,zorder=99)
 
         self.RS_undelete = RectangleSelector(self.ax_main, line_select_callback,
-                                       #drawtype='box'
+                                       drawtype='box',
                                        useblit=True,
                                        button=[ 3],  # don't use middle button
                                        minspanx=5, minspany=5,
-                                       props=rectprops,
+                                       rectprops=rectprops,
                                        spancoords='pixels',
                                        interactive=True)
         
@@ -910,12 +911,20 @@ class FitPlot():
         if self.plot_type.get() in [1,2]:
             self.plt_time = min(max(self.plt_time,self.tbeg), self.tend)
             val = self.plt_time
-
+        
+        if self.main_slider.val != val:
+            self.main_slider.set_val(val)
+        return 
+        
+        
         self.main_slider.val = val
+       
         poly = self.main_slider.poly.get_xy()
+        
         poly[2:4,0] = val
         self.main_slider.poly.set_xy(poly)   
         self.main_slider.valtext.set_text('%.3f'%val)
+        
         
         
         
