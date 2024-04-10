@@ -1285,11 +1285,17 @@ class FitPlot():
     def on_key(self,event):
         if 'control' == event.key and hasattr(self,'RS_delete'):
             self.ctrl=True
-            if self.RS_delete._eventpress is not None:
-                self.RS_delete._eventpress.key=None
-            if self.RS_undelete._eventpress is not None:
-                self.RS_undelete._eventpress.key=None
-
+            #old matplolib
+            if hasattr(self.RS_delete,'_eventpress'):
+                if self.RS_delete._eventpress is not None:
+                    self.RS_delete._eventpress.key=None
+                if self.RS_undelete._eventpress is not None:
+                    self.RS_undelete._eventpress.key=None
+            else:#new matplolib
+                if self.RS_delete.eventpress is not None:
+                    self.RS_delete.eventpress.key=None
+                if self.RS_undelete.eventpress is not None:
+                    self.RS_undelete.eventpress.key=None
             
         if 'shift' == event.key:
             self.shift=True
