@@ -1120,7 +1120,7 @@ class data_loader:
                 vtor_err = omg_err*r
                 ti[ti<=0] = 1 #avoid zero division
                 vtor[vtor==0] = 1 #avoid zero division
-                mach = np.sqrt(2*m_u/e*vtor**2/(2*ti))
+                mach = np.sqrt(2*m_u/e/(2*ti))*vtor
                 mach_err = mach*np.hypot(vtor_err/vtor,ti_err/ti/2.)
                 #deuterium mach number 
                 ch['Mach'] = xarray.DataArray(mach, dims=['time'], attrs={'units':'-','label':'M_D'})
