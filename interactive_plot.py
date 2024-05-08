@@ -400,22 +400,23 @@ class FitPlot():
                         
         rectprops = dict(facecolor='red', edgecolor = 'red',alpha=0.5, fill=True,zorder=99)
 
+
         self.RS_delete = RectangleSelector(self.ax_main, line_select_callback,
-                                       drawtype='box',
+                                       #drawtype='box',
                                        useblit=True,
                                        button=[1],  # don't use middle button
                                        minspanx=5, minspany=5,
-                                       rectprops=rectprops,
+                                       props=rectprops,
                                        spancoords='pixels',
                                        interactive=True)
         rectprops = dict(facecolor='blue', edgecolor = 'blue',alpha=0.5, fill=True,zorder=99)
 
         self.RS_undelete = RectangleSelector(self.ax_main, line_select_callback,
-                                       drawtype='box',
+                                       #drawtype='box',
                                        useblit=True,
                                        button=[ 3],  # don't use middle button
                                        minspanx=5, minspany=5,
-                                       rectprops=rectprops,
+                                       props=rectprops,
                                        spancoords='pixels',
                                        interactive=True)
         
