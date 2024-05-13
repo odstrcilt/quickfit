@@ -521,7 +521,7 @@ class DataFit():
         
         vcmd2 =  self.eq_frame.register(self.efit_edition_changed) 
     
-        self.efit_combo = tkinter.ttk.Combobox(self.eq_reviz_frame,width=7,state='normal',
+        self.efit_combo = tkinter.ttk.Combobox(self.eq_reviz_frame,width=11,state='normal',
                                     validatecommand=(vcmd2, '%P'),validate="focusout")
         self.efit_combo.pack(side=tk.RIGHT) 
         self.efit_combo.bind("<<ComboboxSelected>>", self.efit_edition_changed)
