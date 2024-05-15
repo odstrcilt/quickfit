@@ -749,7 +749,9 @@ class DataFit():
 
         for prof in self.kin_profs:
             self.load_options[prof].setdefault('trange', [tbeg,tend,None])
-        self.tbeg, self.tend, self.tstep = self.load_options[self.kin_prof]
+
+        kin_prof = getattr(self,'kin_prof',self.kin_profs[0])
+        self.tbeg, self.tend, self.tstep = self.load_options[kin_prof]
         #share options with fitPlot object
         self.fitPlot.options = self.options
         self.fitPlot.fit_options = self.fit_options  
