@@ -1640,7 +1640,10 @@ class data_loader:
         #timeslices with 0.1 < nbi_on_frac < 0.8 will be ignored 
         #nbi_off = np.all(nbi_on_frac < 0.1,1)
         #nbi_off &= spred_tvec < spred_tvec[nbi_mixed].max()+100
-        
+        if not any(nbi_mixed):
+            raise('No beams, no SPRED CX data!')
+
+
 
  
         #TODO make a smarter substraction!
@@ -1757,7 +1760,6 @@ class data_loader:
         dt_shift = []
         #median absolute deviation
         MAD = lambda x: 1.48*np.median(np.abs(x-np.median(x)))
-        
 
         nbi_working = spred_tvec <= spred_tvec[nbi_mixed].max()
         for i,(t,s) in enumerate(zip(spred_tvec[nbi_working], spred_stime[nbi_working])):
@@ -2305,7 +2307,6 @@ class data_loader:
             try:
                 spred = self.load_nimp_spred(imp, beam_order)
             except Exception as e:
-                raise
                 printe(e)
                 spred = None
 
@@ -4626,7 +4627,7 @@ class data_loader:
 
          #calculate weights for each rho/time position
         for sys in zeff['systems']:
-            if not sys in zeff or sys in ['vertical','tangential','SPRED']: continue
+            if not sys in zeff or sys in ['vertical','tangential','SPRED','SPRED all']: continue
  
             
             RHO =  zeff[sys]['rho'].values
