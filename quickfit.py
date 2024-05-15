@@ -428,7 +428,7 @@ class DataFit():
         return True
     
     def efit_edition_changed(self, event=None):
-      
+        print('efit_edition_changed')
         efit = self.efit_combo.get()
         if efit == self.eqm.system:
             return True
@@ -684,6 +684,7 @@ class DataFit():
             if kin_prof in [ 'Te/Ti']:
                 dic['fit_options']['null_outer']=1  
                 dic['fit_options']['zeroedge']=0
+
             if kin_prof in [ 'Ti']:
                 dic['fit_options']['transformation']='log'
 
@@ -1190,6 +1191,7 @@ class DataFit():
             settings[kin_prof]['load_options'] = OrderedDict()
             settings[kin_prof]['options'] =  options['options']
             settings[kin_prof]['fit_options'] = options['fit_options']
+            settings[kin_prof]['trange'] = options['trange']
 
             for name,config in options['systems'].items():
                 load_enabled = [[ss, var.get()] for ss,var in config]

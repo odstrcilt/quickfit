@@ -15,7 +15,7 @@ from copy import deepcopy
 from multiprocessing.pool import ThreadPool, Pool
 import xarray
 import re,sys,os
-np.seterr(all='raise')
+#np.seterr(all='raise')
 from IPython import embed
 from scipy.stats import trim_mean
 from scipy.integrate import cumtrapz
@@ -54,7 +54,7 @@ except:
 #negative finite - disabled in GUI, but it can be enabled
 #negative infinite - Do not shown, do not use
 
-np.seterr(all='raise')
+#np.seterr(all='raise')
 
 def read_adf11(file,Z, Te, ne):
     #read and interpolate basic ads11 adas files 
@@ -1579,10 +1579,12 @@ class data_loader:
             raise Exception('MDS+ data for line %s are unavailible'%line)
  
         spred_tvec = self.MDSconn.get('dim_of(_x)').data()
- 
+        valid = np.isfinite(spred_data)
+
+        spred_data = spred_data[(spred_tvec > 0)&valid]
+        spred_tvec = spred_tvec[(spred_tvec > 0)&valid]
+
         spred_data*= 1e4 #convert from ph/cm**2/s/sr to ph/m**2/s/sr
-        spred_data = spred_data[spred_tvec > 0]
-        spred_tvec = spred_tvec[spred_tvec > 0]
         
         # SPRED records the timestamp at the *end* of the integration period. Opposite to CER.
         spred_stime = np.diff(spred_tvec)
@@ -5955,8 +5957,8 @@ class data_loader:
 
         #fetch data from MDS+
         out = mds_load(self.MDSconn, TDI, tree, self.shot)
-     
-     
+        out = np.array(out,dtype=object)
+
         if np.size(out) == 0:
             printe( '\tNo Reflectometer data')
             return
