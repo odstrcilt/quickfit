@@ -1686,7 +1686,7 @@ class data_loader:
                 #get averaged power and other quantities for each interval
                 for j in range(nsteps):
                     ind = slice(nbi_ind_change[i]+j*step, nbi_ind_change[i]+(j+1)*step)
-                    spred_data_tmp.append(spred_data[ind].mean())
+                    spred_data_tmp.append(np.median(spred_data[ind]))
                     spred_tvec_tmp.append(spred_tvec[ind.start])
                     spred_stime_tmp.append(spred_stime[ind].sum())
                     nbi_on_frac_tmp.append(nbi_on_frac[ind].mean(0))
