@@ -466,6 +466,7 @@ class DataFit():
 
         tbeg,tend = self.eqm.t_eq[[0,-1]]
         for prof in self.kin_profs:
+            print(prof, self.load_options[prof].get('trange',[]))
             self.load_options[prof]['trange'] = tbeg,tend,None
         
         self.set_trange(tbeg,tend)
