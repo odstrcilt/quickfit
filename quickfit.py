@@ -746,12 +746,17 @@ class DataFit():
                         self.load_options[kin_prof]['load_options'][system][name] = tk_var(options[0]), options[1]
  
         
-
+        self.tbeg, self.tend = 0, 10
         for prof in self.kin_profs:
-            self.load_options[prof].setdefault('trange', [tbeg,tend,None])
+            self.load_options[prof]['trange'] = self.tbeg,self.tend,None
 
-        kin_prof = getattr(self,'kin_prof',self.kin_profs[0])
-        self.tbeg, self.tend, self.tstep = self.load_options[kin_prof]
+
+        #for prof in self.kin_profs:
+            #self.load_options[prof].setdefault('trange', [tbeg,tend,None])
+
+        #kin_prof = getattr(self,'kin_prof',self.kin_profs[0])
+        #self.tbeg, self.tend, self.tstep = self.load_options[kin_prof]
+
         #share options with fitPlot object
         self.fitPlot.options = self.options
         self.fitPlot.fit_options = self.fit_options  
