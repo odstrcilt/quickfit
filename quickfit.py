@@ -48,8 +48,7 @@ from copy import deepcopy
 from interactive_plot import FitPlot, transformations
 import traceback
 
-#print('Warning": all=raise')
-#np.seterr(all='raise')
+
 from IPython import embed
 
 
@@ -106,8 +105,8 @@ class DataFit():
     
     def __init__(self, main_frame, MDSserver,device='D3D', shot=None,OMFITsave=None,eqdsk=None,
                  raw_data={},settings=OrderedDict(),coordinate='rho_tor', elmstime=False, elmsphase=False, n_radial = 101):
-        #settings={'Ti':{'load_options':{'CER system':{'Corrections':{'Wall reflections': True}}}}}
-  
+
+
         print('Accesing data from %s tokamak'%device)
         
         self.main_frame=main_frame
@@ -125,7 +124,7 @@ class DataFit():
         self.raw_data = raw_data
         #dict or OMFITtree from OMFIT
         self.default_settings = deepcopy(settings)
-        
+
         self.elmstime = elmstime
         self.elmsphase = elmsphase
         
@@ -347,7 +346,7 @@ class DataFit():
                 efit_editions = [n.split('.')[1] for n in efit_names]
 
 
-         
+
             efits  = []
             if self.device == 'CMOD':#for cmod
                 efits = ['ANALYSIS','EFIT20']+['EFIT%.2d'%i for i in range(1,10)] 
@@ -409,10 +408,11 @@ class DataFit():
                     self.default_elms_signal = self.default_elms_signal.decode()
                 except:
                     pass
-                
 
             #use a default setting for a new discharge
+
             self.load_default_options()
+
             self.init_fit_opt_frame()
             if hasattr(self.fitPlot,'splines'):
                 del self.fitPlot.splines
@@ -428,7 +428,6 @@ class DataFit():
         return True
     
     def efit_edition_changed(self, event=None):
-        print('efit_edition_changed')
         efit = self.efit_combo.get()
         if efit == self.eqm.system:
             return True
@@ -462,15 +461,23 @@ class DataFit():
 
         if self.kinprof_ind  != -1:   
             self.data_load.config(stat=tk.NORMAL)
-        
 
-        tbeg,tend = self.eqm.t_eq[[0,-1]]
-        for prof in self.kin_profs:
-            print(prof, self.load_options[prof].get('trange',[]))
-            self.load_options[prof]['trange'] = tbeg,tend,None
-        
-        self.set_trange(tbeg,tend)
-        
+
+
+
+        #if a new equalibrium was loaded
+        if self.default_settings.get('EFIT','') != efit:
+            tbeg,tend = self.eqm.t_eq[[0,-1]]
+            tstep = 'None'
+            for prof in self.kin_profs:
+                self.load_options[prof]['trange'] = tbeg,tend,None
+        else:
+            #if it has not chnaged
+            tbeg,tend, tstep = self.load_options[self.kin_prof]['trange']
+
+
+        self.set_trange(tbeg,tend, tstep)
+
         
         #if avalible use existing dataloader with 
         if hasattr(self,'data_loader') and self.shot == self.data_loader.shot:
@@ -488,7 +495,8 @@ class DataFit():
 
         self.fitPlot.ax_main.cla()
         self.fitPlot.ax_main.figure.canvas.draw()
-        
+
+
         return True
             
 
@@ -607,22 +615,26 @@ class DataFit():
 
     def load_default_options(self):
         #load dictionary with default settings
+
         if self.shot is not None:
             default_settings = self.default_settings_loader(self.MDSconn,self.shot)  
-            #if teh shit number has not changed
+            #if the shot number has not changed
             if not self.reload_settings:
                 for key, val in self.default_settings.items():
                     if key in default_settings:
                         for k,v in val.items():
                             default_settings[key][k] =  v 
+
             self.kin_profs = list(default_settings.keys())
+            if 'EFIT' in self.default_settings:
+                default_settings['EFIT'] = self.default_settings['EFIT']
 
             self.default_settings = default_settings
         else :
             #default list if no shot specified
             self.kin_profs = []
 
-        
+
         for kin_prof in self.kin_profs:
             dic = self.default_settings.setdefault(kin_prof,{})
             
@@ -712,7 +724,7 @@ class DataFit():
             
             raise Exception('mission type '+str(type(x))+'   ',str(x))
         
-        print('self.kin_profs', self.kin_profs, self.default_settings)
+
         #initial profile shown in GUI after openning
         if len(self.kin_profs):
             kin_prof = self.kin_profs[0]
@@ -745,23 +757,16 @@ class DataFit():
                     else:
                         self.load_options[kin_prof]['load_options'][system][name] = tk_var(options[0]), options[1]
  
-        
+
         self.tbeg, self.tend = 0, 10
         for prof in self.kin_profs:
-            self.load_options[prof]['trange'] = self.tbeg,self.tend,None
+            self.load_options[prof].setdefault('trange', [self.tbeg,self.tend,None])
 
-
-        #for prof in self.kin_profs:
-            #self.load_options[prof].setdefault('trange', [tbeg,tend,None])
-
-        #kin_prof = getattr(self,'kin_prof',self.kin_profs[0])
-        #self.tbeg, self.tend, self.tstep = self.load_options[kin_prof]
 
         #share options with fitPlot object
         self.fitPlot.options = self.options
         self.fitPlot.fit_options = self.fit_options  
-                
-  
+
     def set_trange(self,tbeg=None,tend=None,tstep='None'):
         self.tbeg = float(self.tbeg_entry.get())/1e3 if tbeg is None else tbeg
         self.tend = float(self.tend_entry.get())/1e3 if tend is None else tend
@@ -771,7 +776,6 @@ class DataFit():
             self.tstep = float(self.tstep_entry.get())/1e3
         elif tstep is not None and tstep != 'None':
             self.tstep = tstep
-            
      
         self.tbeg_entry.delete(0,tk.END)
         self.tend_entry.delete(0,tk.END)
@@ -938,7 +942,6 @@ class DataFit():
             #reload data if something has changed
             #self.load_sawteeth()
             #self.load_elms()
-            #print('newselection fit option')
             return self.isfloat(val)
   
                     
