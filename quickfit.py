@@ -712,7 +712,7 @@ class DataFit():
             
             raise Exception('mission type '+str(type(x))+'   ',str(x))
         
- 
+        print('self.kin_profs', self.kin_profs, self.default_settings)
         #initial profile shown in GUI after openning
         if len(self.kin_profs):
             kin_prof = self.kin_profs[0]
