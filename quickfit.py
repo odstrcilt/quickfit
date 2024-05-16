@@ -465,15 +465,17 @@ class DataFit():
 
 
 
-        #if a new equalibrium was loaded
-        if self.default_settings.get('EFIT','') != efit:
+        #if a new equilibrium was loaded
+        if self.default_settings.get('EFIT','') == efit:
+            #if it has not chnaged
+            tbeg,tend, tstep = self.load_options[self.kin_prof]['trange']
+            print(efit, self.default_settings.get('EFIT',''))
+            self.default_settings.pop('EFIT',None)
+        else:
             tbeg,tend = self.eqm.t_eq[[0,-1]]
             tstep = 'None'
             for prof in self.kin_profs:
                 self.load_options[prof]['trange'] = tbeg,tend,None
-        else:
-            #if it has not chnaged
-            tbeg,tend, tstep = self.load_options[self.kin_prof]['trange']
 
 
         self.set_trange(tbeg,tend, tstep)
