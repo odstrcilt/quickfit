@@ -753,11 +753,11 @@ def default_settings(MDSconn, shot):
 
                 #check if intensity data are availible
                 ampl_len = {}
-                TDI = ['getnci("'+path+':BEAMGEOMETRY","LENGTH")']
+                TDI = ['getnci("'+path+':WAVELENGTH","LENGTH")']
                 for analysis_type in cer_flavours:
                     path = 'CER.CER%s.%s.CHANNEL*'%(analysis_type,system)
                     TDI.append('getnci("'+path+':INTENSITY","LENGTH")')
-                    
+
                 lengths +=  [MDSconn.get('['+','.join(TDI)+']').data()]
                 
             
@@ -831,7 +831,7 @@ def default_settings(MDSconn, shot):
                     
 
         except Exception as e:
-            #raise
+            print('Error: Loading of CER impurities failed, assume only C6')
             imps = ['C6']
     
     #exception data from impurity ion CER
@@ -7364,7 +7364,7 @@ def main():
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
-    shot = 163303
+    shot = 191450
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
