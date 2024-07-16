@@ -736,7 +736,7 @@ def default_settings(MDSconn, shot):
         except:
             pass
         
-        #load availible editions for CER   
+        #load available editions for CER   
         try:
             TDI_lineid = []
             TDI_lam = []
@@ -2155,7 +2155,11 @@ class data_loader:
                         for i in [8,9,10]:
                             line_id[i] = 'Ca XVIII 16-15'
                             line_id[i+3] = 'Ca XVIII 15-14'
-
+                            
+                if self.shot in [199103]:
+                    if analysis_type == 'cerfit': #carbon
+                        print(imp, line_id)
+                
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
                         for i, d in enumerate(line_id):
