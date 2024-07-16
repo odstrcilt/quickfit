@@ -144,6 +144,7 @@ class FitPlot():
             return
         self.main_slider.valmin = tbeg
         self.main_slider.valmax = tend
+ 
 
         self.sl_ax_main.set_xlim(tbeg, tend )
         self.ax_main.set_xlim(self.options['rho_min'], self.options['rho_max'])
@@ -394,6 +395,7 @@ class FitPlot():
             self.RS_delete.set_visible(False)
             self.RS_undelete.set_visible(False)
 
+ 
             try:#old matplolib issue
                 if click_event is None or click_event.xdata!=eclick.xdata:
                     self.RS_delete.visible = True
@@ -448,6 +450,7 @@ class FitPlot():
 
 
 
+ 
     def changed_fit_slice(self):
         #switch between time/radial slice or gradient
 
@@ -939,21 +942,20 @@ class FitPlot():
             self.plt_time = min(max(self.plt_time,self.tbeg), self.tend)
             val = self.plt_time
 
+        
         if self.main_slider.val != val:
             self.main_slider.set_val(val)
-        return
-
-
+        return 
+        
+        
         self.main_slider.val = val
-
+       
         poly = self.main_slider.poly.get_xy()
+        
 
         poly[2:4,0] = val
         self.main_slider.poly.set_xy(poly)
         self.main_slider.valtext.set_text('%.3f'%val)
-
-
-
 
     def plot_step(self):
         #single step plotting routine
@@ -1362,5 +1364,4 @@ class FitPlot():
             self.ctrl=False
         if 'shift' == event.key:
             self.shift=False
-
 
