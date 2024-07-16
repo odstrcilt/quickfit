@@ -3818,7 +3818,7 @@ class data_loader:
                 try:
                     nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
                 except Exception as e:
-                    printe('Error in loading of nC from IMPDENS: '+str(e))
+                    printe('Error in loading of nC from IMPDENS: '+str(e)+ ' try CERAUTO')
                     try:
                         if selected.get() != 'auto':
                             #try to load from AUTO edition
