@@ -2134,7 +2134,7 @@ class data_loader:
                         for i in range(27,min(32,len(line_id))): #rest is Ne9+ or C6+
                             line_id[i] = 'Ne X 11-10'
                 
-                if self.shot in [194074]:
+                if self.shot in [194074, 191449]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Ne X 11-10']*len(loaded_chan)      
                         
