@@ -1590,7 +1590,7 @@ class data_loader:
         # SPRED records the timestamp at the *end* of the integration period. Opposite to CER.
         spred_stime = np.diff(spred_tvec)
         spred_stime = np.r_[spred_stime[0], spred_stime]
-        if spred_stime.min() < 20 #ms:
+        if spred_stime.min() < 20: #ms
             print('SPRED time resolution is too low')
             return
         
