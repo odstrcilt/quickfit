@@ -2160,7 +2160,7 @@ class data_loader:
                     if analysis_type == 'cerfit': #carbon
                         for i in [0,1,2,3]:
                             line_id[i] = 'Ar XVIII 15-14 '
-                print(line_id)
+                
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
                         for i, d in enumerate(line_id):
@@ -2492,7 +2492,7 @@ class data_loader:
                 beamid[(beam_frac[bind[1]] < 0.3)] = beams[bind[0]]
                 beamid[(beam_frac[bind[0]] < 0.3)] = beams[bind[1]]
             
-            #print(ich, len(line_id))
+            print(ich, len(line_id))
             tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
         
 
