@@ -3286,6 +3286,7 @@ class data_loader:
                 transition = tmp.group(3)             
            
                 file1, file2 = atom_files[imp]
+                print('transisotion', transition)
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
    
