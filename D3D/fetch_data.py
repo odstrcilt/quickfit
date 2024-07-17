@@ -3067,8 +3067,8 @@ class data_loader:
             #BUG 
             #beam_att[-1][:] = 1
         
-            # assume correlated error - ne is systematically higher/lower within the uncertainty
-            beam_att_err.append(beam_att[-1] * lnbeam_att_err)  # keep in mind, that uncertaintes of all beams and species are correlated
+            # Assume correlated error - ne is systematically higher/lower within the uncertainty
+            beam_att_err.append(beam_att[-1] * lnbeam_att_err)  # keep in mind, that uncertainties of all beams and species are correlated
             # assume 5% error in beam power
             beam_att_err[-1] = np.hypot(beam_att_err[-1], 0.05 * beam_att[-1])
             n += nR
@@ -3098,7 +3098,7 @@ class data_loader:
         ionis_rate = (ne*Se)[valid] #1/s
         import scipy.constants as consts
         
-        #simple neurals transport model for tangential LOS!!
+        #simple neutral transport model for tangential LOS!!
         vth = np.sqrt((2*ti*consts.e)/(main_ab * consts.m_p))#m/s
         halo_std = vth[valid]/ionis_rate*100 #width of neutral gaussian distribution
         #correction for a finite transport of neutrals, assume that the extend in horisontal direction
@@ -3120,7 +3120,7 @@ class data_loader:
         #data from file qcx#h0_ory#h1.dat
         #E = [10., 50., 100., 200., 300., 500., 1000.]#energies(keV/amu)
         ##sigma = [7.95e-16 ,9.61e-17 ,1.54e-17 ,1.29e-18, 2.35e-19 ,2.20e-20, 6.45e-22 ]#total xsects.(cm2)
-        #sigma = [7.70e-16, 6.13e-17, 9.25e-18, 8.44e-19, 1.63e-19, 1.63e-20, 5.03e-22] #n=1 crossection
+        #sigma = [7.70e-16, 6.13e-17, 9.25e-18, 8.44e-19, 1.63e-19, 1.63e-20, 5.03e-22] #n=1 crosssection
         #sigmaDD = np.exp(np.interp(np.log(erel/1e3), np.log(E),np.log(sigma)))#cm2 
         
  
@@ -3130,7 +3130,7 @@ class data_loader:
         p = [0.0051, -0.0552, 0.1017, -0.0383, -0.3721,-34.0339]
         sigmaDD = np.exp(np.polyval(p, np.log(erel/1e3)))
 
-        #n=1 halo fraction, normalised to the total number of injected neutrals
+        #n=1 halo fraction, normalized to the total number of injected neutrals
         f0halo1 = np.zeros_like(sigmaDD)# magnitude consistent with Rachael's paper
         f0halo1[:,:,valid] = (sigmaDD*v)[:,:,valid]/(ionis_rate*corr)
 
@@ -3140,7 +3140,7 @@ class data_loader:
         PEC = read_adf15(PECfile, 1, te,ne)#ph cm**3 s**-1)
         A21 = 4.6986e+08#s^-1 einsten coefficient from https://physics.nist.gov/PhysRefData/ASD/lines_form.html
 
-        #n=2 halo fraction, magnitude consistent with Rachael's paper, normalised to the total number of injected neutrals
+        #n=2 halo fraction, magnitude consistent with Rachael's paper, normalized to the total number of injected neutrals
         f0halo2 = f0halo1*(PEC*ne)/A21
         #  Rachael used FIDASIM to calculate a spatial profile of these ions
  
@@ -3165,10 +3165,10 @@ class data_loader:
       
     
         for line_id in line_ids:
-            #BUG it is not very efficient way, everything will be calculated for every channel and at the end
+            #BUG it is not a very efficient way; everything will be calculated for every channel and at the end
             #I will pick up just the channels with the right line_id
             
-            #by defalt unavailible
+            #by default unavailable
             qeff_th = qeff2_th = qeff2 = 0
             qeff = None
           
@@ -3221,7 +3221,7 @@ class data_loader:
                 #SPRED lines
                 
                 
-                #data prepared using ADF309 containls only one transition
+                #data prepared using ADF309 contains only one transition
                 atom_files = { 'He2': ('qef93#h_he2_spred.dat', 'qef93#h_he2_n2_spred.dat'),
                                'B5': ('qef93#h_b5_spred.dat', 'qef93#h_b5_n2_spred.dat'),
                                'C6': ('qef93#h_c6_spred.dat', 'qef93#h_c6_n2_spred.dat'),
@@ -3286,7 +3286,7 @@ class data_loader:
                 transition = tmp.group(3)             
            
                 file1, file2 = atom_files[imp]
-                print('transisotion', transition)
+                print('transisotion', transition, line_id)
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
    
