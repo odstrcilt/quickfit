@@ -2492,12 +2492,13 @@ class data_loader:
                 beamid[(beam_frac[bind[1]] < 0.3)] = beams[bind[0]]
                 beamid[(beam_frac[bind[0]] < 0.3)] = beams[bind[1]]
             
-            print(ich, len(line_id))
+            print(ich, line_id[ich])
             tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id[ich])
         
 
             element, charge, transition = tmp.group(1), tmp.group(2), tmp.group(3) 
-            charge = roman2int(charge)     
+            charge = roman2int(charge)
+            print(element, charge, transition)
             
             edge,s = False,''
             if (diag == 'vertical' and  int(phi[ich]) == 331) or (diag == 'tangential' and  int(phi[ich]) == 346): #split vertical 33L in the core and edge
