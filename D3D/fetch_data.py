@@ -5088,9 +5088,14 @@ class data_loader:
         cer['systems'] = systems
         
         #if sol_corr or zeem_split is different from the previously loaded, reload data
-        valid_sol_corr  = all([ch.attr['sol_corr'] == sol_corr      for dd in cer['systems'] for d in cer['diag_names'][dd] for ch in cer[d]])
-        valid_zeem_split = all([ch.attr['zeem_split'] == zeem_split for dd in cer['systems'] for d in cer['diag_names'][dd] for ch in cer[d]])
-        
+        valid_sol_corr = True
+        valid_zeem_split = True
+        for s in cer['systems']:
+            for ch in cer.get(s, []):
+                valid_sol_corr &= ch.attr.get('sol_corr',False) == sol_corr 
+                valid_zeem_split &= ch.attr.get('zeem_split',True) == zeem_split
+            
+     
         if valid_sol_corr and valid_zeem_split:
             load_systems = list(set(systems)-set(cer.keys()))
         else: #or reload all 
