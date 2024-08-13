@@ -5051,7 +5051,6 @@ class data_loader:
 
   
 
-
     def load_cer(self,tbeg,tend, systems, options=None):
         #load Ti and omega at once
         TT = time()
@@ -5072,7 +5071,7 @@ class data_loader:
         try:
             zeem_split = options['Corrections']['Zeeman Splitting'].get()
         except:
-            zeem_split = getattr(self,'zeem_split', False)
+            zeem_split = True
         
         try:
             sol_corr = options['Corrections']['Wall reflections'].get()
@@ -5089,14 +5088,16 @@ class data_loader:
         cer['systems'] = systems
         
         #if sol_corr or zeem_split is different from previously loaded, reload data
-        if getattr(self,'cer_sol_corr', -1) == sol_corr and getattr(self,'zeem_split', -1) == zeem_split:
+        valid_sol_corr = all([ch.attr['sol_corr'] == sol_corr for ch in cer[d] for d in cer['diag_names'][diag]])
+        valid_zeem_split = all([ch.attr['zeem_split'] == zeem_split for ch in cer[d] for d in cer['diag_names'][diag]])
+        
+        if valid_sol_corr and valid_zeem_split:
             load_systems = list(set(systems)-set(cer.keys()))
-        else:
+        else: #or reload all 
             load_systems = systems
             
             
         #update equilibrium for already loaded systems
-        
         cer = self.eq_mapping(cer)
         if len(load_systems) == 0:
             return cer
@@ -5518,7 +5519,8 @@ class data_loader:
             if not name in cer['diag_names'][diag]:
                 cer['diag_names'][diag].append(name)
                 
-            ds = Dataset(name[0]+ch[-2:]+'.nc', attrs={'channel':name[0]+ch[-2:],'imp':element+str(charge)})
+            ds = Dataset(name[0]+ch[-2:]+'.nc', attrs={'channel':name[0]+ch[-2:],'imp':element+str(charge),
+                                                       'sol_corr': sol_corr, 'zeem_split':zeem_split })
             ds['R'] = xarray.DataArray(R[tind], dims=['time'], attrs={'units':'m'})
             ds['Z'] = xarray.DataArray(Z[tind], dims=['time'], attrs={'units':'m'})
             ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
@@ -5580,6 +5582,8 @@ class data_loader:
         
         self.cer_sol_corr = sol_corr
         self.zeem_split = zeem_split
+
+
 
 
 
