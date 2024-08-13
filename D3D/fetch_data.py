@@ -5092,8 +5092,8 @@ class data_loader:
         valid_zeem_split = True
         for s in cer['systems']:
             for ch in cer.get(s, []):
-                valid_sol_corr &= ch.attr.get('sol_corr',False) == sol_corr 
-                valid_zeem_split &= ch.attr.get('zeem_split',True) == zeem_split
+                valid_sol_corr &= ch.attrs.get('sol_corr',False) == sol_corr 
+                valid_zeem_split &= ch.attrs.get('zeem_split',True) == zeem_split
             
      
         if valid_sol_corr and valid_zeem_split:
