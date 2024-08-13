@@ -559,7 +559,7 @@ class FitPlot():
             #make figure bigger and remove sliders
             for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax, self.title]:
                 obj.set_visible(False)
-
+            self.fig.patch.set_facecolor('w')
             fig_size = self.fig.get_size_inches()
             self.fig.subplots_adjust(left=.15 )
             size = 6
@@ -574,7 +574,7 @@ class FitPlot():
             #reset to original setup
             self.fig.subplots_adjust(left=.10 )
             self.fig.set_size_inches(fig_size)
-
+            self.fig.patch.set_facecolor((.93,.93,.93))
             for obj in [self.tsmooth_txt,self.rsmooth_txt,self.sl_eta.ax, self.sl_lam.ax, self.main_slider.ax, self.title]:
                 obj.set_visible(True)
             self.fig.canvas.draw_idle()
