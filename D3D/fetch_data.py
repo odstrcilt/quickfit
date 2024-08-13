@@ -5087,9 +5087,9 @@ class data_loader:
         cer.setdefault('diag_names',Tree())
         cer['systems'] = systems
         
-        #if sol_corr or zeem_split is different from previously loaded, reload data
-        valid_sol_corr = all([ch.attr['sol_corr'] == sol_corr for ch in cer[d] for d in cer['diag_names'][diag]])
-        valid_zeem_split = all([ch.attr['zeem_split'] == zeem_split for ch in cer[d] for d in cer['diag_names'][diag]])
+        #if sol_corr or zeem_split is different from the previously loaded, reload data
+        valid_sol_corr = all([ch.attr['sol_corr'] == sol_corr for d in cer['diag_names'][diag] for ch in cer[d]])
+        valid_zeem_split = all([ch.attr['zeem_split'] == zeem_split for d in cer['diag_names'][diag] for ch in cer[d]])
         
         if valid_sol_corr and valid_zeem_split:
             load_systems = list(set(systems)-set(cer.keys()))
