@@ -4128,6 +4128,9 @@ class data_loader:
 
     def load_zeff(self,_tbeg,_tend, systems, options=None):
         #load visible bremsstrahlung data
+        #script for loading of calibarted data !!/fusion/projects/diagnostics/vb/VB_d3d/tools/vb_calib_data_saver.py
+
+
         TT = time()
    
         tbeg,tend = self.eqm.t_eq[[0,-1]]
