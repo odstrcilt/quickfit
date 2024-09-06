@@ -7449,6 +7449,8 @@ def main():
     #kalibrovat core and edge poloidal zvlast
     #TODO H plasmas???
 
+    #TODO 200587  wrong calculation of carbon density, why???
+
     print(shot)
     EFIT = 'EFIT01'
     print_line( F'  * Fetching {EFIT} data ...')
