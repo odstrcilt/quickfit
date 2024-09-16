@@ -6673,7 +6673,7 @@ class data_loader:
  
         fringe_jump = 1.05e20 #/m^2
         nt = len(ne_.T)//4*4
-        ne_lowres = np.median(ne_[:,:nt].reshape(4,-1,4),-1)*1e6/2
+        ne_lowres = np.median(ne_[:,:nt].reshape(4,-1,4),-1)*1e6/2 #/m^2
         tvec_lowres = np.median(co2_time[:nt].reshape(-1,4),-1)
         ne_correction = ne_lowres-np.unwrap(ne_lowres*(2*np.pi/fringe_jump))*fringe_jump/(2*np.pi)
         ne_correction = interp1d(tvec_lowres, ne_correction,axis=1,kind='nearest',copy=False, fill_value='extrapolate', assume_sorted=True )(co2_time)
