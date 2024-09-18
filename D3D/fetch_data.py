@@ -1460,7 +1460,7 @@ class data_loader:
         paths = ['\\NB::TOP.NB{0}:'.format(b[:2]+b[-1]) for b in _load_beams] 
         TDI = [p+'pinj_scalar' for p in paths] 
         pinj_scal = self.MDSconn.get('['+','.join(TDI)+']')
-        fired = pinj_scal > 1e3
+        fired = pinj_scal > 1e5
         
 
         #create NBI info dictionary
@@ -2930,6 +2930,7 @@ class data_loader:
  
 
         energy = np.outer(nbi_dict['volts'], e * qb)  # J
+
         vinj = np.sqrt(2 * energy / (ab_ * m_p)).T  # m/s
         beam_profiles.update({  'vrel':[],'erel':[], 'dllencm':[]})
         for it,t in enumerate(centroid):
