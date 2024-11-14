@@ -5561,7 +5561,7 @@ class data_loader:
             if len(Ti[tind]) > 0 and np.any(np.isfinite(Ti[tind]))  and not all(corrupted):
                 Ti_err[tind][np.isnan(Ti_err[tind])] = np.infty
                 #900eV is probably initial guess, sometimes it does not move from this value
-                corrupted = corrupted| (Ti[tind]==900)||(Ti[tind] <= 1.1)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
+                corrupted = corrupted| (Ti[tind]==900) |(Ti[tind] <= 1.1)|(R[tind]  == 0)|(Ti_err[tind]<=0)|~np.isfinite(Ti[tind])
                 Ti_err[tind][corrupted] = np.infty
                 Ti[tind][~np.isfinite(Ti[tind])] = 0
                 #these values can be suspicious, but this way, it can be recovered by user
