@@ -2155,16 +2155,10 @@ class data_loader:
                         for i in [8,9,10]:
                             line_id[i] = 'Ca XVIII 16-15'
                             line_id[i+3] = 'Ca XVIII 15-14'
-                if self.shot in [199103]:
-                    if analysis_type == 'cerfit':
-                        embed()
-                        for i in [8,9,10]:
-                            line_id[i] = 'Ca XVIII 16-15'
-                            line_id[i+3] = 'Ca XVIII 15-14'
-                               
+                
                 if self.shot in [199103]:
                     if analysis_type == 'cerfit': #carbon
-                        for i in [0,1,2,3]:
+                        for i in range(8):
                             line_id[i] = 'Ar XVIII 15-14 '
                 
                 if self.shot in [190552, 190553]:
@@ -2247,10 +2241,10 @@ class data_loader:
                         print('No CER data in channel ', ch)
                         continue
                     
-                    #where the data becommed availible in realtime and they are nonzero
+                    #where the data becomes available in realtime and they are nonzero
                     ind = (np.ediff1d(I,to_begin=0)!=0)&(I > 0)
                     t = T[ind]
-                    #embed()
+                    
                     tvec.append(t)
                     #estimate integration time
                     #print(T, t)
