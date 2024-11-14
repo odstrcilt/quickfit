@@ -2155,7 +2155,13 @@ class data_loader:
                         for i in [8,9,10]:
                             line_id[i] = 'Ca XVIII 16-15'
                             line_id[i+3] = 'Ca XVIII 15-14'
-                            
+                if self.shot in [199103]:
+                    if analysis_type == 'cerfit':
+                        embed()
+                        for i in [8,9,10]:
+                            line_id[i] = 'Ca XVIII 16-15'
+                            line_id[i+3] = 'Ca XVIII 15-14'
+                               
                 if self.shot in [199103]:
                     if analysis_type == 'cerfit': #carbon
                         for i in [0,1,2,3]:
