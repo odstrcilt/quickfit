@@ -3219,7 +3219,7 @@ class data_loader:
                 
 
                 
-            if line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2','Ne X 4-3']:
+            elif line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2','Ne X 4-3']:
                 #SPRED lines
                 
                 
@@ -3264,7 +3264,9 @@ class data_loader:
                                  'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
                 
-
+                else:
+                    raise Exception(f'{line_id} CX data were not found!')
+                
  
  
                 blocks = {'Ar18':{'16-15': [7,3],'15-14':[5,2]}, 
@@ -3289,7 +3291,7 @@ class data_loader:
                 transition = tmp.group(3)             
            
                 file1, file2 = atom_files[imp]
-                print('transisotion', transition, line_id)
+               
                 block1, block2 = blocks[imp][transition]
                 qeff  = read_adf12(path+file1,block1, erel, nion, ti, zeff)
    
