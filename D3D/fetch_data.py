@@ -3264,9 +3264,7 @@ class data_loader:
                                  'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
                 
-                else:
-                    raise Exception(f'{line_id} CX data were not found!')
-                
+     
  
  
                 blocks = {'Ar18':{'16-15': [7,3],'15-14':[5,2]}, 
