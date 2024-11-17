@@ -2159,7 +2159,7 @@ class data_loader:
                             line_id[i] = 'Ca XVIII 16-15'
                             line_id[i+3] = 'Ca XVIII 15-14'
                 
-                if self.shot in [199103]:
+                if self.shot in np.r_[199103: 199113]:
                     if analysis_type == 'cerfit': #carbon
                         for i in range(8):
                             line_id[i] = 'Ar XVIII 15-14 '
