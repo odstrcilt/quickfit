@@ -845,6 +845,9 @@ def default_settings(MDSconn, shot):
         imps.append('C4')
     if shot in [191449]:
         imps.append('Ne10')
+    if shot in [199106]:
+        imps.append('Ar18')
+        
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
