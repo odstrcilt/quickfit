@@ -3253,7 +3253,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3292,7 +3292,10 @@ class data_loader:
                           'O8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None],'13-12': [3,None]},
                           'Si14': {'12-11': [6,None],'13-12': [7,None]},
-                          'Kr25':{'20-19':[7,3]},'Kr27':{'21-20':[7,3]},}
+                          'Kr25':{'20-19':[7,3]},
+                          'Kr27':{'21-20':[7,3]},
+                          'Ni25':{'21-20':[7,3]},,
+                         }
                 
                 
                 tmp = re.search('([A-Z][a-z]*) *([A-Z]*) *([0-9]*[a-z]*-[0-9]*[a-z]*)', line_id)
