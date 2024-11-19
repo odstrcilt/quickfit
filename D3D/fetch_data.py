@@ -2153,6 +2153,7 @@ class data_loader:
                 if self.shot in [194311]:
                     if analysis_type == 'cerfit': #carbon
                         line_id = ['Kr XXVII 21-20']*len(loaded_chan)
+                        
                 if self.shot in [190549,  192784, 192785]:
                     if analysis_type == 'cerfit': #carbon
                         for i in [8,9,10]:
@@ -2160,10 +2161,14 @@ class data_loader:
                             line_id[i+3] = 'Ca XVIII 15-14'
                 
                 if self.shot in np.r_[199102: 199113]:
-                    if analysis_type == 'cerfit': #carbon
+                    if analysis_type == 'cerfit': Argon
                         for i in range(8):
                             line_id[i] = 'Ar XVIII 15-14 '
-                
+                if self.shot in [199102]:
+                    if analysis_type == 'cerauto': nickel
+                        embed()
+                        for i in range(4):
+                            line_id[i] = 'Ni XXV 20-19'
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
                         for i, d in enumerate(line_id):
