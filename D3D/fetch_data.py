@@ -2638,10 +2638,10 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27']:
+        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27','Ni25']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
-        if imp  in [ 'Kr25','Kr27']:
+        if imp  in [ 'Kr25','Kr27', 'Ni25']:
             print('CX cross-sections for Kr are not availible, using Ar18 CX cross-sections, but absolute density values are wrong' )
         
 
@@ -3257,6 +3257,7 @@ class data_loader:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
+                               'Ni25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Ni CX data!!
                                'Ca18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),
                                'Ar18': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'),                               
                                'Ar17': ('qef07#h_arf#ar17.dat', 'qef07#h_arf#ar17_n2.dat'),
