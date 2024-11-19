@@ -2193,7 +2193,6 @@ class data_loader:
                                 
                 selected_imp &= np.any(beam_geom > 0,1) #rarely some channel has all zeros!
                 if not any(selected_imp):
-                    embed()
                     if sum([len(nimp[sys]) for sys in nimp['systems'] if sys in nimp]):
                         #some data were loaded before, nothing in the actually loaded system
                         return nimp
