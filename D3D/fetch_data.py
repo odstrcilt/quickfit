@@ -847,6 +847,8 @@ def default_settings(MDSconn, shot):
         imps.append('Ne10')
     if shot in [199106]:
         imps.append('Ar18')
+    if shot in [199102]:
+        imps.append('Ni24')
         
     #build a large dictionary with all settings
     default_settings = OrderedDict()
@@ -2166,8 +2168,7 @@ class data_loader:
                             line_id[i] = 'Ar XVIII 15-14 '
                 if self.shot in [199102]:
                     if analysis_type == 'cerauto':# nickel
-                        embed()
-                        for i in range(4):
+                        for i in range(8,12):
                             line_id[i] = 'Ni XXV 20-19'
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
