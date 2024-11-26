@@ -320,12 +320,15 @@ class FitPlot():
         self.replot_plot  = [self.ax_main.plot([],[],'+',c=c)[0] for c in colors]
 
         for i,d in enumerate(self.diags):
-            plotline,caplines,barlinecols=self.ax_main.errorbar(0,np.nan,0,fmt='.', capsize = 4,
-                                                            label=d,c=colors[i], zorder=1)
-            self.plotline.append(plotline)
-            self.caplines.append(caplines)
-            self.barlinecols.append(barlinecols)
-
+            try:
+                plotline,caplines,barlinecols=self.ax_main.errorbar([0],[np.nan],[0],fmt='.', capsize = 4,
+                                                                label=d,c=colors[i], zorder=1)
+                self.plotline.append(plotline)
+                self.caplines.append(caplines)
+                self.barlinecols.append(barlinecols)
+            except Exception as e:
+                print('wierd error ', e)
+                
         self.fit_plot, = self.ax_main.plot([],[],'k-',linewidth=.5, zorder=2)
         nr = self.options['nr_new']
         self.fit_confidence = self.ax_main.fill_between(np.arange(nr),
