@@ -320,14 +320,14 @@ class FitPlot():
         self.replot_plot  = [self.ax_main.plot([],[],'+',c=c)[0] for c in colors]
 
         for i,d in enumerate(self.diags):
-            try:
-                plotline,caplines,barlinecols=self.ax_main.errorbar([0],[np.nan],[0],fmt='.', capsize = 4,
-                                                                label=d,c=colors[i], zorder=1)
-                self.plotline.append(plotline)
-                self.caplines.append(caplines)
-                self.barlinecols.append(barlinecols)
-            except Exception as e:
-                print('wierd error ', e)
+         
+            x = np.ones(1)*np.nan
+            plotline,caplines,barlinecols=self.ax_main.errorbar(x,x,x,fmt='.', capsize = 4,
+                                                            label=d,c=colors[i], zorder=1)
+            self.plotline.append(plotline)
+            self.caplines.append(caplines)
+            self.barlinecols.append(barlinecols)
+        
                 
         self.fit_plot, = self.ax_main.plot([],[],'k-',linewidth=.5, zorder=2)
         nr = self.options['nr_new']
@@ -354,8 +354,8 @@ class FitPlot():
 
 
 
-        leg = self.ax_main.legend(  fancybox=True,loc='upper right')
-        leg.get_frame().set_alpha(0.9)
+        leg = self.ax_main.legend(  fancybox=True,loc='upper right', framealpha=0.9)
+        #leg.get_frame().set_alpha(0.9)
         try:
             leg.set_draggable(True)
         except:
@@ -363,10 +363,13 @@ class FitPlot():
 
         #make the legend interactive
         self.leg_diag_ind = {}
-        for idiag,legline in enumerate( leg.legendHandles):
-            legline.set_picker(20)  # 20 pts tolerance
-            self.leg_diag_ind[legline] = idiag
-
+        try:
+            for idiag,legline in enumerate( leg.legendHandles):
+                legline.set_picker(20)  # 20 pts tolerance
+                self.leg_diag_ind[legline] = idiag
+        except Exception as e:
+            print('legend error', e)
+            
         description = self.parent.device +' %d'%self.shot
         self.plot_description = self.ax_main.text(1.01,.05,description,rotation='vertical',
             transform=self.ax_main.transAxes,verticalalignment='bottom',
@@ -1367,4 +1370,3 @@ class FitPlot():
             self.ctrl=False
         if 'shift' == event.key:
             self.shift=False
-
