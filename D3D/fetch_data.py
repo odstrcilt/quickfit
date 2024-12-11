@@ -845,7 +845,7 @@ def default_settings(MDSconn, shot):
         imps.append('C4')
     if shot in [191449]:
         imps.append('Ne10')
-    if shot in [199106]:
+    if shot in [199106, 199105, 199111]:
         imps.append('Ar18')
     if shot in [199102]:
         imps.append('Ni25')
