@@ -2170,6 +2170,13 @@ class data_loader:
                     if analysis_type == 'cerauto':# nickel
                         for i in range(8,12):
                             line_id[i] = 'Ni XXV 20-19'
+                if self.shot in [201677]:
+                    if analysis_type == 'cerauto':# nickel
+                        for i in range(len(line_id)):
+                            line_id[i] = 'C VI 8-7'
+
+
+                
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
                         for i, d in enumerate(line_id):
