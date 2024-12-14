@@ -2171,9 +2171,10 @@ class data_loader:
                         for i in range(8,12):
                             line_id[i] = 'Ni XXV 20-19'
                 if self.shot in [201677]:
-                    if analysis_type == 'cerauto':# nickel
+                    if analysis_type == 'cerauto':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'C VI 8-7'
+                    print(loaded_chan, line_id)
 
 
                 
