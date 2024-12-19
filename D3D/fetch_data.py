@@ -2195,7 +2195,7 @@ class data_loader:
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
-                selected_imp = np.array([l.startswith(imp_name) and r_charge in l for l in line_id])
+                selected_imp = np.array([l.startswith(imp_name) and r_charge+' ' in l for l in line_id])
                 #embed()
 
                                 
