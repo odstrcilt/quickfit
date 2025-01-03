@@ -6558,9 +6558,9 @@ class data_loader:
             return 
 
         #get all probes
-        probes = list(self.MDSconn.get('getnci(".*","NODE")').data())
-        probes = probes[:-1] #last one is not initialises
-            
+        probes = self.MDSconn.get('getnci(".*","NODE")').data()
+        data_availible = self.MDSconn.get('getnci(".PROBE_*.TIME","LENGTH")').data()
+        probes = probes[data_availible > 0]
             
         if not isinstance(probes[0],str): 
             probes = [r.decode() for r in probes]
