@@ -2074,6 +2074,9 @@ class data_loader:
                     pass
 
                 node = node.strip()
+                if system == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
+                    continue
+
                 loaded_chan.append(system[0].upper()+node[-2:])
                 
                 signals = [ 'STIME','R','Z','INTENSITY','INTENSITYERR','TTSUB','TTSUB_STIME']
@@ -4226,7 +4229,13 @@ class data_loader:
             downsample = .005#s
 
             tdi = '['+ ','.join(sum([[n%(ch+1) for n in nodes] for ch in range(nchans)],[]))+']'
-            out = self.MDSconn.get(tdi).data().reshape(-1,len(nodes)).T.astype('single') 
+            try:
+                out = self.MDSconn.get(tdi).data().reshape(-1,len(nodes)).T.astype('single')
+            except:
+                tkinter.messagebox.showerror('Loading of VB data failed',
+                    'VB data fetching does not work for the lastest campaign, needs to be fixed...\, turn off VB array option.')
+                return
+
             #select only channels with nonzero calibration
             channels = np.where(out[5]  > 0)[0]
             out = out[:,channels]
@@ -4415,6 +4424,10 @@ class data_loader:
                         pass
 
                     node = node.strip()
+
+                    if ss == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
+                        continue
+
                     channels.append(ss+'.'+node.split('.')[-1])
                     sigs = [node+':'+sig for sig in signals]
                     TDI += ['['+','.join(sigs+[f'dim_of({sigs[0]})'])+']']
