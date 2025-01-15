@@ -835,7 +835,7 @@ def default_settings(MDSconn, shot):
             imps = ['C6']
     
     #exception data from impurity ion CER
-    if shot == 183188:
+    if shot in [183188, 200654]:
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
