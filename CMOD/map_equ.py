@@ -7,7 +7,10 @@ import numpy as np
 from scipy.ndimage.interpolation import map_coordinates
 from scipy.interpolate import UnivariateSpline, interp1d, InterpolatedUnivariateSpline, LinearNDInterpolator
 import sys,os
-from scipy import integrate
+try:
+    from scipy.integrate import cumulative_trapezoid as cumtrapz
+except Exception:
+    from scipy.integrate import cumtrapz
 from IPython import embed
 
 
@@ -318,7 +321,7 @@ class equ_map:
         #IPython.embed()
 
         #The toroidal flux PHI can be found by recognizing that the safety factor is the ratio of the differential toroidal and poloidal fluxes
-        self.tf = integrate.cumtrapz(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0)
+        self.tf = cumtrapz(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0)
         
 
 
@@ -1107,8 +1110,6 @@ class equ_map:
         
         theta = np.unwrap(theta - theta[:, (0, )], axis=1)
         
-        from scipy.integrate import cumtrapz
-
 # Definition of the theta star by integral
         theta_star = cumtrapz(dtheta_star, theta, axis=1, initial=0)
         correction = (n_theta - 1.)/n_theta
