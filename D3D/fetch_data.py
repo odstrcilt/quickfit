@@ -18,10 +18,8 @@ import re,sys,os
 #np.seterr(all='raise')
 from IPython import embed
 from scipy.stats import trim_mean
-try:
-    from scipy.integrate import cumulative_trapezoid as cumtrapz
-except Exception:
-    from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid as cumtrapz
+
 import matplotlib.pylab as plt
 import warnings
 import sys
