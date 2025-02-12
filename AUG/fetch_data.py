@@ -16,10 +16,8 @@ import xarray
 import re,sys
 #np.seterr(all='raise')
 from IPython import embed
-try:
-    from scipy.integrate import cumulative_trapezoid as cumtrapz
-except Exception:
-    from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid as cumtrapz
+
 
 #Note about output errorbars:
 #positive finite - OK
