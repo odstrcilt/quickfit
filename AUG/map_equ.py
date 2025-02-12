@@ -8,10 +8,8 @@ from scipy.ndimage.interpolation import map_coordinates
 from scipy.interpolate import UnivariateSpline, interp1d, InterpolatedUnivariateSpline, LinearNDInterpolator
 import sys
 sys.path.append('/afs/ipp/aug/ads-diags/common/python/lib/')
-try:
-    from scipy.integrate import cumulative_trapezoid as cumtrapz
-except Exception:
-    from scipy.integrate import cumtrapz
+from scipy.integrate import cumulative_trapezoid as cumtrapz
+
 
 
 #import dd_20140407
