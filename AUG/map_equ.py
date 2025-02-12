@@ -8,6 +8,9 @@ from scipy.ndimage.interpolation import map_coordinates
 from scipy.interpolate import UnivariateSpline, interp1d, InterpolatedUnivariateSpline, LinearNDInterpolator
 import sys
 sys.path.append('/afs/ipp/aug/ads-diags/common/python/lib/')
+from scipy.integrate import cumulative_trapezoid as cumtrapz
+
+
 
 #import dd_20140407
 
@@ -1002,7 +1005,6 @@ class equ_map:
         
         theta = np.unwrap(theta - theta[:, (0, )], axis=1)
         
-        from scipy.integrate import cumtrapz
 
 # Definition of the theta star by integral
         theta_star = cumtrapz(dtheta_star, theta, axis=1, initial=0)

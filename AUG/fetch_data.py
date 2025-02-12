@@ -16,6 +16,7 @@ import xarray
 import re,sys
 #np.seterr(all='raise')
 from IPython import embed
+from scipy.integrate import cumulative_trapezoid as cumtrapz
 
 
 #Note about output errorbars:
@@ -1423,7 +1424,6 @@ class data_loader:
             TDI = ['\\NB::TOP.NB{0}:PINJ_{0}'.format(beam) for beam in load_beams] +['\\NB::TOP:TIMEBASE']
             PINJ = mds_load(self.MDSconn, TDI, 'NB', self.shot)
             beam_time = PINJ[-1]
-            from scipy.integrate import cumtrapz
             nbi_cum_pow = cumtrapz(np.double(PINJ[:-1]),beam_time,initial=0)
             
   
