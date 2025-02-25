@@ -2178,9 +2178,7 @@ class data_loader:
                     if analysis_type == 'cerauto':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'C VI 8-7'
-                    print(loaded_chan, line_id)
-
-
+             
                 
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
