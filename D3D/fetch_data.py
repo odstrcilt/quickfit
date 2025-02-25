@@ -840,7 +840,7 @@ def default_settings(MDSconn, shot):
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
-    if shot == 196551:
+    if shot in [196551, 201675]:
         imps.append('Al13')
     if shot in [190552, 190553]:
         imps.append('C4')
@@ -2178,6 +2178,10 @@ class data_loader:
                     if analysis_type == 'cerauto':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'C VI 8-7'
+                if self.shot in [201675]:
+                    if analysis_type == 'cerfit':# all carbon
+                        for i in range(len(line_id)):
+                            line_id[i] = 'Al XIII 13-12'
              
                 
                 if self.shot in [190552, 190553]:
