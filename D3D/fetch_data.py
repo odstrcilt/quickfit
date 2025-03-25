@@ -5866,10 +5866,11 @@ class data_loader:
         if revision!= 'BLESSED':
             revision = 'REVISIONS.'+revision
     
-
-            
-        signals = 'DENSITY', 'DENSITY_E', 'TEMP', 'TEMP_E','TIME','R','Z','lforder'
-    
+        signals = 'DENSITY', 'DENSITY_E', 'TEMP', 'TEMP_E', 'TIME','R','Z','lforder', 'theta', 'REDCHISQ' 
+        
+        if shot > 198459:
+            signals = signals + ('DENSMASK', 'TEMPMASK')
+ 
         tree = 'ELECTRONS'
         TDI = []        
         #prepare list of loaded signals
@@ -5881,8 +5882,11 @@ class data_loader:
                 TDI.append(tdi+sig)
         
         out = mds_load(self.MDSconn, TDI, tree, self.shot)
-
-        ne,ne_err,Te,Te_err,tvec,R,Z,laser = np.array(out,dtype=object).reshape(-1, len(signals)).T
+        out = np.array(out,dtype=object).reshape(-1, len(signals)).T
+        ne,ne_err,Te,Te_err,tvec,R,Z,laser,theta, chi2n = out[:10]
+        if 'DENSMASK' in signals:
+            ne_mask, Te_mask = out[-2:] 
+ 
         
         #get shot number with calibration data
         TDIcalib = f'\\{tree}::TOP.TS.{revision}.header:calib_nums'
@@ -5907,6 +5911,13 @@ class data_loader:
             #these points will be ignored and not plotted (negative errobars )
             Te_err[isys][(Te_err[isys]<=0) | (Te[isys] <=5) | ~np.isfinite(Te_err[isys])]  = -np.infty
             ne_err[isys][(ne_err[isys]<=0) | (ne[isys] <=0) | ~np.isfinite(ne_err[isys])]  = -np.infty
+
+            #still show them
+            if 'DENSMASK' in signals:    
+                ne_err[isys][~np.bool_(ne_mask[isys])] = np.inf
+                Te_err[isys][~np.bool_(Te_mask[isys])] = np.inf
+        
+
             
             #remove useless timeslices
             valid = np.any(np.isfinite(Te_err[isys]) | np.isfinite(ne_err[isys]),0)
