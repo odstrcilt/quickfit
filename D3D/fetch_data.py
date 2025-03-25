@@ -2075,8 +2075,8 @@ class data_loader:
                     pass
 
                 node = node.strip()
-                if system == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
-                    continue
+                #if system == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
+                #    continue
 
                 loaded_chan.append(system[0].upper()+node[-2:])
                 
@@ -4428,8 +4428,8 @@ class data_loader:
 
                     node = node.strip()
 
-                    if ss == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
-                        continue
+                   # if ss == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
+                    #    continue
 
                     channels.append(ss+'.'+node.split('.')[-1])
                     sigs = [node+':'+sig for sig in signals]
