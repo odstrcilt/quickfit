@@ -5868,7 +5868,7 @@ class data_loader:
     
         signals = 'DENSITY', 'DENSITY_E', 'TEMP', 'TEMP_E', 'TIME','R','Z','lforder', 'theta', 'REDCHISQ' 
         
-        if shot > 198459:
+        if self.shot > 198459:
             signals = signals + ('DENSMASK', 'TEMPMASK')
  
         tree = 'ELECTRONS'
