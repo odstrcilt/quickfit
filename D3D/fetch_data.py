@@ -2075,8 +2075,7 @@ class data_loader:
                     pass
 
                 node = node.strip()
-                #if system == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
-                #    continue
+            
 
                 loaded_chan.append(system[0].upper()+node[-2:])
                 
@@ -2458,6 +2457,7 @@ class data_loader:
             disableChanVert = 'V03', 'V04', 'V05', 'V06', 'V23', 'V24'
             if 162163 <= self.shot <= 167627 and ch in disableChanVert:
                 INT_ERR[ich][:] = np.infty
+                
             #apply correctin for some channels
             if ch == 'T07' and 158695 <= self.shot < 169546:
                 INT[ich] *= 1.05
@@ -2523,14 +2523,21 @@ class data_loader:
             charge = roman2int(charge)
             
             
-            edge,s = False,''
+            hfs,edge,s = False,False,''
             if (diag == 'vertical' and  int(phi[ich]) == 331) or (diag == 'tangential' and  int(phi[ich]) == 346): #split vertical 33L in the core and edge
                 edge, s = True, 'e'
-
-                        
+            
+            elif diag == 'tangential' and  int(phi[ich]) == 318 and np.any(R[ich]< 1.63): #split on HFS and LFS sys 
+                hfs, s = True, 'hfs'
+            
+            #HFS or channels with corrupted window or poor geometry channel
+            if hfs or ch == 'T28' or  (system == 'tangential' and  199605 < self.shot < 202310 and int(ch[1:]) in [4, 5, 6, 7, 21, 22, 25]):
+                INT_ERR[ich] = -np.abs(INT_ERR[ich])  #show but datapoints will be disabled by default 
+                    
+          
             names = np.array([diag[0].upper()+'_'+ID.lstrip('0')+s+' '+element+str(charge) for ID in beamid])
             unames,idx,inv_idx = np.unique(names,return_inverse=True,return_index=True)
-      
+        
             for name in unames:
                 if not name in nimp['diag_names'][diag]:
                     nimp['diag_names'][diag].append(name)
@@ -2556,8 +2563,8 @@ class data_loader:
                     continue
                 
                 if names[idx[ID]].split()[0] in ['V_330Le','V_330Be'] and self.shot not in [190654, 190653, 190652]:
-                    INT_ERR[ich][beam_ind] *= -1 #show but datapoints will be disabled by default 
-
+                    INT_ERR[ich][beam_ind] = -np.abs(INT_ERR[ich][beam_ind])  #show but datapoints will be disabled by default 
+    
                 #make sure that the timebase is sorted, in some rare cases with CERFIT it is not unique (different identification of beam phases??)
                 #add random jitter to avoid this issue, important for SPRED 
                 tvec_[beam_ind] += 1e-5*np.random.randn(len(tvec_[beam_ind]))
@@ -4428,8 +4435,8 @@ class data_loader:
 
                     node = node.strip()
 
-                   # if ss == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
-                    #    continue
+                    if ss == 'tangential' and  199605 < self.shot < 202310 and int(node[-2:]) in [4, 5, 6, 7, 21, 22, 25]:
+                        continue
 
                     channels.append(ss+'.'+node.split('.')[-1])
                     sigs = [node+':'+sig for sig in signals]
