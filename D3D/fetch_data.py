@@ -1218,7 +1218,7 @@ class data_loader:
         #udt, cnt = np.unique(np.round(np.diff(np.hstack(times))*1e3,1), return_counts=True)
         #sind = np.argsort(cnt)[::-1]
         #udt[sind[:4]]
-        
+
         output['tres']=np.median(np.round(np.diff(np.hstack(times))*1e3,1))/1e3
         output['tres']=round(output['tres'],6)
         if output['tres'] == 0:    output['tres'] = 0.01
@@ -5953,6 +5953,7 @@ class data_loader:
             
                 
             channel = np.arange(Te_err[isys].shape[0])
+
             
          
             ts[sys] = Dataset('TS'+sys+'.nc',attrs={'system':sys})
@@ -5988,7 +5989,7 @@ class data_loader:
             
 
         
- 
+
         print('\t done in %.1fs'%(time()-T))
         ts['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':zshift, 'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
 
@@ -7147,8 +7148,9 @@ class data_loader:
         
         print('\t done in %.1fs'%(time()-T))
         print('\t\tCO2 corrections:\n\t\t', 'lasers: ',(np.round(mean_laser_correction,3)))
+
         if use_ts_tan:
-            tan_scale = corr[:-1]/np.mean(mean_laser_correction)
+            tan_scale = np.mean(corr) /np.mean(mean_laser_correction)
             if 1.3 > tan_scale > 0.7:
                 print('\t\t tang vs. core:', np.round(tan_scale,3))
             else:
@@ -7447,7 +7449,7 @@ def main():
     #shot = 
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
-    shot = 191450
+    shot = 203567
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7570,12 +7572,12 @@ def main():
                                 ('TS correction',{'rescale':I(0)})))   }})
         
     settings.setdefault('ne', {\
-        'systems':OrderedDict((( 'TS system',(['tangential',I(0)], ['core',I(0)],['divertor',I(0)])),
+        'systems':OrderedDict((( 'TS system',(['tangential',I(1)], ['core',I(1)],['divertor',I(0)])),
                                                            ( 'Langmuir',(['OSP_low',I(0)],)),
                                 ( 'Reflectometer',(['all bands',I(0)],  )),
-                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(1)])) ) ),
+                                ( 'CO2 interferometer',(['fit CO2',I(0)],['rescale TS',I(0)])) ) ),
         'load_options':{'TS system':{"TS revision":(S('BLESSED'),['BLESSED']+ts_revisions)},
-                        'Reflectometer':{'Position error':{'Align with TS':I(1) }, }                        
+                        'Reflectometer':{'Position error':{'Align with TS':I(0) }, }
                         }})
         
     settings.setdefault('Zeff', {\
@@ -7620,8 +7622,13 @@ def main():
     #load_zeff(self,tbeg,tend, options=None)
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
-    data = loader( 'nC6', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+
+    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+
     return 
+
+
+
     for shot in range(195400, 196000):
         #shot = 195055
         print('-------------',shot,'-----------------------------')

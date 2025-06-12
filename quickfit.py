@@ -1396,7 +1396,7 @@ def main():
     
     #guess on which device is the quickfit running
     #any better way how to distinguis in betwen different instalations? 
-    if os.path.exists('/fusion/projects/codes/quickfit'):
+    if os.system(f"ping -c 1 atlas.gat.com > /dev/null 2>&1") == 0:
         tok_name = 'D3D'
         mds_server = 'atlas.gat.com'
     elif os.path.exists('/afs/ipp-garching.mpg.de/'):
@@ -1410,7 +1410,7 @@ def main():
         mds_server='localhost'
         print('Local installation of quickfit - DIII-D?')
                 
-    
+
     import argparse
     parser = argparse.ArgumentParser( usage='Fast profiles fitting GUI')
     
