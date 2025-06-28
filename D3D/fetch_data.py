@@ -2326,11 +2326,11 @@ class data_loader:
             V = ['V07', 'V08', 'V09', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15','V16']
            
             # hardcoded correction for cere vertical channels
-            if self.shot  > 188000:
-                if 'V17' in loaded_chan:
-                    beam_geom[loaded_chan.index('V17')] /= 1.9
-                if 'V18' in loaded_chan:
-                    beam_geom[loaded_chan.index('V18')] /= 1.9
+            #if self.shot  > 188000:
+            #    if 'V17' in loaded_chan:
+            #        beam_geom[loaded_chan.index('V17')] /= 1.9
+            #    if 'V18' in loaded_chan:
+            #        beam_geom[loaded_chan.index('V18')] /= 1.9
                     
             
         
