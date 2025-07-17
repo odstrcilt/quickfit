@@ -1095,8 +1095,8 @@ class DataFit():
             self.elms = self.data_loader('elms',{'elm_signal':self.fit_options['elm_signal']})
             edge_dis = getattr(self.fitPlot, 'edge_discontinuties',[])
 
-            for ed in edge_dis:
-                ed.remove()
+            #for ed in edge_dis:
+            #    ed.remove()
 
             #update plot
             self.fitPlot.edge_discontinuties = [self.fitPlot.ax_main.axvline(t, ls='-',lw=.5,c='k', visible=False) for t in self.elms['elm_beg']] 
