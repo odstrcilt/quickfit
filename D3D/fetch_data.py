@@ -2181,7 +2181,7 @@ class data_loader:
                     if analysis_type == 'cerfit':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'Al XIII 13-12'
-                if self.shot in [204510]:
+                if self.shot in [204510, 204509]:
                     if analysis_type == 'cerfit':# all tang are Ca
                         for i, lid in enumerate(line_id):
                             if lid.strip() == 'C VI 8-7':
