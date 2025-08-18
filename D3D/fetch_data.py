@@ -2186,7 +2186,7 @@ class data_loader:
                         for i, lid in enumerate(line_id):
                             if lid.strip() == 'C VI 8-7':
                                 line_id[i] = 'Ca XVIII 16-15'
-               if self.shot in [203955]:
+                if self.shot in [203955]:
                     for i, lid in enumerate(line_id):
                         if analysis_type == 'cerfit':
                             if lid.strip() == 'C VI 8-7':
