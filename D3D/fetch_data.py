@@ -2856,7 +2856,7 @@ class data_loader:
         #load kinetic data from fit edition, which can be different from impurity edition
         if self.shot in [190652, 190653, 190654, 194073]:
             options['Analysis'] = tk.StringVar(value='fit'), options['Analysis'][1]
-        if self.shot in [196551]:
+        if self.shot in [196551, 203955]:
             options['Analysis'] = tk.StringVar(value='auto'), options['Analysis'][1]
             
             
@@ -2876,7 +2876,8 @@ class data_loader:
                 cer_data['Ti'].append((rho, tvec,ch['Ti'].values, ch['Ti_err'].values))
                 if 'omega' in ch and sys == 'tangential':
                     cer_data['omega'].append((rho, tvec,ch['omega'].values,ch['omega_err'].values ))
-
+                    
+         
         #initial guess of carbon density
         if nC_guess is not None:  #if not availible assued Zeff = 2
             for sys in nC_guess['systems']:
@@ -2898,7 +2899,7 @@ class data_loader:
                         #HFS data have usually lower quality
                         lfs = ch['R'].values > np.interp(ch['time'].values, centroid, Raxis)
                         cer_data['fC'].append((ch['rho'].values[lfs], ch['time'].values[lfs],nz[lfs],nz_err[lfs]))
-        #embed()
+      
         #slice all data in the clusters
         for it, _t in enumerate(centroid):
             lind = label == it
@@ -3013,16 +3014,6 @@ class data_loader:
         # calculate concetration of impurities and main ions as self.frac
 
 
-        #beam_prof_merged['erel'][:] = beam_prof_merged['erel'].mean()
-        #beam_prof_merged['Ti'][:]=2e3
-        #beam_prof_merged['ne'][:] = 4e19 
-        #beam_prof_merged['te'][:] = 2e3 
-        #beam_prof_merged['fC'][:] =0.05
-        #beam_prof_merged['vrel'][:] = beam_prof_merged['vrel'].mean()
-        
-        #for ne in beam_profiles['ne']:
-            #ne[:] = 2e19
-            
             
         # Change dens to cm-3, temp in eV, energy in eV/amu
         te = beam_prof_merged['te'] #eV
@@ -3117,10 +3108,6 @@ class data_loader:
             # assume 5% error in beam power
             beam_att_err[-1] = np.hypot(beam_att_err[-1], 0.05 * beam_att[-1])
             n += nR
-            
-        #plt.show()
-        
-        #embed()
         
         
 
@@ -3199,9 +3186,7 @@ class data_loader:
         #assume only carbon impurity and deuterium
         nion = (1-5*fC)*ne
         
-        #embed()
-   
- 
+      
         line_ids = []
         for sys in systems:
             for ch in nimp[sys]:
@@ -3391,58 +3376,57 @@ class data_loader:
 
             #qeff[:] = ti  
             # erel, nion, ti, zeff
-            #embed()
+            """
             #printe('BUGGGG')
             #qeff[:] = qeff.mean((0,2))[None,:,None]        
             
-            #keys = ['ne',  'te',  'Ti', 'omega', 'fC',] 
-            #import matplotlib.pylab as plt
-            #C = plt.cm.jet(np.linspace(0,1,100))
+            keys = ['ne',  'te',  'Ti', 'omega', 'fC',] 
+            import matplotlib.pylab as plt
+            C = plt.cm.jet(np.linspace(0,1,100))
 
-            #f,ax = plt.subplots(2,4,sharex=True)
-            #ax = ax.flatten()
-            #for j in range(100):
-                #for i,k in enumerate(keys):
-                    ##print()
-                    #ax[i].set_title(k)
-                    #ax[i].plot(beam_profiles['rho'][j], beam_profiles[k][j],c=C[j])
+            f,ax = plt.subplots(2,4,sharex=True)
+            ax = ax.flatten()
+            for j in range(100):
+                for i,k in enumerate(keys):
+                    ax[i].set_title(k)
+                    ax[i].plot(beam_profiles['rho'][j], beam_profiles[k][j],c=C[j])
             
-            #ax[5].set_title('atten')
-            #for j in range(100):
-                ##print(beam_att[it].shape)
-                #ax[5].plot(beam_profiles['rho'][j],  beam_att[j][0,0 ].T,c=C[j])
-            #ax[6].set_title('qeff')
-            #n = 0
+            ax[5].set_title('atten')
+            for j in range(100):
+                ax[5].plot(beam_profiles['rho'][j],  beam_att[j][0,0 ].T,c=C[j])
+            ax[6].set_title('qeff')
+            n = 0
 
-            #for it,t in enumerate(centroid):
-                #nt = len(beam_profiles['rho'][it])
-                #tind = slice(n,n+nt)
-                #ax[6].plot(beam_profiles['rho'][it], qeff[0,0,tind].T,c=C[it] )
-                #n+=nt
+            for it,t in enumerate(centroid):
+                nt = len(beam_profiles['rho'][it])
+                tind = slice(n,n+nt)
+                ax[6].plot(beam_profiles['rho'][it], qeff[0,0,tind].T,c=C[it] )
+                n+=nt
 
 
-            #f,ax = plt.subplots(2,4,sharex=True)
-            #ax = ax.flatten()
-            #ax[5].set_title('atten')
-            #ax[6].set_title('qeff')
-            #n = 0
-            #R = np.linspace(1.7,2.3,20)
+            f,ax = plt.subplots(2,4,sharex=True)
+            ax = ax.flatten()
+            ax[5].set_title('atten')
+            ax[6].set_title('qeff')
+            n = 0
+            R = np.linspace(1.7,2.3,20)
 
-            #for it,t in enumerate(centroid):
-                #Rmid = beam_profiles['Rmid'][it]
-                #nr = len(Rmid)
-                #C = plt.cm.jet(np.linspace(0,1,20))
+            for it,t in enumerate(centroid):
+                Rmid = beam_profiles['Rmid'][it]
+                nr = len(Rmid)
+                C = plt.cm.jet(np.linspace(0,1,20))
 
-                #for i,k in enumerate(keys):
-                    #ax[i].set_title(k)
-                    #ax[i].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_profiles[k][it][::-1]),c=C)
+                for i,k in enumerate(keys):
+                    ax[i].set_title(k)
+                    ax[i].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_profiles[k][it][::-1]),c=C)
             
-                #ax[5].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_att[it][0,0][::-1]),c=C)
-                #tind = slice(n,n+nr)
-                #ax[6].scatter(np.ones_like(R)*t, np.interp(R,Rmid[::-1],qeff[0,0,tind][::-1]*1e15),c=C)
-                #n+=nr
+                ax[5].scatter(np.ones_like(R)*t,np.interp(R,Rmid[::-1],beam_att[it][0,0][::-1]),c=C)
+                tind = slice(n,n+nr)
+                ax[6].scatter(np.ones_like(R)*t, np.interp(R,Rmid[::-1],qeff[0,0,tind][::-1]*1e15),c=C)
+                n+=nr
 
-            #plt.show()
+            plt.show()
+            """
             
             #qeff[:] = 1
 
@@ -3530,7 +3514,7 @@ class data_loader:
                     ch['nimp_int_err'].values = nz_err[data_index[n]]
                     #ch['nimp_int_err'].values = nz[data_index[n]]/ne*np.hypot(nz_err[data_index[n]]/nz[data_index[n]],ne_err/ne)
                     n += 1
-                    
+                
        
         
         #embed()
@@ -3864,7 +3848,6 @@ class data_loader:
    
                 #other cases,  IMPDENS density is used as initial guess
                 nimp0 = None
-                #embed()
 
                 try:
                     nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
@@ -3877,15 +3860,13 @@ class data_loader:
                             nimp0 = self.load_nimp(tbeg,tend,['tangential','vertical'],options) 
                     except:
                         printe('Error in loading of nC from IMPDENS AUTO edition: '+str(e))
-                        #embed()
 
-                    #finally:
-                        #print('selected',analysis_type, analysis_type[3:] )
                 #set back changes made for IMPDENS density fetch
                 selected.set(analysis_type[3:])
                 nimp['systems'] = systems
 
                 nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
+
 
             finally:
                 options['Correction']['nz from CER intensity'].set(nz_from_intens) 
