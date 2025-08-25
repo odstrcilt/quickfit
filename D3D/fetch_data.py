@@ -850,7 +850,8 @@ def default_settings(MDSconn, shot):
         imps.append('Ar18')
     if shot in [199102]:
         imps.append('Ni25')
-        
+    if shot in [204510, 204509]:
+        imps.append('C6')
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
@@ -2182,17 +2183,13 @@ class data_loader:
                         for i in range(len(line_id)):
                             line_id[i] = 'Al XIII 13-12'
                 if self.shot in [204510, 204509]: 
-                    if analysis_type == 'cerfit':# all tang are Ca
+                    if analysis_type == 'cerauto':# all tang are Ca
                         for i, lid in enumerate(line_id):
-                            if lid.strip() == 'C VI 8-7':
-                                line_id[i] = 'Ca XVIII 16-15'
+                            line_id[i] = 'C VI 8-7'
                 if self.shot in [203955]:
                     for i, lid in enumerate(line_id):
-                        if analysis_type == 'cerfit':
-                            if lid.strip() == 'C VI 8-7':
-                                line_id[i] = 'Ne X 11-10'
                         if analysis_type == 'cerauto':
-                                line_id[i] = 'C VI 8-7'
+                            line_id[i] = 'C VI 8-7'
 
 
                 
@@ -5537,7 +5534,7 @@ class data_loader:
             lineid = ['C VI 8-7'] * len(lineid)
         if self.shot == 203955 and analysis_type == 'cerauto':
             lineid = ['C VI 8-7'] * len(lineid)
-          
+ 
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0
     
