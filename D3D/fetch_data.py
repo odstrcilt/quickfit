@@ -2657,7 +2657,7 @@ class data_loader:
         
         return nimp
 
-    def calc_nimp_intens(self,tbeg,tend, nimp,systems,imp, nC_guess=None, options=None):
+    def calc_nimp_intens(self,tbeg,tend, nimp, systems,imp, nC_guess=None, options=None):
         #extract data from all channels
         nimp_data = {'time':[],  'int':[], 'int_err':[], 'R':[]}
         beam_data = {'beam_pow':{},'beam_geom': {}}
@@ -2860,7 +2860,9 @@ class data_loader:
             options['Analysis'] = tk.StringVar(value='auto'), options['Analysis'][1]
             
             
-        cer = self.load_cer(tbeg,tend, cer_systems,options=options)
+        cer = self.load_cer(tbeg, tend, cer_systems, options=options)
+        
+        
         
         #slice and interpolate omega and Ti on the same coordinates as TS
         beam_profiles.update({'Ti':[], 'omega':[], 'fC':[]})
@@ -2884,16 +2886,13 @@ class data_loader:
                 for ch in nC_guess[sys]:
                     if ch.attrs['Z'] != 6: continue #only carbon data
                     nz = None
-                    #try to load the impurity data in this order                    
-                    for c in ['_corr','']:
-                        for s in ['impdens','int']:
-                            if 'nimp_'+s+c in ch:
-                                nz = ch['nimp_'+s+c].values
-                                nz_err = ch['nimp_'+s+'_err'+c].values
-                                break 
-                        if nz is not None:
-                            break
-  
+                    #try to load the impurity data in this order 
+                    imp_labels = ['nimp_'+s+c for s in ['int','impdens'] for c in ['_corr','']]             
+                    for lbl in imp_labels:
+                        if lbl in ch:
+                            nz = ch[lbl].values
+                            nz_err = ch[lbl.replace('_corr','') + '_err'].values
+                            break 
                         
                     if nz is not None:
                         #HFS data have usually lower quality
@@ -2906,7 +2905,7 @@ class data_loader:
             T = nimp_data['time'][lind]
             Trange = T.min()-1e-3,T.max()+1e-3
             rho = beam_profiles['rho'][it]
-
+           
             for name, data in cer_data.items():
                 mean_rho, mean_data = [],[]
                 if len(data):
@@ -2922,10 +2921,12 @@ class data_loader:
                             else:
                                 mean_data.append(np.average(d[_tind&valid],0,1/np.double(e[_tind&valid])**2)) 
                                 
+                                
                     
                 if len(mean_data) > 1:
                     sind = np.argsort(mean_rho)
                     prof_rho, prof_data = np.array(mean_rho)[sind], np.array(mean_data)[sind]
+                    plt.plot(prof_rho, prof_data )
                     if name == 'fC':  #use carbon concetration - better properties for extrapolation!              
                         ne = np.interp(prof_rho, rho[::-1], beam_profiles['ne'][it][::-1])
                         prof_data = np.clip(prof_data/ne,0.001,1/6.-0.01)
@@ -2937,14 +2938,12 @@ class data_loader:
                         _data[edge] = beam_profiles['te'][it][edge] #replace edge ion temperature by electron temperature
                 else:
                     if name == 'Ti':
-                        #print('te', _t)
                         _data = beam_profiles['te'][it] #use Te if Ti is not availible
                     elif name == 'omega':
                         _data = 0* rho #assume zero if unknown
                     elif name == 'fC':
                         if len(beam_profiles[name]): #use previous profile, if availible
                             _data = beam_profiles[name][-1].mean()+rho*0
-                            #print(beam_profiles[name][-1].mean()+rho*0)
                         else: #else guess Zeff = 2
                             _data = rho*0+(2.-1.)/30. 
 
@@ -2952,6 +2951,7 @@ class data_loader:
  
         beam_prof_merged = {k:np.hstack(p) for k,p in beam_profiles.items()}
    
+       
         #####################  Calculate relative beam velocity ###############
         print_line( '  * Calculating '+imp+' density ...')
         TT = time()
@@ -3376,9 +3376,11 @@ class data_loader:
 
             #qeff[:] = ti  
             # erel, nion, ti, zeff
-            """
+           
             #printe('BUGGGG')
-            #qeff[:] = qeff.mean((0,2))[None,:,None]        
+            #qeff[:] = qeff.mean((0,2))[None,:,None]    
+            #embed()   
+            """ 
             
             keys = ['ne',  'te',  'Ti', 'omega', 'fC',] 
             import matplotlib.pylab as plt
@@ -3427,6 +3429,7 @@ class data_loader:
 
             plt.show()
             """
+            
             
             #qeff[:] = 1
 
@@ -3836,7 +3839,7 @@ class data_loader:
             try:
                 tmp_imp = options.get('Impurity','C6') 
 
-                options['Correction']['nz from CER intensity'].set(0) 
+                options['Correction']['nz from CER intensity'].set(0 if tmp_imp == 'C6' else 1) 
                 options['Correction']['Relative calibration'].set(1)
                 options['Impurity'] = 'C6'
                 systems_impdens = [sys for sys in systems if not 'SPRED' in sys]
@@ -3847,17 +3850,17 @@ class data_loader:
                     selected.set('auto')
    
                 #other cases,  IMPDENS density is used as initial guess
-                nimp0 = None
+                nimp_c6 = None
 
                 try:
-                    nimp0 = self.load_nimp(tbeg,tend,systems_impdens,options) 
+                    nimp_c6 = self.load_nimp(tbeg,tend,systems_impdens,options) 
                 except Exception as e:
                     printe('Error in loading of nC from IMPDENS: '+str(e)+ ' try CERAUTO')
                     try:
                         if selected.get() != 'auto':
                             #try to load from AUTO edition
                             selected.set('auto')
-                            nimp0 = self.load_nimp(tbeg,tend,['tangential','vertical'],options) 
+                            nimp_c6 = self.load_nimp(tbeg,tend,['tangential','vertical'],options) 
                     except:
                         printe('Error in loading of nC from IMPDENS AUTO edition: '+str(e))
 
@@ -3865,7 +3868,7 @@ class data_loader:
                 selected.set(analysis_type[3:])
                 nimp['systems'] = systems
 
-                nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
+                nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp_c6, options)
 
 
             finally:
@@ -3894,11 +3897,11 @@ class data_loader:
                 print('Impurity density will be calculated from CER intensity')
                 options['Correction']['nz from CER intensity'].set(1) 
 
-                nimp0 = None
+                nimp_c6 = None
                 nimp_name = 'nimp_int' 
 
                 #calculate impurity density
-                nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp0, options)
+                nimp = self.calc_nimp_intens(tbeg,tend,nimp,systems,imp, nimp_c6, options)
                 
  
           
@@ -5093,7 +5096,7 @@ class data_loader:
 
   
 
-    def load_cer(self,tbeg,tend, systems, options=None):
+    def load_cer(self, tbeg, tend, systems, options=None):
         #load Ti and omega at once
         TT = time()
 
@@ -5302,6 +5305,7 @@ class data_loader:
             mds_data = np.single(output).flatten()
             data_nbit = np.reshape(data_nbit,(-1,len(signals))).T.flatten()
             Ti,Ti_err,rot,rot_err,int_,int_err, R,Z,PHI,stime,tvec = mds_data.reshape(len(signals), -1)
+         
             
             #index for signal splitting
             split_ind = split_mds_data(np.arange(len(tvec)), data_nbit.reshape(len(signals), -1)[0], 4)
@@ -5414,7 +5418,7 @@ class data_loader:
             all_nodes = np.array(all_nodes)[valid_ch]
             
 
-        #embed()
+
         #get a time in the center of the signal integration 
         tvec = (tvec+stime/2)/1e3
         
@@ -5531,7 +5535,9 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
-            #embed()
+        if self.shot == 203955 and analysis_type == 'cerauto':
+            lineid = ['C VI 8-7'] * len(lineid)
+          
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0
     
@@ -5573,7 +5579,6 @@ class data_loader:
             ds['rho'] = xarray.DataArray(rho[tind], dims=['time'], attrs={'units':'-'})
             ds['diags']= xarray.DataArray(np.array((name,)*(tind.stop-tind.start)),dims=['time'])
 
-             #embed()
 
             corrupted = False
             
@@ -5605,6 +5610,7 @@ class data_loader:
             
       
             if len(rot[tind]) > 0 and ch not in missing_rot and not all(corrupted):
+               
                 corrupted = ~np.isfinite(rot[tind]) | (R[tind]  == 0) | corrupted
                 rot[tind][corrupted] = 0
                 corrupted |= (rot[tind]<-1e10)|(rot_err[tind]<=0)
@@ -5632,199 +5638,11 @@ class data_loader:
         self.cer_sol_corr = sol_corr
         self.zeem_split = zeem_split
 
-
-
-
-
-
-
-        #plt.plot(c, c_cost1)
-        #plt.plot(c, c_cost2)
-        #plt.plot(c, c_cost2+c_cost1,'--')
-
-        #plt.show()
-        
-        #plt.plot(T_-T[ic]*W[ic])
-        #plt.plot(T_)
-        #plt.show()
-        
-        
-        #ic = np.argmin(c_cost2)
-        #plt.errorbar(range( len(T_all)),np.clip(T[ic],1,T_*1.5), Te_/W[ic])
-        #plt.errorbar(range( len(T_all)),T_,Te_)
-        #plt.show()
-        
-        
-        #plt.errorbar(range( len(T_all)),np.clip(T,1,T_*1.5), Te_/W)
-        #plt.errorbar(range( len(T_all)),T_,Te_)
-        #plt.show()
-        
-        
-
-
-        
-        #embed(); exit()
-        
-
  
-        
-        #c = 0.035
-        #r = 0.3  #correction for rotation - how large fraction is blue and red shifted
-        #N = np.hstack(int_ ) - np.interp(T_all, T_avg,int_avg )*c
-        #W = np.clip(N/np.hstack(int_ ),0.001,1)
-        #R = (np.hstack(rot)-np.interp(T_all, T_avg,rot_avg )*(1-W)*r)/W
-        #T = (np.hstack(Ti)-np.interp(T_all, T_avg,Ti_avg )*(1-W)-W*(1-W)*(np.hstack(rot)-np.interp(T_all, T_avg,rot_avg))**2*(m_p*12)/(2*e) )/W 
-        
-        
-        
-         #plt.plot((rot_old-Rc[ir]*W)/1e3 )
-        #plt.plot(rot_old/1e3) 
-        
-        #plt.plot(  (rot_old-np.interp(tvec, T_avg,rot_avg)*(1-W)*r[ir]) )
-        #plt.plot( np.interp(tvec, T_avg,rot_avg)*(1-W)*.3)
-        #plt.plot(rot_old) 
- 
-        #plt.show()
-        
-        
-        
-        
-
-        #f,ax=plt.subplots(3,1,sharex=True)
-        
-        
-        #ii = np.argsort([R[ind].mean() for ind in split_ind])
-        #ind = np.arange(len(R))
-        #ind = np.hstack([ind[split_ind[i]] for i in ii])
-        #ax[2].plot((Ti_old-T[ic]*W)[ind]/1e3)
-        #ax[2].plot(Ti_old[ind]/1e3) 
-        ##ax[2].plot(T[ic][ind]/1e3,':',lw=.5)
-
-        
-        
-        #ax[1].plot((rot_old-Rc[ir]*W)[ind]/1e3 )
-        #ax[1].plot(rot_old[ind]/1e3)        
-        ##ax[1].plot(Rc[ir][ind]/1e3,':',lw=.5)
-
-        #ax[0].plot(((int_old-int_))[ind]/1e16  )
-        #ax[0].semilogy(int_old[ind]/1e16)
-        ##ax[0].plot(int_[ind]/1e16,':',lw=.5)
-
-        ##embed()
-        #ind = np.arange(len(R))
-        #ind = [ind[split_ind[i]] for i in ii]
-        #for a in ax:
-            #for j,i in zip(ii,ind):
-                ##embed();exit()
-                #a.axvline(i[0], c='k',ls='--')
-                #a.text(i.mean() ,1 ,'T'+all_nodes[j][-2:])
-                
-                
-        #ax[0].set_ylabel('Ampl. [ph/(s*sr)]')
-        #ax[1].set_ylabel('Rot. [km/s]')
-        #ax[2].set_ylabel('T$_i$ [keV]')
-        #ax[2].set_xlabel('index')
- 
-
-        #plt.show()
-        
-        
-        #embed()
-        #ind = (T_all > 2)&(T_all < 3)
-        #f,ax=plt.subplots(3,1,sharex=True)
-        #ax[2].plot(rho[ind],(np.hstack(Ti)-T*W)[ind]/1e3,'.')
-        #ax[2].plot(rho[ind],np.hstack(Ti)[ind]/1e3,'.')        
-        
-        #ax[1].plot(rho[ind],(np.hstack(rot)-R*W)[ind]/1e3,'.' )
-        #ax[1].plot(rho[ind],np.hstack(rot)[ind]/1e3,'.')        
-            
-        #ax[0].plot(rho[ind],((np.hstack(int_)-N))[ind] ,'.' )
-        #ax[0].semilogy(rho[ind],np.hstack(int_)[ind],'.')
-        
-        #ax[0].set_ylabel('Ampl. [ph/(s*sr)]')
-        #ax[1].set_ylabel('Rot. [km/s]')
-        #ax[2].set_ylabel('T$_i$ [keV]')
-        #ax[2].set_xlabel('rho')
-        #ax[2].set_xlim(.9,1.1)
-        ##ax[0].set_ylim(0,None)
-        #ax[2].set_ylim(0,None)
-
-        #plt.show()
-        #RHO = [rho[ind].mean() for ind in split_ind]
-
-        #plt.figure()
-        #C = np.zeros((1, len(split_ind)))
-        #for it, ind in enumerate(split_ind):
-            ##for i in range(3):
-            #i = 0
-            #C[i, it] = np.corrcoef(Ti_old[split_ind[-1-i]], np.interp(tvec[split_ind[-1-i]], tvec[ind], Ti_old[ind]))[0,1]**2
-                
-        #plt.plot(RHO, C.T,'o')      
-        ##plt.xlim(1.7,2.3)
-        #plt.ylim(0,1)
-        #plt.show()
-        
-        
-        #embed()
-
-        
-        #corrcoef
-        
-        
-
-        #f,ax=plt.subplots(1,3,sharex=True)
-        
-        #ax[2].plot(rho, np.hstack(Ti ),'.')
-        #ax[2].plot(rho, T,'.')
-   
-
-        #ax[0].plot(rho, np.hstack(int_ ),'.')
-        #ax[0].plot(rho, N,'.')        
-        
-
-        #ax[1].plot(rho, np.hstack(rot),'.')
-        #ax[1].plot(rho, R,'.')
-        #ax[2].axhline(0)
-        #ax[1].axhline(0)
-        #ax[0].axhline(0)
-
-        
-        #plt.show()
-        
-                
-        
-
-        #plt.plot( np.interp(T_all, T_avg,int_avg )*c)
-        #plt.plot( np.hstack(int_ )- np.interp(T_all, T_avg,int_avg )*c)
-
-         
-        #plt.plot( np.hstack(rot ))
-        #plt.plot( R)
-
-
-        #plt.show()
-        
-        
-
-        
-         
-        #plt.plot( np.hstack(int_ ))
-        #plt.plot( N)
-
-
-        #plt.show()
-        
-        
-
-        
-        #embed()
-
-             
-        #exit()
         
         cer['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
         print('\t done in %.1fs'%(time()-TT))
-        #print(cer)
+        print(cer)
         return cer
     
     
