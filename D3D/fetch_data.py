@@ -2189,7 +2189,7 @@ class data_loader:
                 if self.shot in [203955]:
                     for i, lid in enumerate(line_id):
                         if analysis_type == 'cerauto':
-                                line_id[i] = 'C VI 8-7'
+                            line_id[i] = 'C VI 8-7'
 
 
                 
@@ -5528,6 +5528,10 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
+        if self.shot == 203955 and analysis_type == 'cerauto':
+            lineid = ['C VI 8-7'] * len(lineid)
+            
+            
             #embed()
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0
