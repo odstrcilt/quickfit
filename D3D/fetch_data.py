@@ -2167,9 +2167,10 @@ class data_loader:
                             line_id[i+3] = 'Ca XVIII 15-14'
                 
                 if self.shot in np.r_[199102: 199113]:
-                    if analysis_type == 'cerfit': #Argon
+                    if analysis_type == 'cerauto': 
                         for i in range(8):
-                            line_id[i] = 'Ar XVIII 15-14 '
+                            line_id[i] = 'C VI 8-7'
+
                 if self.shot in [199102]:
                     if analysis_type == 'cerauto':# nickel
                         for i in range(8,12):
