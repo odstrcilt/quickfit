@@ -1018,11 +1018,14 @@ class data_loader:
             
             
         
-    def __call__(self,  quantity=[], options=None,spline_fits=False, tbeg=0, tend=10 ):
-   
-        if spline_fits:
-            return self.load_zipfit()
+    def __call__(self,  quantity=[], options=None, spline_fits=False, tbeg=0, tend=10 ):
         
+
+        if spline_fits == 1:
+            return self.load_zipfit()
+            
+        if spline_fits == 2:
+            return self.load_cake()
         
         if quantity == 'elms':
             return self.load_elms(options)
@@ -1260,6 +1263,143 @@ class data_loader:
         self.RAW['OMFITPROFS'] = ds
         return ds
 
+    def load_cake(self):
+
+                 
+        if 'CAKE' in self.RAW:
+            return self.RAW['CAKE']
+            
+        #               name     scale  node    tree
+        loading_dict = {'Ti'   :(1,  'T_C', ),
+                        'nimp' :(1, 'N_C', ),
+                        'omega':(1,  'W_TOR_C',),
+                        'Te'   :(1,  'T_E',),
+                        'ne'   :(1, 'N_E', )} #in 1e20m^3 units
+
+                        
+        tree = 'OMFIT_PROFS'
+        
+        #TODO how to find the latest version??
+        for i in range(10):
+            try:
+                self.MDSconn.openTree(tree, self.shot*1000+1+i)
+            except:
+                break
+        
+        
+        if i == 0:
+            raise Exception('No CAKE profiles')
+        else:
+            print(f'  * Fetching CAKE {i-1} ....')
+            self.MDSconn.openTree(tree, self.shot*1000+1+i-1)
+            
+
+        T = time()
+        
+        cake = Tree()
+        path = '::TOP:'
+
+        tvec = np.single(self.MDSconn.get('_x=\\'+tree+path+'TIME').data()/1e3)
+        rho = np.single(self.MDSconn.get('_x=\\'+tree+path+'RHO').data())
+        
+        if rho.ndim == 1:
+            rho = np.tile(rho,(len(tvec), 1))
+        
+
+        for prof, (scale_fact,node) in loading_dict.items():
+            ds = Dataset('cake_'+prof+'.nc')
+            try:
+
+                data = self.MDSconn.get('_x=\\'+tree+path+node).data()
+                ds[prof] = xarray.DataArray(np.single(data*scale_fact), dims=['time','x'])
+                ds['rho']  = xarray.DataArray(rho, dims=['time', 'x'])
+                ds['time'] = xarray.DataArray(tvec, dims=['time'])
+                try:
+                    err = np.single(self.MDSconn.get('error_of(_x)').data())*scale_fact
+                    ds[prof+'_err'] = xarray.DataArray(err, dims=['time','x'])
+                except:
+                    pass
+                cake[prof] = ds
+            except:
+                raise
+                print(f'CAKE no {prof} data!')
+                continue
+   
+
+        if 'nimp' in cake:
+            cake['nC6'] = cake.pop('nimp')
+            cake['nC6']['nC6'] = cake['nC6']['nimp']
+            cake['nC6']['nC6_err'] = cake['nC6']['nimp_err']
+            
+        if 'nC6' in cake and 'ne' in cake:
+     
+            ne     =  cake['ne']['ne'].values
+            ne_err = cake['ne']['ne_err'].values            
+            nimp     =  cake['nC6']['nC6'].values
+            nimp_err = cake['nC6']['nC6_err'].values
+            
+            ne     = np.maximum(ne,1) #prevent zero division
+            nimp   = np.maximum(nimp,1) #prevent zero division
+
+            # NOTE suppose the impruity ion in ZIPFITprofiles is always carbon and bulk ions are D
+            Zimp = 6 
+            Zmain = 1
+
+            
+            cake['Zeff'] = Dataset('cake_Zeff.nc')
+            cake['Zeff']['Zeff'] = xarray.DataArray(Zimp*(Zimp - Zmain)*nimp/ne + Zmain, dims=['time','rho'])
+            cake['Zeff']['Zeff_err'] = xarray.DataArray((cake['Zeff']['Zeff'].values - Zmain)*np.hypot(ne_err/ne,nimp_err/nimp), dims=['time','rho'])
+            cake['Zeff']['rho']  = xarray.DataArray(cake['nC6']['rho'].values,
+             dims=['time','x']) #rho toroidal
+            cake['Zeff']['time'] = xarray.DataArray(tvec, dims=['time'])
+            
+            
+            
+            
+
+        if 'Ti' in cake and 'Te' in cake:
+            Te = cake['Te']['Te'].values
+            Ti = cake['Ti']['Ti'].values
+            Ti_err = cake['Ti']['Ti_err'].values
+            Te_err = cake['Te']['Te_err'].values
+            
+            cake['Te/Ti'] = Dataset('zipfit_Te_Ti.nc')
+            cake['Te/Ti']['Te/Ti'] = xarray.DataArray(Te/Ti, dims=['time','x'])
+            cake['Te/Ti']['Te/Ti_err'] = xarray.DataArray(Te/Ti*np.hypot(Ti_err/Ti,Te_err/Te), dims=['time','rho'])
+            cake['Te/Ti']['rho']  = cake['Ti']['rho']
+            cake['Te/Ti']['time'] = cake['Ti']['time']
+            
+                
+        if 'omega' in cake and 'Te' in cake:
+       
+            from scipy.constants import e,m_u
+            rho = cake['Ti']['rho'].values
+            if rho.ndim > 1:
+                rho = np.mean(rho, 0)
+            Rho,Tvec = np.meshgrid(rho,tvec)
+            R = self.eqm.rhoTheta2rz(Rho,0, t_in=tvec,coord_in=self.rho_coord)[0][:,0]
+            
+            vtor = cake['omega']['omega'].values*R
+            vtor_err = cake['omega']['omega_err'].values*R
+            ti = cake['Ti']['Ti'].values
+            ti_err = cake['Ti']['Ti_err'].values
+            ti[ti<=0] = 1 #avoid zero division
+            
+            
+            
+            cake['Mach'] = Dataset('omega_mach.nc')
+            cake['Mach']['Mach'] = xarray.DataArray(np.sqrt(2*m_u/e*vtor**2/(2*ti)), dims=['time','x'])
+            cake['Mach']['Mach_err'] = xarray.DataArray(cake['Mach']['Mach'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','x'])
+            cake['Mach']['rho']  = cake['Ti']['rho']
+            cake['Mach']['time'] = cake['Ti']['time']
+        
+        self.RAW['CAKE'] = cake
+
+        print('\t done in %.1fs'%(time()-T))
+
+        return cake
+
+
 
     def load_zipfit(self):
                  
@@ -1341,7 +1481,7 @@ class data_loader:
             zipfit['Mach']['Mach_err'] = xarray.DataArray(zipfit['Mach']['Mach'].values*np.hypot(vtor_err/vtor,ti_err/ti/2), dims=['time','rho'])
             zipfit['Mach']['rho']  = xarray.DataArray(rho, dims=['rho'])
             zipfit['Mach']['time'] = xarray.DataArray(np.array(tvec), dims=['time'])
-            print(zipfit['Mach']['time'])
+            
         except:
             #embed()
             pass
@@ -5639,7 +5779,6 @@ class data_loader:
         
         cer['EQM'] = Tree({'id':id(self.eqm),'dr':0, 'dz':0,'ed':self.eqm.diag, 'rho_coord': self.rho_coord})
         print('\t done in %.1fs'%(time()-TT))
-        print(cer)
         return cer
     
     
@@ -7259,6 +7398,7 @@ def main():
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
     shot = 203567
+    shot = 175888
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7341,6 +7481,7 @@ def main():
 
     loader = data_loader(MDSconn, shot, eqm, rho_coord, raw = {})
 
+    loader(quantity='ne', spline_fits=2)
     
     settings = OrderedDict()
     I = lambda x: tk.IntVar(value=x)

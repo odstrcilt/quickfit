@@ -526,14 +526,14 @@ class FitPlot():
                 self.fit_frame.config(cursor="watch")
                 self.fit_frame.update()
                 try:
-
-                    if self.show_splines.get() == 1:
-                        self.splines = self.parent.data_loader(spline_fits=True)
+                    show_splines = self.show_splines.get()
+                    if show_splines:
+                        self.splines = self.parent.data_loader(spline_fits=show_splines)
 
                     if self.options['data_loaded']:
-                        self.spline_min.set_visible(self.show_splines.get())
-                        self.spline_mean.set_visible(self.show_splines.get())
-                        self.spline_max.set_visible(self.show_splines.get())
+                        self.spline_min.set_visible(show_splines>0)
+                        self.spline_mean.set_visible(show_splines>0)
+                        self.spline_max.set_visible(show_splines>0)
                         self.plot_step()
 
                 finally:
@@ -541,12 +541,17 @@ class FitPlot():
 
             label = self.parent.device+' splines'
             if self.parent.device == 'D3D':
+                #add option to show also CAKE
+                spline_cbx = tk.Checkbutton(fit_frame_up , text='Show CAKE',onvalue=2, 
+                            offvalue=0,command=newselection,variable=self.show_splines)
+                spline_cbx.pack(anchor='w', side=tk.RIGHT, pady=0, padx=20)                
                 label = 'ZIPFIT'
 
-            spline_cbx = tk.Checkbutton(fit_frame_up , text='Show '+label,
-                        command=newselection,variable=self.show_splines)
+            spline_cbx = tk.Checkbutton(fit_frame_up, text='Show '+label,
+                        command=newselection, variable=self.show_splines)
 
             spline_cbx.pack(anchor='w', side=tk.RIGHT,pady=0, padx=20)
+            
 
 
         # canvas frame
@@ -1098,7 +1103,7 @@ class FitPlot():
 
 
         #show also zipfit profiles
-        show_splines = self.show_splines.get() == 1
+        show_splines = self.show_splines.get() > 0
 
         if show_splines and kinprof in self.splines:
 
@@ -1106,12 +1111,11 @@ class FitPlot():
             if not 'time' in splines:
                 splines = splines[kinprof]
 
-
             y = splines['time'].values
             x = splines['rho'].values
             z = splines[kinprof].values
             ze = z*0
-            #embed()
+
 
             if kinprof + '_err' in splines:
                 ze = splines[kinprof+'_err'].values
@@ -1122,7 +1126,8 @@ class FitPlot():
                 z,ze,x = z.T,ze.T, x.T
                 y,x = x,y
                 y0 = r
-
+                
+          
             if np.ndim(y) == 2:
                 y = y.mean(1)
 
