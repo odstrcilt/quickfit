@@ -4298,10 +4298,14 @@ class data_loader:
 
     def load_zeff(self,_tbeg,_tend, systems, options=None):
         #load visible bremsstrahlung data
-        #script for loading of calibarted data !!/fusion/projects/diagnostics/vb/VB_d3d/tools/vb_calib_data_saver.py
+  
+        import sys
+        sys.path.append('/fusion/projects/diagnostics/vb/VB_d3d/Zeff_code/classes')
+        sys.path.append('/fusion/projects/diagnostics/vb/VB_d3d/Zeff_code')
+        import class_signal
 
-
-        TT = time()
+        
+  
    
         tbeg,tend = self.eqm.t_eq[[0,-1]]
         #use cached data
@@ -4348,6 +4352,9 @@ class data_loader:
         #NOTE slow, VB signals are stored in a large time resolution
 
         ######################   VB array data #############################
+        from time import time as T
+        TT = T()
+        
         
         if VB_array in systems:  
             print_line( '  * Fetching VB (slow) ...' )
@@ -4357,168 +4364,202 @@ class data_loader:
             if self.shot <= 148154:
                 printe('VB Calibration Pre-2012 Not Implemented')
                 return
-
-            # Razor viewing dumps for 90 and 315 views
-            razor = np.array([True, False, False, False, True, True, True, True, 
-                     True, False, True, False, False, True, False, True])
-            nchans = len(razor)
-
-            
-            #Fetch data from MDS+, it is much faster to fetch uncalibrated data than calibrated \VBXX signals !!!!!
-            self.MDSconn.openTree(tree, self.shot)            
-            path = '\\TOP.VB.TUBE%.2d:'
-            nodes = [path+'PMT_COEFFA%d'%d for d in range(0,5)] 
-            nodes += [path+n for n in ['REL_CONST','CTRL_CAL','V_CAL','FS_COEFF_I_N']]
-            path = '\\TOP.VB.CHORD%.2d:'
-            nodes += [path+n for n in ['PHI_START','PHI_END','R_START','R_END','Z_START','Z_END']]
-            downsample = .005#s
-
-            tdi = '['+ ','.join(sum([[n%(ch+1) for n in nodes] for ch in range(nchans)],[]))+']'
-            try:
-                out = self.MDSconn.get(tdi).data().reshape(-1,len(nodes)).T.astype('single')
-            except:
-                tkinter.messagebox.showerror('Loading of VB data failed',
-                    'VB data fetching does not work for the lastest campaign, needs to be fixed...\, turn off VB array option.')
-                return
-
-            #select only channels with nonzero calibration
-            channels = np.where(out[5]  > 0)[0]
-            out = out[:,channels]
-            calib =  out[:5][::-1]
-            REL_CONST,CTRL_CAL,V_CAL,FS_COEFF_I_N, phi_start,phi_end,R_start, R_end,z_start,z_end = out[5:]
-            tvec = self.MDSconn.get('dim_of(\VB01)').data()/1000 #timebase ms -> s
-            nt = len(tvec)
-        
-            
-            if nt > 1 and len(channels):
-                #downsample data to 10ms
-                dt = (tvec[-1]-tvec[0])/(nt-1)
-                n = int(np.ceil(downsample/dt))
-                imax = tvec.searchsorted(tend)
                 
-                try:
-                    #load raw voltages - only way how to identify saturated signals!
-                    #also it is 2x faster then loading VB
+ 
+            #Fetch data from MDS+, it is much faster to fetch uncalibrated data than calibrated \VBXX signals !!!!!
+            
+   
+            
+            n_LOS = 16
+ 
 
-                    CTLMID = [self.MDSconn.get('\CTLMIDVB%.2d'%(ch+1)).data()[0] for ch in channels]
+        
+            # --- Open connection to the tree
+            self.MDSconn.openTree("SPECTROSCOPY", self.shot)
+            VB_sig = []
+            time = None
+            rel_const = np.zeros(n_LOS)
+            for ii in range(1, 1+n_LOS):
+                #TODO speed this up!!!
+                VB_sig.append(class_signal.VBSignal(shot=self.shot, channel=ii, verbose=False))
+                #TODO It should be possible to fetch the data faster
+                time = VB_sig[-1].grab_d3d_data(self.MDSconn, time)
+                if 'OBSERVED' not in VB_sig[-1].data or len(VB_sig[-1].data['OBSERVED']) < 1:
+                    VB_sig[-1].data['OBSERVED'] = np.zeros_like(time)
+                    VB_sig[-1].data['PMT_VOLT'] = np.zeros_like(time)
+                rel_const[ii-1] = VB_sig[-1].data.get("REL_CONST", 1)
 
-                    #This value should be between 1 and 10 V. Signals above 10 V will cause the system to trip off, which will cause signal levels to drop to 0.            
-                    PHDMID = [self.MDSconn.get('\PHDMIDVB%.2d'%(ch+1)).data() for ch in channels]
-                    PHDMID = np.array([p if len(p)>1  else np.zeros_like(tvec) for p in PHDMID]).T
+            # --- Close connection to the tree
+            self.MDSconn.closeTree("SPECTROSCOPY", self.shot)
+           
+            if  len(time) >  1 :
+                time_res = 5.0 #ms
+                lambda0 = 5230.0  
+                
+                dt = (time[-1]-time[0]) / (len(time)-1)
+                n = int(np.round(time_res/dt))
+                
+                time /= 1e3 #s
+
+                itmax = time.searchsorted(tend)
+                itmax = (itmax // n) * n
+                
+                
+                time = time[:itmax]
+                
+                VB_data_  = np.array([s.data['OBSERVED'][:itmax].reshape(-1,n//10).mean(1) for s in VB_sig]) * 1e6/1e4 #W/m^2/s -> uW/cm^2/s
+                VB_data  = np.median(VB_data_.reshape(len(VB_sig),-1,10),2)
+       
+                #estimate of a random noise
+                VB_err   = 1.22 * np.mean(np.abs(np.diff(VB_data_,axis=1)),1)   #mean absolute deviation
+            
+                ##make random noise error time independent
+                VB_err = VB_err[:,None]  + np.zeros_like(VB_data)
+                
+                PMT_VOLT = np.array([s.data['PMT_VOLT'][:itmax] for s in VB_sig])
+            
+                PMT_volt_limit = 9.5 #was 9.5V
+                VB_valid = PMT_VOLT < PMT_volt_limit
+            
+                
+                valid = np.bool_(np.cumprod(VB_valid,axis=1))
+                valid = np.all(valid.reshape(len(VB_valid), -1, n), 2)
+                
+
+                VB_err[~valid] = np.inf
+                VB_err[VB_err == 0] = np.inf
+                #VB_err[rel_const != 1,:] = np.inf
+                
+                R  = np.array([s.data['R'] for s in VB_sig])
+                Z  = np.array([s.data['Z'] for s in VB_sig])
+                PHI  = np.array([s.data['PHI'] for s in VB_sig])
+                Z_TANG = np.array([s.data['Z_TANG'] for s in VB_sig])
+                R_TANG = np.array([s.data['R_TANG'] for s in VB_sig])
+                
+                # Razor viewing dumps for 90 and 315 views
+                razor = np.array([True, False, False, False, True, True, True, True, 
+                                True, False, True, False, False, True, False, True])
+            
+                time_fast = time
+                time = time.reshape(-1,n).mean(1)
+                
+                #remove offset
+                ioff = slice(*time.searchsorted([-1.3, -1.0]))
+
+                #remove offset 
+                # Jeff H. used t_range=[-1300, -900]ms
+                
+                if np.any(time < -0.9):
+                    offset = VB_data[:,(time<-0.9)&(time > -1.3)].mean(1)
+                    baseline_err = np.single(VB_data[:,time<0].std(1)) 
+                elif np.any(time < 0):
+                    offset = VB_data[:,time<0].mean(1)
+                    baseline_err = np.single(VB_data[:,time<0].std(1)) 
+                else:
+                    offset = np.zeros(1)
+                    baseline_err = np.zeros(1)
                     
-                 
-                    self.MDSconn.closeTree(tree, self.shot)
-
+                    
+                VB_data -= offset[:,None]
+                VB_sys_err = abs(VB_data)*0.1+baseline_err[:,None]/2
+                
+               
+      
+                nbi_pow = {'30':0, '33':0}
+                #remove timeslices affected by CX from NBI by some impurities like Ar, Ne, Al,Ca,...
+                if 'VB array w/o CX' == VB_array:
+                        
+                        
                     nbi_pow = {'30':0, '33':0}
                     #remove timeslices affected by CX from NBI by some impurities like Ar, Ne, Al,Ca,...
-                    if 'VB array w/o CX' == VB_array:
-                        nbi_tvec = None
-                        self.MDSconn.openTree('NB', self.shot)                      
+                    nbi_tvec = None
+                    self.MDSconn.openTree('NB', self.shot)   
+                    
+                    beams =  ['30L', '30R', '33L', '33R']
+                    paths = ['\\NB::TOP.NB{0}:'.format(b[:2]+b[-1]) for b in beams] 
+                    TDI = [p+'pinj_scalar' for p in paths] 
+                    pinj_scal = self.MDSconn.get('['+','.join(TDI)+']')
+                    fired = pinj_scal > 1e3
+                    
+                    import MDSplus
+                    try:
                         for beam in nbi_pow.keys():
-                            nbi = self.MDSconn.get(f'\\NB::TOP.NB{beam}L:PINJ_{beam}L').data()
-                            nbi = nbi+self.MDSconn.get(f'\\NB::TOP.NB{beam}R:PINJ_{beam}R').data()
-                            if nbi_tvec is None:
-                                nbi_tvec = self.MDSconn.get('\\NB::TOP:TIMEBASE').data()
-                            nbi = np.interp(tvec, nbi_tvec/1000,nbi/1e6)
-                            #downsample on resolution used for Zeff analysis
-                            nbi_pow[beam] = np.mean(nbi[:imax//n*n].reshape(-1, n), 1)
+                            nbi = 0
+                            if fired[beams.index(beam+'L')]:
+                                nbi = nbi + self.MDSconn.get(f'\\NB::TOP.NB{beam}L:PINJ_{beam}L').data()
+                            if fired[beams.index(beam+'R')]:
+                                nbi = nbi + self.MDSconn.get(f'\\NB::TOP.NB{beam}R:PINJ_{beam}R').data()
+
+                            if np.any(nbi > 1e5):
+                                if nbi_tvec is None:
+                                    nbi_tvec = self.MDSconn.get('\\NB::TOP:TIMEBASE').data()
+                                nbi = np.interp(time_fast, nbi_tvec,nbi/1e6)
+                                #downsample on resolution used for Zeff analysis
+                                nbi_pow[beam] = np.mean(nbi.reshape(-1, n), 1)
+                    except MDSplus.MdsException:
+                        print('No beam data!!')
+                    finally:
                         self.MDSconn.closeTree('NB', self.shot)
 
-
-                    PHDMID = np.mean(PHDMID[:imax//n*n].reshape( -1,n,len(channels)), 1)
-                    tvec   = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
-                    
-                    #all values after PHDMID == 10 will be invalid , it is not always working!!
-                    valid = PHDMID < 9.5
-                    valid = np.cumprod(valid, axis=0,dtype='bool')
+                    #potentially corrupted by beam charge exchange
+                    nbi_off = np.ones_like(VB_data, dtype='bool')
                     #only for LOSs viewing beams 30L and 30R i.e. 5 to 16
                     if np.any(nbi_pow['30'] > 0.1):
-                        valid[:,5:-2] &= nbi_pow['30'][:,None] < 0.1
+                        nbi_off[5:-2] &= nbi_pow['30'] < 0.1
                     if np.any(nbi_pow['33'] > 0.1):
                         #BUG even more HFS channels can be affected
-                        valid[:,-2:] &= nbi_pow['33'][:,None] < 0.1
-                    
-                    
-                    #do calibration VB data W/cm**2/A
-                    VB = REL_CONST*FS_COEFF_I_N*np.exp(np.polyval(calib,CTRL_CAL))/np.exp(np.polyval(calib,CTLMID))*(PHDMID/V_CAL)
-   
-                    
-                    
-                except Exception as e:
-                    print(e)
-                    #for older discharges
-                    tdi = '['+ ','.join(['\VB%.2d'%(ch+1) for ch in channels ])+']'
-                    VB = self.MDSconn.get(tdi ).data().T
-
-                    if len(tvec) > 1:
-                        VB = np.mean(VB[:imax//n*n].reshape( -1,n,len(channels)), 1)
-                        tvec  = np.mean(tvec[:imax//n*n].reshape( -1, n), 1)
-                        valid = np.ones_like(VB, dtype='bool')
-                    #in the older discharges is the signal negative
-                    VB *= np.sign(np.mean(VB))
-                    self.MDSconn.closeTree(tree, self.shot)
-    
+                        nbi_off[-2:] &= nbi_pow['33'] < 0.1
+                        
+                         
+                         
     
                 #save only channels with nonzero signal
-                valid_ch = np.any(VB > 0,axis=0)
-                channels = channels[valid_ch]
+                valid_ch = np.any(VB_data > 0,axis=1)
+           
+                channels = ['VB%.2d'%i for i in range(1,1+n_LOS)]
+
+                channels = np.array(channels)[valid_ch]
                 
-                VB = VB[:,valid_ch]
-                valid = valid[:,valid_ch]
+                VB_data = VB_data[valid_ch].T
+                VB_err = VB_err[valid_ch].T
+                valid = valid[valid_ch].T
+                baseline_err = baseline_err[valid_ch]
                 
         
                 # Toroidal angle in plane polar coordinates (deg)
-                phi_start = np.deg2rad(90.0 - phi_start) 
-                phi_end   = np.deg2rad(90.0 - phi_end) 
-                # Radius (mm -> m)
-                R_start /= 1000.
-                R_end /= 1000.
-                # Elevation (mm -> m)
-                z_start /= 1000.
-                z_end /= 1000.
-            
-        
-                #remove offset 
-                # Jeff H. used t_range=[-1300, -900]ms
-                if np.any(tvec < -0.9):
-                    offset = VB[(tvec<-0.9)&(tvec > -1.3)].mean(0)
-                    baseline_err = np.single(VB[tvec<0].std(0)) 
-                elif np.any(tvec < 0):
-                    offset = VB[tvec<0].mean(0)
-                    baseline_err = np.single(VB[tvec<0].std(0)) 
-                else:
-                    baseline_err = 0
-                    offset = 0
+                phi_start = np.deg2rad(90.0 - PHI[:,0]) 
+                phi_end   = np.deg2rad(90.0 - PHI[:,1]) 
+  
+               
 
-                VB -= offset             
-
-                imin = tvec.searchsorted(tbeg)
-                VB = np.single(VB[imin:])
-                tvec = tvec[imin:]
-                VB_err = abs(VB)*.1+baseline_err/2 #guess 10%error
-                VB_err[VB == 0] = np.infty
+                imin = time.searchsorted(tbeg)
+                VB_data = np.single(VB_data[imin:])
+                time = time[imin:]
+             
+                VB_err = abs(VB_data)*.1+baseline_err/2 #guess 10%error
+                VB_err[VB_data == 0] = np.infty
                 VB_err[~valid[imin:]] *= -1 #possibly invalid, can be enabled in the GUI
 
                 
                 zeff[VB_array] = Dataset('ZeffVB.nc',attrs={'system':VB_array,'wavelength': 5230.0})
 
-                zeff[VB_array]['VB'] = xarray.DataArray(VB,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
-                zeff[VB_array]['VB_err'] = xarray.DataArray(VB_err,dims=['time','channel'], attrs={'units':'W/cm**2/A'})
-                zeff[VB_array]['diags']= xarray.DataArray( np.tile((VB_array,), VB.shape),dims=['time','channel'])
+                zeff[VB_array]['VB'] = xarray.DataArray(VB_data/1e6,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
+                zeff[VB_array]['VB_err'] = xarray.DataArray(VB_err/1e6,dims=['time','channel'], attrs={'units':'W/cm**2/A'})
+                zeff[VB_array]['diags']= xarray.DataArray( np.tile((VB_array,), VB_data.shape),dims=['time','channel'])
                 
-                zeff[VB_array]['R_start'] = xarray.DataArray(R_start[valid_ch], dims=['channel'], attrs={'units':'m'})
-                zeff[VB_array]['R_end'] = xarray.DataArray(R_end[valid_ch], dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['R_start'] = xarray.DataArray(R[valid_ch,0], dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['R_end'] = xarray.DataArray(R[valid_ch,1], dims=['channel'], attrs={'units':'m'})
 
-                zeff[VB_array]['z_start'] = xarray.DataArray(z_start[valid_ch],dims=['channel'], attrs={'units':'m'})
-                zeff[VB_array]['z_end'] = xarray.DataArray(z_end[valid_ch],dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['z_start'] = xarray.DataArray(Z[valid_ch,0],dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['z_end'] = xarray.DataArray(Z[valid_ch,1],dims=['channel'], attrs={'units':'m'})
                 
-                zeff[VB_array]['phi_start'] = xarray.DataArray(phi_start[valid_ch],dims=['channel'], attrs={'units':'m'})
-                zeff[VB_array]['phi_end'] = xarray.DataArray(phi_end[valid_ch],dims=['channel'], attrs={'units':'m'})
+                zeff[VB_array]['phi_start'] = xarray.DataArray(phi_start[valid_ch],dims=['channel'], attrs={'units':'rad'})
+                zeff[VB_array]['phi_end'] = xarray.DataArray(phi_end[valid_ch],dims=['channel'], attrs={'units':'rad'})
 
-                zeff[VB_array]['razor'] = xarray.DataArray(razor[channels],dims=['channel'] )
+                zeff[VB_array]['razor'] = xarray.DataArray(razor[valid_ch],dims=['channel'] )
                 
-                zeff[VB_array]['channel'] = xarray.DataArray(['VB%.2d'%(ich+1) for ich in channels],dims=['channel'])
-                zeff[VB_array]['time'] = xarray.DataArray(tvec.astype('single'),dims=['time'], attrs={'units':'s'})
+                zeff[VB_array]['channel'] = xarray.DataArray( channels,dims=['channel'])
+                zeff[VB_array]['time'] = xarray.DataArray(time.astype('single'),dims=['time'], attrs={'units':'s'})
 
                 zeff['diag_names'][VB_array] = [VB_array]
             else:
@@ -4673,7 +4714,7 @@ class data_loader:
 
                     from scipy.constants import h,c
                     
-                    convert = h * c/(lam*1.e-10) * (4. * np.pi) * 1e-4 * (lam/lambda0)**2
+                    convert = h * c/(lam*1.e-10) * (4. * np.pi) * 1e-4 * (lam/lambda0)**2 
                     ind = slice(*tvec.searchsorted([tbeg,tend]))
                     ds = zeff[cer_subsys[diag]] = Dataset('ZeffCER.nc', attrs={'system':'CER VB','wavelength': lambda0})
                     ds['VB'] = xarray.DataArray(VB[ind]*convert,dims=['time','channel'], attrs={'units':'W/cm**2/A','label':'VB' })
@@ -4750,7 +4791,7 @@ class data_loader:
         
 
         ##########################################  VB calculation ###############################################
-        print('\t done in %.1fs'%(time()-TT))
+        print('\t done in %.1fs'%(T()-TT))
         TS = self.load_ts(tbeg,tend,('tangential','core'), options=options['CER system'])
         if bool(options['VB array']['Corrections']['rescale by CO2'].get()):
             try:
@@ -4760,7 +4801,7 @@ class data_loader:
                 
     
             
-        TT = time()
+        TT = T()
         print_line( '  * Calculating VB  ...   ' )
 
         n_e,n_er,T_e,T_er,rho, tvec = [],[],[],[],[],[]
@@ -4776,8 +4817,8 @@ class data_loader:
             n_er.append(TS[sys]['ne_err'].values[ind].flatten())
             T_e.append(TS[sys]['Te'].values[ind].flatten())
             rho.append(TS[sys]['rho'].values[ind].flatten())
-            T = np.tile(TS[sys]['time'].values, (len(TS[sys]['channel']),1)).T
-            tvec.append(T[ind].flatten())
+            TIME = np.tile(TS[sys]['time'].values, (len(TS[sys]['channel']),1)).T
+            tvec.append(TIME[ind].flatten())
             #add onaxis values reflected on opposite side
             imin = np.argmin(TS[sys]['rho'].values,1)
             I = np.arange(TS[sys]['rho'].shape[0])
@@ -4785,13 +4826,13 @@ class data_loader:
             n_e.append(TS[sys]['ne'].values[I, imin][ind[I, imin]])
             T_e.append(TS[sys]['Te'].values[I, imin][ind[I, imin]])
             n_er.append(TS[sys]['ne_err'].values[I, imin][ind[I, imin]])
-            tvec.append(T[I, imin][ind[I, imin]])
+            tvec.append(TIME[I, imin][ind[I, imin]])
             #set n_e outside last valid measurement to zero 
             if sys == 'core':
                 imax = np.argmax(TS[sys]['rho'].values,1)
                 I = np.arange(TS[sys]['rho'].shape[0])
                 rho.append(TS[sys]['rho'].values[I, imax][ind[I, imax]]+.01)
-                tvec.append(T[I, imax][ind[I, imax]])       
+                tvec.append(TIME[I, imax][ind[I, imax]])       
                 n_e.append(rho[-1]*0)
                 T_e.append(rho[-1]*0+1)
                 n_er.append(TS[sys]['ne_err'].values[I, imax][ind[I, imax]])
@@ -4827,8 +4868,8 @@ class data_loader:
  
             
             RHO =  zeff[sys]['rho'].values
-            T = np.tile(zeff[sys]['time'].values,RHO.shape[:0:-1]+(1,)).T
-            vb_coeff_interp = Linterp(np.vstack((T.flatten(), RHO.flatten())).T).reshape(RHO.shape)
+            TIME = np.tile(zeff[sys]['time'].values,RHO.shape[:0:-1]+(1,)).T
+            vb_coeff_interp = Linterp(np.vstack((TIME.flatten(), RHO.flatten())).T).reshape(RHO.shape)
             
             dL = np.gradient(zeff[sys]['L'].values)[1]*100 #(m->cm) should be constant for each LOS 
             VB_Zeff1 = np.sum(vb_coeff_interp*dL,2) #VB for Zeff == 1, use for normalization
@@ -4879,7 +4920,7 @@ class data_loader:
             
             #print('BUG')
             #VB_Zeff1[:] = 1e-4
-            
+              
             zeff[sys]['Zeff'] = zeff[sys]['VB'].copy()
             zeff[sys]['Zeff_err'] = zeff[sys]['VB_err'].copy()
             zeff[sys]['Zeff'].values = VB/VB_Zeff1
@@ -4898,7 +4939,7 @@ class data_loader:
             zeff[sys]['weight'] = xarray.DataArray(np.single(vb_coeff_interp*dL)/VB_Zeff1[:,:,None], dims=['time','channel', 'path'])
  
             
-        print('\t done in %.1fs'%(time()-TT))
+        print('\t done in %.1fs'%(T()-TT))
     
     
         #====================   Add Zeff from CER density ===========================
@@ -7399,7 +7440,7 @@ def main():
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
     shot = 203567
-    shot = 175888
+    shot = 175860
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7482,7 +7523,7 @@ def main():
 
     loader = data_loader(MDSconn, shot, eqm, rho_coord, raw = {})
 
-    loader(quantity='ne', spline_fits=2)
+   # loader(quantity='Zeff')
     
     settings = OrderedDict()
     I = lambda x: tk.IntVar(value=x)
@@ -7534,7 +7575,7 @@ def main():
     settings.setdefault('Zeff', {\
         'systems':OrderedDict(( ( 'VB array',  (['tangential',I(1)],                 )),
                                 ( 'CER VB',    (['tangential',I(0)],['vertical',I(0)])),
-                                ( 'CER system',(['tangential',I(1)],['vertical',I(0)],['SPRED',I(0)])),
+                                ( 'CER system',(['tangential',I(0)],['vertical',I(0)],['SPRED',I(0)])),
                                 ( 'SPRED',(['He+B+C+O+N',I(0)],)),                           
                                 )), \
         'load_options':{'VB array':{'Corrections':{'radiative mantle':I(1),'rescale by CO2':I(1), 'remove NBI CX': I(1)}},\
@@ -7574,7 +7615,7 @@ def main():
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
 
-    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
     return 
 
