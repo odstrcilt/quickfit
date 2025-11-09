@@ -30,24 +30,51 @@ from  scipy.stats.mstats import mquantiles
 from scipy.ndimage.morphology import binary_erosion,binary_dilation, binary_opening
 from collections import OrderedDict
 np.seterr(all='raise')
-#import warnings
-#warnings.simplefilter('error', UserWarning)
+
 from  IPython import embed
 debug = False
 import matplotlib.pylab as plt
 import traceback
 
-#try:
+
 from sksparse.cholmod import  cholesky, analyze,cholesky_AAt,CholmodError
 chol_inst = True
-#except:
-    #chol_inst = False
-    #print('!CHOLMOD is not installed, slow LU decomposition will be used!')
-        ##alternative when cholmod is not availible, spsolve is about 5x slower 
-        ##and with higher memory consumption
-    #print('try to load OMFIT as module load omfit/conda_0.24.')
 
- 
+def eval_warp_fun(x, rmin,rmax, warping_function = 'erf', a_axis=0.5, a_ped=1, a_sol=.7, 
+                                            s_axis=0.2, s_ped=0.03, x_ped=0.95, 
+                                            core_itb=False):
+
+    core_itb=False
+    if warping_function == 'erf':
+        from scipy.special import erf, erfc
+        f  = lambda x: erf(x / np.sqrt(2))
+        fc = lambda x: erfc(np.minimum(x, 10) / np.sqrt(2))
+        df = lambda x: np.exp(-(x) ** 2 / 2) / np.sqrt(2 * jnp.pi)
+    elif warping_function == 'tanh':
+        f  = np.tanh
+        fc = lambda x: 2 * jax.nn.sigmoid(-2 * x)
+        df = lambda x: jax.nn.sigmoid(2 * x) * jax.nn.sigmoid(-2 * x) * 2
+    else:
+        raise Exception(f'Warping function {warping_function} is not implemented')
+    
+    # integral of sum of core and pedestal Gaussian
+    cw = a_axis * f(x / s_axis)  # near axis Gaussian
+
+    if core_itb:  # tested on 190904
+        s_itb = psin_s_itb
+        a_itb = psin_a_itb
+        x_itb = psin_x_itb
+        cw = cw + (a_itb / 2) * fc((x_itb - x) / s_itb)  # ITB Gaussian
+    
+    try:
+        cw = cw + (a_ped / 2) * fc((x_ped - x) / s_ped)     # pedestal Gaussian
+        cw  = cw + (a_sol / 2) * fc((rmax - x) / (rmax - 1)) # SOL Gaussian
+        cw = cw + x / rmax
+    except:
+        embed()
+    return cw
+    
+
 
 
 class map2grid():
@@ -72,7 +99,7 @@ class map2grid():
         self.Yerr = np.ma.array(Yerr)
         self.Yerr.mask = (Yerr<=0) |~np.isfinite(Yerr) | self.Yerr.mask 
 
-        self.valid   =  np.isfinite(self.Yerr.data)
+        self.valid = np.isfinite(self.Yerr.data)
         
  
         valid_p =  self.valid[P.flat] & (W.flat != 0)&(R.ravel() < self.r_max)
@@ -94,7 +121,7 @@ class map2grid():
         self.t_min = self.T.min()
         self.t_max = self.T.max()
         
-        #shift of time grid to align with most of the temepoints to reduce spartiy of V matrix, 
+        #shift of time grid to align with most of the timepoints to reduce spartiy of V matrix, 
         it = (self.T-self.t_min)/dt+1e-4#add small constant due to rounding errors
         it-= np.int32(it)
         t_shift = np.median(it) 
@@ -102,8 +129,9 @@ class map2grid():
         if t_shift > 0: #self.t_min must be always less then the min(T)
             self.t_min -= dt 
         self.t_new0 = np.arange(self.t_min,self.t_max+dt*1.5, dt)
+    
         
-        #self.t_max = self.t_min+np.ceil((self.t_max-self.t_min)/dt+1)*dt
+    
         self.t_max = self.t_new0[-1]
         self.nt_new0 = len(self.t_new0)
         
@@ -131,35 +159,7 @@ class map2grid():
         self.corrected=False
         self.prepared=False
         self.fitted=False
-        #IPython.embed()
-        #return
- 
-        #r_new = np.linspace(self.r_min,self.r_max,self.nr_new)
-        
-        #sigma_t = 0.02
-        #sigma_r = 0.005
-        #dist_d = (self.R-self.R[:,None])**2/sigma_r+(self.T-self.T[:,None])**2/sigma_t
-        #ind = dist_d < 3
-        #print('density', ind.sum()/ind.size)
-        #Kdd = sp.csr_matrix((np.exp(-dist_d[ind]), np.where(ind)), shape=(self.n_points,self.n_points))
-        #sigma_d = sp.spdiags(self.Yerr.data[self.valid],0, self.n_points,self.n_points,format='csr')
-        #factor =  cholesky(Kdd+sigma_d)  #slo by updatovat diagonalu!!
-        #KY = factor.solve_A(self.Y[self.valid])
-        
-        ##this needs to be evaluated for every time or radius
-        #T0 = 5 #s
 
-        #Ksd = np.exp(np.maximum(-(self.R-r_new[:,None])**2/sigma_r+-(self.T-T0)**2/sigma_t,-10))
-        #mu = np.dot(Ksd,KY)
-        #plot(r_new, mu);
-        #ind_d = abs(self.T-T0) < 0.01
-        #plt.plot(self.R[ind_d], self.Y[self.valid][ind_d],'o' )
-        #plt.show()
-
-        
-
-        
- 
         if debug:
             print('init',time.time()-TT)
             
@@ -169,36 +169,48 @@ class map2grid():
         if debug:
             TT = time.time()
             print('\nPrepareCalculation')
-            #np.savez('discontinuties' ,core_discontinuties,edge_discontinuties,elm_phase)
-
-        #BUG removing large number of points, will change missing_data index!!
-        #if debug:
-
+      
     
         self.robust_fit = robust_fit
-        self.even_fun= even_fun
-        #embed()
+        self.even_fun = even_fun
+    
         if len(self.P) > self.n_points and transformation[2](100) != 1:
             print('Only linear transformation can be used with line integrated measurements')
             transformation = None
         
         if transformation is None:
-            transformation = (lambda x:x,)*2+(lambda x:1,)
+            transformation = (lambda x:x, lambda x:x, lambda x:1)
  
         self.trans, self.invtrans, self.deriv_trans = transformation
         
  
         #=============== define contribution matrix  ==================
         # it is a sparse matrix representation of bilinear interpolation
-
-        dr = (self.r_max-self.r_min)/(self.nr_new-1)
-        it = (self.T-self.t_min)/self.dt
-        ir = (self.R-self.r_min)/dr
         
- 
+        #transform radial coordinate to warped coordinates
+        #eval_warp_fun = lambda x,a,b: x
+        
+        from functools import partial 
+        warp_fun = partial(eval_warp_fun,  rmin=self.r_min, rmax=self.r_max, x_ped=pedestal_rho)
+        warped_R = warp_fun(self.R)
+        warped_R_edges = warp_fun( np.array([self.r_min, self.r_max]))
+        warped_R = (warped_R - warped_R_edges[0]) / (warped_R_edges[1] - warped_R_edges[0])
+  
+
+        #create an inverse for radial basis at plotting
+        x_new  = np.linspace(0,1,self.nr_new)
+        r_new_  = np.linspace(self.r_min,self.r_max,self.nr_new * 10)
+        warped_r = warp_fun(r_new_)
+        warped_r = (warped_r - warped_R_edges[0]) / (warped_R_edges[1] - warped_R_edges[0])
         #new grid for output
-        r_new  = np.linspace(self.r_min,self.r_max,self.nr_new)
-        #t_new0 = t_new = np.linspace(self.t_min,self.t_max,self.nt_new0)
+        r_new = np.interp(x_new, warped_r, r_new_)
+    
+    
+    
+        #identifies indexes on now equally spaced grid
+        dr = 1/(self.nr_new-1)
+        ir = warped_R/dr
+        it = (self.T-self.t_min)/self.dt
         
         floor_it = np.uint32(it) 
         floor_ir = np.uint32(ir)
@@ -289,19 +301,14 @@ class map2grid():
         #prepare regularisation matrix 
         
         #calculate (1+c)*d/dr(1/r*dF/dr) + (1-c)*d^2F/dt^2
-        rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
-        rvec_b = (rvec[1:]+rvec[:-1])/2
+        self.rvec = r_new#np.linspace(self.r_min,self.r_max,self.nr_new)
+        rvec_b = (self.rvec[1:]+self.rvec[:-1])/2
         
         #radial weightng function, it will keep zero gradient in core and allow pedestal 
         diffusion = np.ones(self.nr_new-1)
         if even_fun:
+           
             #A zero slope constraint is imposed at the magnetic axis
-            #diffusion /= (rvec_b*np.arctan(np.pi*rvec_b)-np.log((np.pi*rvec_b)**2+1)/(2*np.pi))/rvec_b
-            #diffusion /= np.arctan( 3/2*rvec_b)
-            
-            #from  scipy.special import erf
-            #erf = 2/sqrt(pi)*integral(exp(-t**2), t=0..z).
-            #diffusion /= erf(rvec_b)
             
             #Gamma = 1/(r*pi*2*pi*R)*integral r*S
             #for S is a gaussian profile of the source exp(-x^2)
@@ -318,6 +325,7 @@ class map2grid():
 
         
         #allow large gradints at pedestal
+        """
         if pedestal_rho is not None:
             def gauss(x, x0, s):
                 y = np.zeros_like(x)
@@ -325,8 +333,9 @@ class map2grid():
                 y[ind] = np.exp(-(x[ind]-x0)**2/(2*s**2))
                 return y
             diffusion /= 1+gauss(rvec_b,pedestal_rho,0.02)*10 +gauss(rvec_b,pedestal_rho+.05,.05)*5
-        
-        tweight =  np.exp(-rvec)
+        """
+            
+        tweight =  np.exp(-self.rvec)
 
         #==================time domain===============
         #prepare 3 matrices, for core, midradius and edge
@@ -848,7 +857,11 @@ class map2grid():
   
 
         vvtrace = self.VV.diagonal().sum()
-        lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        #radial regularisation coefficient
+        #lam = np.exp( 8*(lam-.5)+14)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        #embed()
+        lam = np.exp( 8*(lam-.5)+12)/self.DRDR.diagonal().sum()*vvtrace*lam/(1.001-lam)
+        #temporal regularisation coefficient
         eta = np.exp(20*(eta-.5)+-10)*vvtrace*eta/(1.001-eta)
         
         
@@ -914,13 +927,13 @@ class map2grid():
         self.g_samples = np.copy(g_noise)
 
         #find lower and upper uncertainty level, much faster then using mquantiles..
-        rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
-        rvec_ = (rvec[1:]+rvec[:-1])/2
+        #rvec = np.linspace(self.r_min,self.r_max,self.nr_new)
+        rvec_b = (self.rvec[1:]+self.rvec[:-1])/2
         if not self.even_fun:
-            rvec_ = 1
+            rvec_b = 1
             
-        K       = -np.diff(self.g )/(self.g[:,1:]+self.g[:,:-1]      )/(rvec_*np.diff(rvec*a0))*R0*2
-        K_noise = -np.diff(g_noise)/(g_noise[...,1:]+g_noise[...,:-1])/(rvec_*np.diff(rvec*a0))*R0*2 #slow
+        K       = -np.diff(self.g )/(self.g[:,1:]+self.g[:,:-1]      )/(rvec_b*np.diff(self.rvec*a0))*R0*2
+        K_noise = -np.diff(g_noise)/(g_noise[...,1:]+g_noise[...,:-1])/(rvec_b*np.diff(self.rvec*a0))*R0*2 #slow
         
         K_noise.sort(0)#slow
 
@@ -1015,7 +1028,12 @@ def main():
     lam = 0.5
     edge = 0
     pedestal_rho = 1.01
+    n = 100
     
+    xexp = np.random.rand(n)
+    yexp = np.random.rand(n)
+    tvec = np.random.rand(n)
+    yerr = np.random.rand(n)
     
     invalid = ~np.isfinite(yexp)| ~np.isfinite(yerr)
     yerr[invalid] = -np.inf

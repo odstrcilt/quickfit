@@ -1103,7 +1103,7 @@ class FitPlot():
 
 
         #show also zipfit profiles
-        show_splines = self.show_splines.get() > 0
+        show_splines = self.show_splines.get() > 0 and hasattr(self, 'splines')
 
         if show_splines and kinprof in self.splines:
 
