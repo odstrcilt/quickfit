@@ -2315,7 +2315,7 @@ class data_loader:
                     if analysis_type == 'cerauto':# nickel
                         for i in range(8,12):
                             line_id[i] = 'Ni XXV 20-19'
-                if self.shot in [201677, 203948]:
+                if self.shot in [201677, 203948, 204112]:
                     if analysis_type == 'cerauto':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'C VI 8-7'
@@ -2810,7 +2810,7 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27','Ni25']:
+        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','Ne8', 'F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27','Ni25']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
         if imp  in [ 'Kr25','Kr27', 'Ni25']:
@@ -3064,7 +3064,7 @@ class data_loader:
                 if len(mean_data) > 1:
                     sind = np.argsort(mean_rho)
                     prof_rho, prof_data = np.array(mean_rho)[sind], np.array(mean_data)[sind]
-                    plt.plot(prof_rho, prof_data )
+                    #plt.plot(prof_rho, prof_data )
                     if name == 'fC':  #use carbon concetration - better properties for extrapolation!              
                         ne = np.interp(prof_rho, rho[::-1], beam_profiles['ne'][it][::-1])
                         prof_data = np.clip(prof_data/ne,0.001,1/6.-0.01)
@@ -3410,7 +3410,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3','Ne8', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3429,6 +3429,7 @@ class data_loader:
                                  #'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
                                  'C6': ('qef12#h_c6.dat',      'qef12#h_c6_n2.dat'),        #From Igenbergs
                                  'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
+                                 'Ne8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
                 
      
@@ -3447,6 +3448,7 @@ class data_loader:
                           'N7':{'9-8':[5,None]},
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
                           'O8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
+                          'Ne8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None],'13-12': [3,None]},
                           'Si14': {'12-11': [6,None],'13-12': [7,None]},
                           'Kr25':{'20-19':[7,3]},
@@ -5714,7 +5716,7 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
-        if self.shot == 203955 and analysis_type == 'cerauto':
+        if self.shot in [203955, 204112] and analysis_type == 'cerauto':
             lineid = ['C VI 8-7'] * len(lineid)
  
         ulineid = np.unique(lineid)
