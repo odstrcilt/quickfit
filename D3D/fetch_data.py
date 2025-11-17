@@ -5936,13 +5936,15 @@ class data_loader:
             #no very cold TS measuremenst with tiny errorbars inside of rho = 0.95
             corrupted |= (Te[isys] < 20.)&np.isfinite(Te_err[isys])&( rho.T < 0.95  )
             corrupted |= (ne[isys] == 1e19)|(  Te[isys] == 100   ) #it has not moved from the initial guess 
-
+            #tangential TS measuring pedestal is unreliable 
+            corrupted |= R[isys][:,None] > 2.2
+ 
             #remove them, but it can be returned by user
             ne_err[isys][corrupted] *= -1
             Te_err[isys][corrupted] *= -1
             
             #TODO sometimes the Te is near zero with very small uncertainty, how to remove these points? 
-            
+           
                 
             channel = np.arange(Te_err[isys].shape[0])
 
@@ -7442,7 +7444,7 @@ def main():
     shot = 190550 #intensity nc funguje mizerne
     shot = 190430 #intensity nc funguje mizerne
     shot = 203567
-    shot = 175860
+    shot = 204112
     default_settings(MDSconn, shot  )
     #exit()
     #shot = 182725
@@ -7617,7 +7619,7 @@ def main():
     ##data = loader( 'Ti', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
     #loader.load_elms(settings)
 
-    data = loader( 'Zeff', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
+    data = loader( 'ne', settings,tbeg=eqm.t_eq[0], tend=eqm.t_eq[-1])
 
     return 
 
