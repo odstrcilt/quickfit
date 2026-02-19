@@ -40,8 +40,8 @@ import traceback
 from sksparse.cholmod import  cholesky, analyze,cholesky_AAt,CholmodError
 chol_inst = True
 
-def eval_warp_fun(x, rmin,rmax, warping_function = 'erf', a_axis=0.5, a_ped=1, a_sol=.7, 
-                                            s_axis=0.2, s_ped=0.03, x_ped=0.95, 
+def eval_warp_fun(x, rmin,rmax, warping_function = 'erf', a_axis=0.5, a_ped=0.7, a_sol=.7, 
+                                            s_axis=0.2, s_ped=0.05, x_ped=0.95, 
                                             core_itb=False):
 
     core_itb=False

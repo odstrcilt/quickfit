@@ -836,7 +836,7 @@ def default_settings(MDSconn, shot):
             imps = ['C6']
     
     #exception data from impurity ion CER
-    if shot in [183188, 200654, 196025]:
+    if shot in np.r_[183188,   196025, 200650: 200670, 205859, 206014:206016]:
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
@@ -948,7 +948,7 @@ def default_settings(MDSconn, shot):
             imps.remove('C6')
             imps = ['C6']+imps
         default_settings['Zeff']['load_options']['CER system']['Impurity'] = (imps[0], imps)
-    
+        print(imps)
     
     return default_settings
 
@@ -4945,7 +4945,7 @@ class data_loader:
     
     
         #====================   Add Zeff from CER density ===========================
-        cer_sys = list(set(['tangential', 'vertical','SPRED'])&set(zeff['systems']))
+        cer_sys = list(set(['tangential', 'vertical','SPRED', 'MICER'])&set(zeff['systems']))
  
         if len(cer_sys) > 0:
             #options['CER system']['Correction']['remove first data after blip'] = tk.IntVar(value=1)

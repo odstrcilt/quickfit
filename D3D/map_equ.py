@@ -1007,6 +1007,7 @@ class equ_map:
             return
 
         self._read_scalars()
+        self.read_ssq()
 
         if t_in is None:
             t_in = self.t_eq
