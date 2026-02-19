@@ -361,7 +361,22 @@ class DataFit():
                     self.MDSconn.closeTree(efit, shot)
                 except:
                     continue
-                efit_editions+= [efit]                    
+                efit_editions+= [efit]   
+            #special case for DIII-D CAKE equilibria
+            try:
+                self.MDSconn.openTree('EFIT', shot*100 + 1)
+                self.MDSconn.closeTree('EFIT', shot*100 + 1)
+                efit_editions+= ['CAKE01']  
+            except:
+                pass
+            try:
+                self.MDSconn.openTree('EFIT', shot*100 + 2)
+                self.MDSconn.closeTree('EFIT', shot*100 + 2)
+                efit_editions+= ['CAKE02']  
+            except:
+                pass
+             
+                             
 
             efit_editions = np.unique(efit_editions).tolist()
             
@@ -377,7 +392,7 @@ class DataFit():
                 if 'EFIT' in self.default_settings:
                     pref_ef = self.default_settings['EFIT']
                 else:
-                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02',    'EFIT03',  'EFIT04', efit_editions[0] 
+                    prefered_efit = 'LRDFIT09', 'ANALYSIS','EFIT20','EFIT01', 'EFIT02', 'EFIT03', 'EFIT04', efit_editions[0] 
                     if  self.device == 'NSTX':
                         prefered_efit =  'LRDFIT09', 'LRDFIT06', 'EFIT02', 'EFIT01'
                     for pref_ef in prefered_efit:
@@ -450,9 +465,16 @@ class DataFit():
             if self.eqm.source == 'EQDSK':
                 #create a new eqm connected to MDS+
                 self.eqm = self.equ_map(self.MDSconn)
-
+                
+            
+            if efit in ['CAKE01', 'CAKE02']:
+                eq_shot = self.shot * 100 + int(efit[-2:])
+                efit = 'EFIT'
+            else:
+                eq_shot = self.shot
+                
             try:
-                assert self.eqm.Open(self.shot, efit, exp=self.device), 'EFIT loading problems'
+                assert self.eqm.Open(eq_shot, efit, exp=self.device), 'EFIT loading problems'
             except:
                 tkinter.messagebox.showerror('Loading problems','EFIT '+efit+' could not be loaded, try another edition')
                 return False
