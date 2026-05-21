@@ -852,6 +852,9 @@ def default_settings(MDSconn, shot):
         imps.append('Ni25')
     if shot in [204510, 204509]:
         imps.append('C6')
+    if shot in np.r_[204107:204110,204114,  203885:203889]:
+        imps.append('Ca13')
+        
     #build a large dictionary with all settings
     default_settings = OrderedDict()
     
@@ -948,7 +951,7 @@ def default_settings(MDSconn, shot):
             imps.remove('C6')
             imps = ['C6']+imps
         default_settings['Zeff']['load_options']['CER system']['Impurity'] = (imps[0], imps)
-        print(imps)
+       # print(imps)
     
     return default_settings
 
@@ -1078,6 +1081,7 @@ class data_loader:
                 try:
                     ts = self.co2_correction(ts, tbeg, tend)
                 except:
+                    
                     printe('CO2 correction failed')
                     
             data.append(ts) 
@@ -2327,12 +2331,15 @@ class data_loader:
                     if analysis_type == 'cerauto':# all tang are Ca
                         for i, lid in enumerate(line_id):
                             line_id[i] = 'C VI 8-7'
-                if self.shot in [203955]:
+                if self.shot in np.r_[203955, 203884:203889, 204107:204115]:
                     for i, lid in enumerate(line_id):
                         if analysis_type == 'cerauto':
                             line_id[i] = 'C VI 8-7'
 
-
+                if self.shot in np.r_[204107:204110, 204114, 203885:203889]:
+                    if analysis_type == 'cerquick' and imp == 'Ca13': 
+                        for i, d in enumerate(line_id):
+                            line_id[i] = 'Ca XIII 13-12'
                 
                 if self.shot in [190552, 190553]:
                     if analysis_type == 'cerfit' and imp == 'C4': #carbon
@@ -2810,7 +2817,7 @@ class data_loader:
                 imp =  'Ca18'
         
         
-        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','Ne8', 'F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27','Ni25']:
+        if imp not in ['Li3','C4', 'B5','C6','He2','Ne10','N7','O8','Ne8', 'F9','Ca18','Ar18','Ar17','Ar16','Ne9','Al13','Si14','Kr25','Kr27','Ni25', 'Ca13', 'Ar13']:
             raise Exception('CX cross-sections are not availible for '+imp)
         
         if imp  in [ 'Kr25','Kr27', 'Ni25']:
@@ -3410,7 +3417,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3','Ne8', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3','Ne8', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25', 'Ca13', 'Ar13']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3421,6 +3428,8 @@ class data_loader:
                                'Ar16': ('qef07#h_arf#ar16.dat', 'qef07#h_arf#ar16_n2.dat'),
                                  'F9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                'Al13': ('qef07#h_arf#al13.dat',None),
+                               'Ca13': ('qef07#h_arf#al13.dat',None),
+                               'Ar13': ('qef07#h_arf#al13.dat',None),
                                'Si14': ('qef93#h_si14.dat',None),
                                 'Ne9': ('qef07#h_arf#f9.dat',   'qef07#h_en2_arf#f9.dat'),
                                 'N7':  ('qef93#h_n7.dat',  None),
@@ -3450,6 +3459,8 @@ class data_loader:
                           'O8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Ne8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Al13': {'12-11': [2,None],'13-12': [3,None]},
+                          'Ca13': {'12-11': [2,None],'13-12': [3,None]},
+                          'Ar13': {'12-11': [2,None],'13-12': [3,None]},
                           'Si14': {'12-11': [6,None],'13-12': [7,None]},
                           'Kr25':{'20-19':[7,3]},
                           'Kr27':{'21-20':[7,3]},
@@ -3940,7 +3951,7 @@ class data_loader:
                         try:
                             ch = ch.sel(time=slice(tbeg,tend))
                         except:
-                            print(ch)
+                            print('slicing error', ch)
                         if len(ch['time']) == 0:
                             continue
                         ch['nimp'] = ch[nimp_name+suffix].copy()
@@ -4128,7 +4139,7 @@ class data_loader:
                         
             if len(calib['t']) == 0 or len(other['t']) == 0:
                 if len(calib['t']) == 0:
-                    print(NBI)
+                    #print(NBI)
                     printe('unsuccessful... no calib beam ')
                     #embed()
                 else:
@@ -4143,8 +4154,8 @@ class data_loader:
             if calib_beam.replace('_','') not in groups:
                 print('Error groups.index(calib_beam.replace())', groups, calib_beam)
 
-                for ch in all_channels:
-                    print(ch.attrs)
+                #for ch in all_channels:
+                 #   print(ch.attrs)
                 options['Correction']['Relative calibration'].set(0) 
                 rcalib = False
                 nimp = return_nimp(nimp)
@@ -4166,8 +4177,16 @@ class data_loader:
             if any(ignored_ind):
                 nearest_ind[ignored_ind] |= dist[ignored_ind] < dist[ignored_ind].min()*1.5
             
- 
-            interpl = LinearNDInterpolator(np.c_[calib['t'],calib['r']],np.copy(calib['n']))
+            try:
+                interpl = LinearNDInterpolator(np.c_[calib['t'],calib['r']],np.copy(calib['n']))
+            except:
+                print('Try to run off relative beam calibration!!')
+                options['Correction']['Relative calibration'].set(0) 
+                rcalib = False
+                nimp = return_nimp(nimp)
+                return nimp
+         
+                
             n_calib = interpl(np.c_[other['t'],other['r']][nearest_ind])
             interpl.values[:] = calib['nerr'][:,None]
             nerr_calib = interpl(np.c_[other['t'],other['r']][nearest_ind])
@@ -5465,7 +5484,7 @@ class data_loader:
   
         #fetch data
         output = mds_load(self.MDSconn, TDI_list , tree, self.shot)
-  
+        
 
         if len(output) == 0:
             print('CER data fetching has failed!!')
@@ -5716,12 +5735,12 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
-        if self.shot in [203955, 204112] and analysis_type == 'cerauto':
+        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114] and analysis_type == 'cerauto':
             lineid = ['C VI 8-7'] * len(lineid)
  
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0
-    
+      
         
         for ich,(ch,tind) in enumerate(zip(all_nodes,split_ind)):
             diag = ch.split('.')[-2].lower()
@@ -5791,7 +5810,12 @@ class data_loader:
             
       
             if len(rot[tind]) > 0 and ch not in missing_rot and not all(corrupted):
-               
+                #correction of sign, because HFS channels does not have ROTC!
+                try:
+                    if int(ch.split('.')[-1][7:]) in np.r_[33:37, 49:57] and self.shot > 177400:
+                        rot[tind] *= -1
+                except:
+                    pass
                 corrupted = ~np.isfinite(rot[tind]) | (R[tind]  == 0) | corrupted
                 rot[tind][corrupted] = 0
                 corrupted |= (rot[tind]<-1e10)|(rot_err[tind]<=0)
@@ -5804,15 +5828,13 @@ class data_loader:
                     ds['omega'] = xarray.DataArray(rot[tind],dims=['time'], attrs={'units':'rad/s','label':r'\omega_\varphi'})
                     ds['omega_err'] = xarray.DataArray(rot_err[tind]*unreliable,dims=['time'], attrs={'units':'rad/s'})
                     
-             
-
-  
-
+       
             if 'Ti' in ds or 'omega' in ds:
                 #BUG time can be sometimes not unique 183504 CERFIT
                 ds['time'] = xarray.DataArray(tvec[tind], dims=['time'], attrs={'units':'s'})
                 cer[diag].append(ds)
             else:
+                
                 print('No Ti and omega found for ch: '+ds.attrs['channel'])
         
         
@@ -5902,7 +5924,7 @@ class data_loader:
             hw_lens = [np.zeros_like(z,dtype=int) for z in Z]
   
         for isys, sys in enumerate(systems):
-            if len(tvec) <= isys or len(tvec[isys]) == 0: 
+            if len(tvec) <= isys or len(tvec[isys]) == 0 or not np.any(Te_err[isys]): 
                 ts['systems'].remove(sys)
                 ts[sys] = []
                 continue
@@ -5927,12 +5949,13 @@ class data_loader:
                     
             tvec[isys]/= 1e3   
             rho = self.eqm.rz2rho(R[isys],Z[isys]+zshift,tvec[isys],self.rho_coord)
-
-            #guess corrupted channels
-            ne_mean = np.average(ne[isys], weights = 1/ne_err[isys]+1e-30,axis=1)
             
-            ne_mean_filter = medfilt(np.r_[ne_mean, ne_mean[::-1]], 3)[:len(ne_mean)]
-            corrupted = (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
+            #embed()
+            #guess corrupted channels
+            #ne_mean = np.average(ne[isys], weights = 1/ne_err[isys]+1e-30,axis=1)
+            corrupted = np.zeros_like(ne[isys], dtype='bool')
+            #ne_mean_filter = medfilt(np.r_[ne_mean, ne_mean[::-1]], 3)[:len(ne_mean)]
+            #corrupted |= (abs((ne_mean - ne_mean_filter)/ (ne_mean_filter+1)) > .2)[:,None]&(ne_err[isys] > 0)&(Te_err[isys] > 0)
             #no very cold TS measuremenst with tiny errorbars inside of rho = 0.95
             corrupted |= (Te[isys] < 20.)&np.isfinite(Te_err[isys])&( rho.T < 0.95  )
             corrupted |= (ne[isys] == 1e19)|(  Te[isys] == 100   ) #it has not moved from the initial guess 
@@ -6958,8 +6981,10 @@ class data_loader:
 
             #remove corrupted channels with more than 20% wrong points (usualy in SOL, not important)
             corrupted_tg = np.sum(~np.isfinite(tang_err),0)>tang_err.shape[0]/5.
+            corrupted_tg |=  np.all((tang_err <= 0) | ~np.isfinite(tang_err), 0)
             corrupted_core = np.sum(~np.isfinite(core_err),0)>core_err.shape[0]/5.
-            
+            corrupted_core |= np.all((core_err <= 0) | ~np.isfinite(core_err), 0)
+        
     
             rho = np.hstack((tang_rho[:,~corrupted_tg],core_rho[:,~corrupted_core]))
             rho_sort_ind  = np.argsort(rho,axis=1)
@@ -6987,7 +7012,6 @@ class data_loader:
             opt = minimize(cost_fun,  p0, tol = .0001 )
             corr = np.exp(opt.x)
     
-        
             #correct core system
             #if use_ts_tan:
             for l,c in zip(tang_lasers_list , corr):
