@@ -3610,12 +3610,14 @@ class data_loader:
             n = 0
             beam_fact = beam_data['beam_geom']*beam_data['beam_pow']
             
-            #beam_att[:] = 1
         
             for it,t in enumerate(centroid):
                 
                 Rmid = beam_profiles['Rmid'][it]
                 nt = len(Rmid)
+                if nt < 2:
+                    continue
+                
                 tind = slice(n,n+nt)
                 ind = label == it
                 n += nt
@@ -3628,8 +3630,9 @@ class data_loader:
                 denom_interp = lambda x: np.exp(interp1d(Rmid, np.log(denom_TS_R), copy=False)(x))  # nR x nbeam
 
                 # uncertainties in beam_att_err between species are 100% correlated, we can sum them
+
                 denom_err_interp = interp1d(Rmid, np.sum(nb0.T[:,:,None] * beam_att_err[it] * qeff[:,:,tind], 1))  # nR x nbeam
-           
+             
                 denom = np.sum(beam_fact[:,ind]*denom_interp(R_clip),0)
 
                 denom_err = np.sum(beam_fact[:,ind]*denom_err_interp(R_clip),0)
@@ -5905,6 +5908,8 @@ class data_loader:
         out = mds_load(self.MDSconn, TDI, tree, self.shot)
         out = np.array(out,dtype=object).reshape(-1, len(signals)).T
         ne,ne_err,Te,Te_err,tvec,R,Z,laser,theta, chi2n = out[:10]
+        
+        
         if 'DENSMASK' in signals:
             ne_mask, Te_mask = out[-2:] 
  
