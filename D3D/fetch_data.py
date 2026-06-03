@@ -2331,7 +2331,7 @@ class data_loader:
                     if analysis_type == 'cerauto':# all tang are Ca
                         for i, lid in enumerate(line_id):
                             line_id[i] = 'C VI 8-7'
-                if self.shot in np.r_[203955, 203884:203889, 204107:204115]:
+                if self.shot in np.r_[203955, 203884:203889, 204107:204115,  207512]:
                     for i, lid in enumerate(line_id):
                         if analysis_type == 'cerauto':
                             line_id[i] = 'C VI 8-7'
@@ -2347,13 +2347,16 @@ class data_loader:
                             if d.startswith('O'):
                                 line_id[i] = 'C IV 6-5'
                 #Old Al LBO experiments
-                if self.shot in [175674, 175677,175679, 175671 ]:
-                    if analysis_type == 'cerfit' and imp == 'Al13':
+                if self.shot in [ 207315 ]:
+                    if analysis_type == 'cerfit' :
                         for i, ch in enumerate(loaded_chan):
-                            if ch in ['T42','T44', 'T46', 'T48']:
-                                line_id[i] = 'Al XIII 13-12'
-           
-                                                            
+                            line_id[i] = 'Ne X 11-10'
+                            
+                    if analysis_type == 'cerauto' :
+                        for i, ch in enumerate(loaded_chan):
+                            line_id[i] = 'C VI 8-7'
+                            
+                                                              
                         
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
@@ -5738,8 +5741,10 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
-        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114] and analysis_type == 'cerauto':
+        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114, 207512] and analysis_type == 'cerauto':
             lineid = ['C VI 8-7'] * len(lineid)
+        if self.shot in np.r_[ 207315] and analysis_type == 'cerfit':
+            lineid = ['Ne X 11-10'] * len(lineid)
  
         ulineid = np.unique(lineid)
         multiple_imps = len(ulineid) > 0

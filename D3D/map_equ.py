@@ -4,11 +4,11 @@ __version__ = '1.1'
 __date__ = '14.11.2016'
 
 import numpy as np
-from scipy.ndimage.interpolation import map_coordinates
+#from scipy.ndimage.interpolation import map_coordinates
+from scipy.ndimage import map_coordinates
 from scipy.interpolate import UnivariateSpline, interp1d, InterpolatedUnivariateSpline, LinearNDInterpolator
 import sys,os
-from scipy.integrate import cumulative_trapezoid as cumtrapz
-
+from scipy import integrate
 from IPython import embed
 
 
@@ -80,11 +80,17 @@ class equ_map:
     system = None
     
 
-    def __init__(self, connect, debug=False):
+    def __init__(self, MDSconnect, debug=False, fast_eq=True):
+        """
+        MDSconnect - MDS+ connection object
+        debug - make it verbose
+        fast_eq - use fast AEQDS from PEDESTAL tree for better mappring from R,Z to rho
         
+        """
         self.eq_open = False
         self.debug = debug
-        self.sf = connect
+        self.sf = MDSconnect
+        self.fast_eq = fast_eq
 
         
     def Open(self, shot, diag='EFIT01', exp='D3D',ed=0):
@@ -125,12 +131,16 @@ class equ_map:
             
         self.gEQDSK = root+gEQDSK+'.'
         self.aEQDSK = root+aEQDSK+'.'
+        self.root = root
 
         self.comment = ''
         try:
-
-            self.sf.openTree(diag,shot)
-            self.shot = shot
+            #CAKE equilibrium
+            _shot =  shot * 100 + 1 if diag == 'EFIT' else shot
+                
+                
+            self.sf.openTree(diag,_shot)
+            self.shot = _shot
             self.diag = diag
             self.exp = exp
 
@@ -141,6 +151,8 @@ class equ_map:
             # Time grid of equilibrium shotfile
             self.t_eq  = np.atleast_1d(self.sf.get(self.gEQDSK+'GTIME').data()*time_scale)
             self.valid = np.ones_like(self.t_eq,dtype='bool')
+    
+
             try:
                 self.comment  = self.sf.get('\\'+diag+'::TOP.COMMENTS').data()
             except:
@@ -155,12 +167,30 @@ class equ_map:
                 
             except:
                 print('aEQDSK loading issue')
-                
+               
+                       
+            self.ip = self.sf.get(self.gEQDSK+'CPASMA').data()[self.valid]
+            self.orientation = np.sign(np.mean(self.ip))  #current orientation
                 
             if len(self.t_eq) < 2: raise Exception('too few valid timepoints in equlibrium')
+            
+      
+
+            try:
+                if self.fast_eq:
+                    self.sf.openTree('PEDESTAL', shot)
+                    self.aEQDSK_fast = '\\PEDESTAL::TOP.ELM.FASTEQ.AEQDSK.'
+                    self.t_eq_fast = self.sf.get(self.aEQDSK_fast+'ATIMEF').data()*time_scale
+                    self._read_scalars_fast()
+            except:
+                self.fast_eq = False
+            finally:
+                self.sf.openTree(diag, _shot)
+
             self.eq_open = True
 
         except Exception as e:
+            raise
             print(("loading of equilibrium %s was not successful"%diag, e))
         
         return self.eq_open
@@ -203,11 +233,12 @@ class equ_map:
             return
 
         if self.debug: print('Reading PFM matrix')
+
         try:
-            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
+            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*(2*np.pi * self.orientation)
         except:
             self.sf.openTree(self.diag,self.shot)
-            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*2*np.pi
+            self.pfm = self.sf.get(self.gEQDSK+'PSIRZ',timeout=-1).data().T[:,:,self.valid]*(2*np.pi * self.orientation)
 
             
             
@@ -242,6 +273,104 @@ class equ_map:
         except:
             pass
 
+
+    def _read_scalars_fast(self):
+        
+        #fast data needed for correction of slow equilibria
+ 
+        gapf = np.array(( self.sf.get(self.aEQDSK_fast + 'GAPINF'), 
+                         -self.sf.get(self.aEQDSK_fast + 'GAPOUTF'),
+                          self.sf.get(self.aEQDSK_fast + 'GAPTOPF'),
+                         -self.sf.get(self.aEQDSK_fast + 'GAPBOTF')))
+      
+        
+        #r0F = self.sf.get(self.aEQDSK_fast + 'R0F')
+        #z0F = self.sf.get(self.aEQDSK_fast + 'Z0F')
+        
+        self.sf.openTree(self.diag, self.shot)
+        limiter = self.sf.get(self.gEQDSK+'LIM').data()
+        valid_limiter = limiter[:,0] > 0
+        self.limiter = limiter[valid_limiter]
+        
+               
+        rmin = self.limiter[:,0].min()
+        rmax = self.limiter[:,0].max()
+
+        zmin = self.limiter[:,1].min()
+        zmax = self.limiter[:,1].max()
+        
+        limits = np.array((rmin, rmax, zmin, zmax))
+        
+        
+        #slow data
+        gap = np.array(( self.sf.get(self.aEQDSK + 'GAPIN'), 
+                        -self.sf.get(self.aEQDSK + 'GAPOUT'),
+                         self.sf.get(self.aEQDSK + 'GAPTOP'),
+                        -self.sf.get(self.aEQDSK + 'GAPBOT')))
+        
+        #use nearest neighbour interpolation to mimic time interpolation used in the rest of the code
+        gap = interp1d(self.t_eq,  gap[:,self.valid], assume_sorted=True, kind='nearest',
+                       bounds_error=False, fill_value='extrapolate')(self.t_eq_fast)
+        
+ 
+        #separatrix location at in,out,top,bot
+        sepf = limits[:,None] + gapf
+        sep  = limits[:,None] + gap
+ 
+        from scipy.signal import butter, filtfilt
+        def lowpass(y, order=4):
+      
+            fs = (len(self.t_eq_fast)-1) / (self.t_eq_fast[-1]-self.t_eq_fast[0])
+            fc =  (len(self.t_eq)-1) / (self.t_eq[-1]-self.t_eq[0])
+            #reduce frequency to add more smooting 
+            fc /= 5
+
+            b, a = butter(order, fc, btype='low', fs=fs)
+          
+            return filtfilt(b, a, y)
+
+        
+        #Assume that this represents exact fast separatrix location
+        sep_corr = (sepf - lowpass(sepf)) + lowpass(sep)
+        
+        #convert to dimensionaless position
+        #x = (R - sep_corr[0]) / (sep_corr[1] - sep_corr[0])
+        #y = (Z - sep_corr[2]) / (sep_corr[3] - sep_corr[2])
+        
+
+        #transform back in actual position of the used PSIN matrix  
+        #R_ = x * (sep[1] - sep[0]) + sep[0]
+        #Z_ = y * (sep[3] - sep[2]) + sep[2]
+      
+       
+        #scale and offset for R and Z location
+        scale = (sep[[1,3]] - sep[[0,2]]) / (sep_corr[[1,3]] - sep_corr[[0,2]])        
+        offset = - sep_corr[[0,2]] / (sep_corr[[1,3]] - sep_corr[[0,2]]) * (sep[[1,3]] - sep[[0,2]]) + sep[[0,2]]
+
+        self.sep_transformation = np.array((scale, offset))
+         
+  
+        
+        
+    def transformation_fast(self, tvec, R, Z):
+        """
+        Make R,Z transformation such that the separatrix location will match the corrected fast location
+        """
+        
+        if not self.fast_eq:
+            return R, Z
+        
+        scale, offset = interp1d(self.t_eq_fast,  self.sep_transformation, fill_value='extrapolate', 
+                                 assume_sorted=True, kind='nearest', bounds_error = False)(tvec)
+        
+        R_ = (R.T * scale[0] + offset[0]).T
+        Z_ = (Z.T * scale[1] + offset[1]).T
+    
+        return R_, Z_
+        
+         
+
+
     def _read_scalars(self):
 
         """
@@ -262,10 +391,9 @@ class equ_map:
         #self.Ip = self.sf.get(self.gEQDSK+'CPASMA').data()
 
 # Pol. flux at mag axis, separatrix
-        self.psi0 = self.sf.get(self.gEQDSK+'SSIMAG').data()[self.valid]*2*np.pi
-        self.psix = self.sf.get(self.gEQDSK+'SSIBRY').data()[self.valid]*2*np.pi
-        self.ip = self.sf.get(self.gEQDSK+'CPASMA').data()[self.valid]
-        self.orientation = 1#np.sign(np.mean(self.Ip))  #current orientation
+
+        self.psi0 = self.sf.get(self.gEQDSK+'SSIMAG').data()[self.valid]*(2*np.pi * self.orientation)
+        self.psix = self.sf.get(self.gEQDSK+'SSIBRY').data()[self.valid]*(2*np.pi * self.orientation)
         self.Bt = self.sf.get(self.gEQDSK+'BCENTR').data()[self.valid]
         self.R0 = np.mean(self.sf.get(self.gEQDSK+'RZERO').data())#[self.valid]
         self.BR = self.Bt/self.R0
@@ -292,29 +420,25 @@ class equ_map:
         from scipy.constants import mu_0
 
 
-        PSIN = self.sf.get(self.gEQDSK+'PSIN').data()
- 
-        ##try:
-            ##V0  = self.sf.get('\\'+self.system+'::TOP.RESULTS.aEQDSK.VOLUME').data()[self.valid,None]  
-        ##except:
-        V0 = 1#BUG!!! total volume of the plasma
-
-        #import IPython 
-        #IPython.embed()
+        self.PSIN = self.sf.get(self.gEQDSK+'PSIN').data()
+  
+   
+         
 # Profiles
-        self.pf  = (np.outer(PSIN,(self.psix-self.psi0))+self.psi0)
+        self.pf  = (np.outer(self.PSIN,(self.psix-self.psi0))+self.psi0)
+        
+        
         q   = self.sf.get(self.gEQDSK+'QPSI').data()#[self.valid].T
-        vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()**2 #BUG it is wrong!!!
         fpol  = self.sf.get(self.gEQDSK+'FPOL').data()/mu_0*2*np.pi
     
         if q.shape[0] == len(self.valid):
             q =  q.T
-            vol =  vol.T
+            #vol =  vol.T
             fpol = fpol.T
  
         
         self.q =  q[:,self.valid]
-        self.vol =  vol[:,self.valid]
+        #self.vol =  vol[:,self.valid]
         self.fpol = fpol[:,self.valid]
         
         if self.exp == 'D3D':
@@ -327,15 +451,24 @@ class equ_map:
             except:
                 pass
     
-        
-        #self.ffp = self.sf.get(self.gEQDSK+'FFPRIM').data()[self.valid].T
-        #self.ppp = self.sf.get(self.gEQDSK+'PPRIME').data()[self.valid].T
-#x        #self.pres  = self.sf.get(self.gEQDSK+'PRES').data()[self.valid].T
-
-        #self.vol  =  V0*self.sf.get(self.gEQDSK+'RHOVN').data()[self.valid].T**2
-
+ 
         #The toroidal flux PHI can be found by recognizing that the safety factor is the ratio of the differential toroidal and poloidal fluxes
-        self.tf = cumtrapz(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0) #normalised toroidal flux is self.gEQDSK+'RHOVN'
+        self.tf = integrate.cumulative_trapezoid(np.sign(self.ip)*np.sign(self.Bt)*self.q,self.pf,initial=0,axis=0) #normalised toroidal flux is self.gEQDSK+'RHOVN'
+
+        self.vol = np.zeros_like(self.q)
+        try:
+            #get plasma volume
+            vol_ = self.sf.get(self.root+'FLUXFUN:VOL').data()
+            rho_ = self.sf.get(self.root+'FLUXFUN:RHO').data()
+            rho = np.sqrt((self.tf-self.tf[0])/(self.tf[-1]-self.tf[0]))
+            for i, (r,v) in enumerate(zip(rho_,vol_)):
+                if np.all(r == 0): continue
+                self.vol[:,i] = np.interp(rho[:,i], rho_[:,i], vol_[:,i])
+        except Exception as e:
+            print('Plasma volume was not availible', e)
+                
+      
+
     
     def _get_nearest_index(self, tarr):
 
@@ -593,9 +726,10 @@ class equ_map:
         for i in unique_idx:
 
             Phi = self.pfm[...,i]
-
-            Br = -np.diff(Phi, axis=1)/(self.Rmesh[:, None]) 
-            Bz =  np.diff(Phi, axis=0)/(.5*(self.Rmesh[1:] + self.Rmesh[:-1])[:, None])
+            
+            #BUG is the sign correct??
+            Br = np.diff(Phi, axis=1)/(self.Rmesh[:, None]) 
+            Bz = -np.diff(Phi, axis=0)/(.5*(self.Rmesh[1:] + self.Rmesh[:-1])[:, None])
             Bt = np.interp(Phi, self.pf[:, i], self.fpol[:, i])*mu_0/self.Rmesh[:, None]
 
             jt = idx == i
@@ -661,7 +795,7 @@ class equ_map:
         nt_in = np.size(tarr)
         if r_in.shape!= z_in.shape:
             raise Exception( 'Not equal shape of z_in and r_in %s,%s'\
-                            %(str(z_in.shape), str(z_in.shape)) )
+                            %(str(r_in.shape), str(z_in.shape)) )
 
         if np.size(r_in,0) != nt_in and np.size(r_in,0) != 1:
             r_in = r_in[None]
@@ -670,6 +804,9 @@ class equ_map:
         if np.size(r_in, 0) == 1:
             r_in = np.broadcast_to(r_in, (nt_in,)+r_in.shape[1:]) 
             z_in = np.broadcast_to(z_in, (nt_in,)+z_in.shape[1:]) 
+            
+        
+        r_in, z_in = self.transformation_fast(t_in, r_in, z_in)
  
         self._read_pfm()
         Psi = np.empty((nt_in,)+r_in.shape[1:], dtype=np.single)
@@ -939,13 +1076,7 @@ class equ_map:
         line_z = t*np.sin(theta_in) + z_in
         rho_line = self.rz2rho(line_r, line_z, self.t_eq[unique_idx],
                                coord_out=coord_in, extrapolate=True)
-        #from matplotlib.pylab import *
-
-        #plot(rho_line)
-        #show()
-        
-        #import IPython 
-        #IPython.embed()
+    
         if coord_in == 'Psi':
             rho_line *= self.orientation
             rho      *= self.orientation
@@ -1007,7 +1138,6 @@ class equ_map:
             return
 
         self._read_scalars()
-        self.read_ssq()
 
         if t_in is None:
             t_in = self.t_eq
@@ -1104,8 +1234,7 @@ class equ_map:
         theta = np.linspace(0, 2*np.pi, n_theta, endpoint=False)
         #print rho
         magr, magz = self.rhoTheta2rz(rho, theta, t_in=t_in, coord_in='rho_pol')
-        #plt.plot(np.squeeze( magr),np.squeeze( magz))
-        #plt.show()
+       
         
         magr, magz = magr[0].T, magz[0].T
         
@@ -1130,6 +1259,8 @@ class equ_map:
         
         theta = np.unwrap(theta - theta[:, (0, )], axis=1)
         
+        from scipy.integrate import cumtrapz
+
 # Definition of the theta star by integral
         theta_star = cumtrapz(dtheta_star, theta, axis=1, initial=0)
         correction = (n_theta - 1.)/n_theta
@@ -1168,21 +1299,22 @@ if __name__ == "__main__":
 
     from time import time
     
-    from map_equ import equ_map,get_gc 
+    #from map_equ import equ_map,get_gc 
     import matplotlib.pylab as plt
     
     
     mds_server = "atlas.gat.com"
+    mds_server = "localhost"
 
     import MDSplus as mds
     c = mds.Connection(mds_server )
 
     
-    eqm = equ_map(c,debug=False)
+    eqm = equ_map(c,debug=False, fast_eq=True)
     
     
     
-    eqm.Open(175699,diag='EFIT04')
+    eqm.Open(203886,diag='EFIT01')
     
     
     eqm._read_profiles()
@@ -1344,6 +1476,7 @@ if __name__ == "__main__":
 
 
     plt.show()
+
 
 
 
