@@ -842,7 +842,7 @@ def default_settings(MDSconn, shot):
             imps = ['C6']
     
     #exception data from impurity ion CER
-    if shot in np.r_[183188,   196025, 200650: 200670, 205859, 206014:206016]:
+    if shot in np.r_[183188,   196025, 200650: 200670, 205859, 206014:206016, 206522]:
         imps.append('Li3')
     if shot == 194311:
         imps.append('Kr27')
@@ -2337,7 +2337,7 @@ class data_loader:
                     if analysis_type == 'cerauto':# all tang are Ca
                         for i, lid in enumerate(line_id):
                             line_id[i] = 'C VI 8-7'
-                if self.shot in np.r_[203955, 203884:203889, 204107:204115,  207512]:
+                if self.shot in np.r_[203955, 203884:203889, 204107:204115,  207512, 207547]:
                     for i, lid in enumerate(line_id):
                         if analysis_type == 'cerauto':
                             line_id[i] = 'C VI 8-7'
@@ -2363,7 +2363,7 @@ class data_loader:
                             line_id[i] = 'C VI 8-7'
                             
                                                               
-                        
+                    
                 imp_name, charge = re.sub("\d+", '', imp), re.sub('\D', '', imp)
                 r_charge = int2roman(int(charge))
                 
@@ -5750,7 +5750,7 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
-        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114, 207512] and analysis_type == 'cerauto':
+        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114, 207512,207547] and analysis_type == 'cerauto':
             lineid = ['C VI 8-7'] * len(lineid)
         if self.shot in np.r_[ 207315] and analysis_type == 'cerfit':
             lineid = ['Ne X 11-10'] * len(lineid)
@@ -6095,7 +6095,7 @@ class data_loader:
             horiz_rho = self.eqm.rz2rho(R_midplane, Z0+0*R_midplane,
                                         TS['core']['time'].values,coord_out=self.rho_coord)
 
-      
+        R_shift = 0
         refl['diag_names'] = Tree()
 
         for band, (tvec,ne, R) in zip(bands, out):
