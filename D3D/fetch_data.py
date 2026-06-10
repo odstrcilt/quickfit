@@ -129,8 +129,14 @@ def read_adf12(file,block, ein, dens, tion, zeff):
                         if not len(values):
                             continue
                         data += values.tolist()
-                    cer_line[name] = data       
-
+                    cer_line[name] = np.array(data)       
+    
+ 
+    assert cer_line['qener'][cer_line['ener'] == cer_line['parmref'][0]] == cer_line['qefref'], 'corrupted ADF12 file!!'
+    assert cer_line['qtiev'][cer_line['tiev'] == cer_line['parmref'][1]] == cer_line['qefref'], 'corrupted ADF12 file!!'
+    assert cer_line['qdensi'][cer_line['densi'] == cer_line['parmref'][2]] == cer_line['qefref'], 'corrupted ADF12 file!!'
+    assert cer_line['qzeff'][cer_line['zeff'] == cer_line['parmref'][3]] == cer_line['qefref'], 'corrupted ADF12 file!!'
+ 
     #interpolate in logspace
     lqefref = np.log(cer_line['qefref'])
     lnq = np.zeros(np.broadcast(ein, dens, tion, zeff).shape)
@@ -3350,7 +3356,7 @@ class data_loader:
             qeff_th = qeff2_th = qeff2 = 0
             qeff = None
           
-            if line_id  in ['B V 7-6','C VI 8-7','He II 4-3','Ne X 11-10','N VII 9-8']:
+            if line_id  in ['B V 7-6','C VI 8-7','He II 4-3','N VII 9-8', 'Ne X 11-10']:
                 #CX data from AUG
                 
                 #from Rachael McDermott's paper
@@ -3395,7 +3401,7 @@ class data_loader:
                 
 
                 
-            elif line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2','Ne X 4-3']:
+            elif line_id in ['He II 2-1', 'B V 3-2','C VI 3-2', 'NVII 3-2','OVIII 3-2',  'Ne X 4-3']:
                 #SPRED lines
                 
                 
@@ -3420,7 +3426,7 @@ class data_loader:
                 
                 
             
-            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3','Ne8', 'Ne9', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25', 'Ca13', 'Ar13']:
+            elif imp in ['Ca18','Ar18','Ar17','Ar16','F9', 'C4', 'C6', 'B5',  'Li3','Ne8', 'Ne9', 'Ne10', 'O8', 'N7', 'Al13','Si14', 'Kr25','Kr27','Ni25', 'Ca13', 'Ar13']:
 
                 atom_files = { 'Kr25': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
                                'Kr27': ('qef07#h_arf#ar18.dat', 'qef07#h_arf#ar18_n2.dat'), #we don't have Kr CX data!!
@@ -3440,9 +3446,10 @@ class data_loader:
                                  'B5': ('qef93#h_b5.dat',       'qef97#h_en2_kvi#b5.dat'),
                                  #'C6': ('qef93#h_c6.dat',       'qef97#h_en2_kvi#c6.dat'),
                                  'C6': ('qef12#h_c6.dat',      'qef12#h_c6_n2.dat'),        #From Igenbergs
-                                 'O8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
-                                 'Ne8': ('qef93#h_o8.dat',       'qef07#h_en2_arf#o8.dat'),  #O n=10−9 (606.85 nm)
-                                'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
+                                 'O8': ('qef93#h_o8.dat',     None),  #O n=10−9 (606.85 nm)
+                                 'Ne8': ('qef93#h_o8.dat',      None),  #O n=10−9 (606.85 nm)
+                                 'Ne10': ('qef93#h_ne10.dat', 'qef97#h_en2_kvi#ne10.dat'), 
+                                 'Li3': ('qef07#h_arf#li3.dat',  'qef97#h_en2_kvi#li3.dat')}
                 
      
  
@@ -3461,6 +3468,7 @@ class data_loader:
                           'Li3':{ '3-1':[7,7], '7-5':[11,11]},
                           'O8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
                           'Ne8': {'12-10': [16,None], '9-8': [5,1],'10-9': [6,2]}, 
+                          'Ne10': {'11-10': [6 ,5], }, 
                           'Al13': {'12-11': [2,None],'13-12': [3,None]},
                           'Ca13': {'12-11': [2,None],'13-12': [3,None]},
                           'Ar13': {'12-11': [2,None],'13-12': [3,None]},
@@ -3481,7 +3489,8 @@ class data_loader:
    
                 if file2 is not None and block2 is not None:
                     qeff2 = read_adf12(path+file2,block2, erel, nion, ti, zeff)
-                
+  
+
                 if imp == 'Ca18' and transition=='15-14': #compensate discrepancy between 15-14 and 16-15 line
                     qeff /= 0.81
                     qeff2 /= 0.81
