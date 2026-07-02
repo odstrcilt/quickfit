@@ -2325,7 +2325,7 @@ class data_loader:
                     if analysis_type == 'cerauto':# nickel
                         for i in range(8,12):
                             line_id[i] = 'Ni XXV 20-19'
-                if self.shot in [201677, 203948, 204112]:
+                if self.shot in [201677, 203948, 204112, 207963, 207957]:
                     if analysis_type == 'cerauto':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'C VI 8-7'
@@ -2333,11 +2333,8 @@ class data_loader:
                     if analysis_type == 'cerfit':# all carbon
                         for i in range(len(line_id)):
                             line_id[i] = 'Al XIII 13-12'
-                if self.shot in [204510, 204509]: 
-                    if analysis_type == 'cerauto':# all tang are Ca
-                        for i, lid in enumerate(line_id):
-                            line_id[i] = 'C VI 8-7'
-                if self.shot in np.r_[203955, 203884:203889, 204107:204115,  207512, 207547]:
+            
+                if self.shot in np.r_[204510, 204509, 203955, 203884:203889, 204107:204115,  207512, 207547, 207956:207966]:
                     for i, lid in enumerate(line_id):
                         if analysis_type == 'cerauto':
                             line_id[i] = 'C VI 8-7'
@@ -5750,8 +5747,10 @@ class data_loader:
         
         if self.shot == 194073 and analysis_type == 'cerfit':
             lineid = ['C VI 8-7'] * len(lineid)
-        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114, 207512,207547] and analysis_type == 'cerauto':
+            
+        if self.shot in np.r_[203955, 204112, 203884:203889, 204107:204114, 207512,207547, 207956:207966] and analysis_type == 'cerauto':
             lineid = ['C VI 8-7'] * len(lineid)
+            
         if self.shot in np.r_[ 207315] and analysis_type == 'cerfit':
             lineid = ['Ne X 11-10'] * len(lineid)
  
