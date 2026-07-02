@@ -3131,12 +3131,14 @@ class data_loader:
         for it,t in enumerate(centroid):
             # Calculate dl along the chord
             Rtang2 = np.square(nbi_dict['Rtang'])
-            Rgrid = beam_profiles['Rmid'][it]
+            Rgrid = np.maximum(beam_profiles['Rmid'][it], nbi_dict['Rtang'].max())
 
             Rmax = Rgrid[0]
-            
+            #try:
             # Perform the calculation for each beam
-            dllencm = (np.sqrt(Rgrid[:-1,None]**2-Rtang2)-np.sqrt(Rgrid[1:,None]**2-Rtang2)) * 1.0e2 
+            dllencm = (np.sqrt(Rgrid[:-1,None]**2-Rtang2)-np.sqrt(Rgrid[1:,None]**2-Rtang2)) * 1.0e2
+            #except:
+               # embed() 
             # lenth in cm!
 
             omega = beam_profiles['omega'][it] # rad/s
